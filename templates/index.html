@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <title>Insider AI Search</title>
+    <link href="/static/style.css" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+
+<body>
+
+<div class="page">
+
+    <!-- HERO -->
+    <section class="hero">
+
+        <div class="hero-content">
+
+            <h1 class="headline">
+                Insider Market Intelligence
+            </h1>
+
+            <p class="subtitle">
+                Analyze executive trades, insider activity, and market signals in real time.
+            </p>
+
+            <!-- FORM -->
+            <form class="prompt-form" method="POST">
+
+                <div class="prompt-container">
+                    <!-- DROPDOWN -->
+                    <select class="ai-dropdown" name="symbol" required>
+
+                        <option disabled selected value="">
+                            Select a company to analyze...
+                        </option>
+
+                        {% for symbol, name in companies.items() %}
+                        <option value="{{ symbol }}">
+                            {{ name }}
+                        </option>
+                        {% endfor %}
+
+                    </select>
+
+                    <!-- SUBMIT -->
+                    <button class="submit-btn" type="submit">
+                        →
+                    </button>
+
+                </div>
+
+            </form>
+
+            <!-- QUICK ACTIONS -->
+            <div class="quick-actions">
+
+                <button class="action-btn" type="button">
+                    <i data-lucide="badge-dollar-sign"></i>
+                    Tickers
+                </button>
+
+                <button class="action-btn" type="button">
+                    <i data-lucide="user"></i>
+                    CEOs
+                </button>
+
+                <button class="action-btn" type="button">
+                    <i data-lucide="trending-up"></i>
+                    Large Buys
+                </button>
+
+                <button class="action-btn" type="button">
+                    <i data-lucide="building-2"></i>
+                    Industry Sectors
+                </button>
+
+                <button class="action-btn" type="button">
+                    <i data-lucide="file-text"></i>
+                    Recent Filings
+                </button>
+
+            </div>
+
+            <!-- CHIPS -->
+            <div class="prompt-chips">
+
+                <button class="chip" type="button">
+                    Tech CEO massive stock sells
+                </button>
+
+                <button class="chip" type="button">
+                    Unusual buying activity this week
+                </button>
+
+                <button class="chip" type="button">
+                    Biotech insider trends
+                </button>
+
+            </div>
+
+        </div>
+
+    </section>
+
+    <!-- RESULTS -->
+    <section class="results-section">
+        {% if data and data.transactions %}
+        <div class="results-header">
+            <h2>
+                {{ data.name }} ({{ data.symbol }})
+            </h2>
+            <p>
+                Insider transaction activity
+            </p>
+        </div>
+        <div class="results-grid">
+            {% for t in data.transactions %}
+            <div class="result-card">
+                <div class="card-top">
+                    <div>
+                        <h3>{{ t.executive }}</h3>
+                        <span class="title">
+                            {{ t.title }}
+                        </span>
+                    </div>
+
+                    <span class="{{ 'buy' if t.type == 'Buy' else 'sell' }}">
+                        {{ t.type }}
+                    </span>
+                </div>
+                <div class="card-details">
+                    <div class="detail-item">
+                        <span>Date</span>
+                        <strong>{{ t.date }}</strong>
+                    </div>
+
+                    <div class="detail-item">
+                        <span>Shares</span>
+                        <strong>{{ t.shares }}</strong>
+                    </div>
+
+                    <div class="detail-item">
+                        <span>Price</span>
+                        <strong>${{ t.price }}</strong>
+                    </div>
+
+                    <div class="detail-item">
+                        <span>Security</span>
+                        <strong>{{ t.security }}</strong>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-results">
+            <div class="empty-icon">✨</div>
+            <h2>Insider market intelligence</h2>
+            <p>Select a company above to explore executive trades, unusual insider activity, and filing trends.</p>
+        </div>
+        {% endif %}
+    </section>
+</div>
+<div class="ticker-wrapper">
+    <div class="ticker" id="ticker"></div>
+    <div class="modal hidden" id="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">×</span>
+            <h2 id="modal-title"></h2>
+            <canvas id="chart"></canvas>
+
+        </div>
+    </div>
+</div>
+<script>
+    lucide.createIcons();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+    let tickerDiv = document.getElementById("ticker");
+
+    // 🔥 preload skeleton immediately
+    function showSkeleton() {
+        tickerDiv.innerHTML = "";
+
+        const skeletons = Array(10).fill(0).map(() => {
+            return `
+                <div class="ticker-item skeleton">
+                    <span>LOADING</span>
+                    <span>--</span>
+                </div>
+            `;
+        });
+
+        tickerDiv.innerHTML = skeletons.join("");
+    }
+
+    showSkeleton();
+    async function loadTicker() {
+    const res = await fetch("/api/stocks");
+    const json = await res.json();
+
+    const data = json.data;
+
+    tickerDiv.innerHTML = "";
+
+    // IMPORTANT: already ordered from backend
+    data.forEach(item => {
+
+        const symbol = item.symbol;
+        const price = item.price;
+        const change = item.change;
+
+        const color = change >= 0 ? "green" : "red";
+
+        const div = document.createElement("div");
+        div.className = "ticker-item";
+
+        div.innerHTML = `
+            <span>${symbol}</span>
+            <span style="color:${color}">
+                ${price}
+            </span>
+        `;
+
+        tickerDiv.appendChild(div);
+    });
+}
+    setInterval(loadTicker, 3000);
+    setTimeout(loadTicker, 500);
+    loadTicker();
+
+    // PAUSE ON HOVER
+    tickerDiv.addEventListener("mouseenter", () => {
+        tickerDiv.style.animationPlayState = "paused";
+    });
+
+    tickerDiv.addEventListener("mouseleave", () => {
+        tickerDiv.style.animationPlayState = "running";
+    });
+
+    // MODAL
+    function openChart(symbol) {
+        document.getElementById("modal").classList.remove("hidden");
+        document.getElementById("modal-title").innerText = symbol;
+
+        loadChart(symbol);
+    }
+
+    function closeModal() {
+        document.getElementById("modal").classList.add("hidden");
+    }
+
+    // SIMPLE DEMO CHART
+    function loadChart(symbol) {
+        const ctx = document.getElementById("chart").getContext("2d");
+
+        new Chart(ctx, {
+            type: "line",
+            data: {
+                labels: ["1", "2", "3", "4", "5"],
+                datasets: [{
+                    label: symbol,
+                    data: [10, 12, 9, 14, 13],
+                    borderColor: "blue"
+                }]
+            }
+        });
+    }
+</script>
+</body>
+</html>

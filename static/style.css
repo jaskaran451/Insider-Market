@@ -81,15 +81,27 @@ body {
 }
 
 /* QUICK ACTIONS */
-.quick-actions {
+.panel-wrapper {
     margin-top: 30px;
     display: flex;
     justify-content: center;
     gap: 12px;
     flex-wrap: wrap;
+    transition: transform 0.5s ease;
+    position: sticky;
+    backdrop-filter: blur(12px);
+    top: 0;
+
+    z-index: 9999;
+
+    background: white; /* IMPORTANT */
+    border-bottom: 1px solid #eee;
+
+    padding: 10px 0;
 }
 
-.action-btn {
+
+.panel {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -104,10 +116,59 @@ body {
     transition: 0.2s ease;
 
     font-size: 14px;
+    flex-shrink: 0;
+}
+/* states controlled via JS */
+.show-insider {
+    transform: translateX(0%);
+}
+
+.show-ceo {
+    transform: translateX(-100%);
+}
+
+.show-buys {
+    transform: translateX(-200%);
 }
 
 .action-btn:hover {
     background: #f3f4f6;
+}
+
+.results-section {
+    transition:
+        transform 0.4s ease,
+        opacity 0.4s ease;
+}
+
+/* slide OUT */
+.slide-out {
+    transform: translateX(-80px);
+    opacity: 0;
+}
+
+/* slide IN */
+.slide-in {
+    transform: translateX(0);
+    opacity: 1;
+}
+
+.content-section {
+    transition:
+        opacity 0.3s ease,
+        transform 0.3s ease;
+}
+
+.hidden {
+    display: none;
+    opacity: 0;
+    transform: translateX(30px);
+}
+
+.active {
+    display: block;
+    opacity: 1;
+    transform: translateX(0);
 }
 
 /* CHIPS */
@@ -311,7 +372,6 @@ body {
     bottom: 0;
     width: 100%;
     background: #0f172a;
-    overflow: hidden;
     border-top: 1px solid #1e293b;
 }
 
@@ -346,7 +406,6 @@ body {
     bottom: 0;
     width: 100%;
     background: #0b1220;
-    overflow: hidden;
     border-top: 1px solid #1e293b;
 }
 

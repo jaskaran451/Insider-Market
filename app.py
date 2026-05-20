@@ -19,13 +19,9 @@ def home():
     data = None
 
     if request.method == "POST":
-
         symbol = request.form.get("symbol")
-
         company_name = COMPANY_MAP.get(symbol, "Unknown Company")
-
         url = f"https://www.alphavantage.co/query?function=INSIDER_TRANSACTIONS&symbol={symbol}&apikey={API_KEY}"
-
         response = requests.get(url)
         json_data = response.json()
 

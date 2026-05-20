@@ -7,36 +7,29 @@
     <link href="/static/style.css" rel="stylesheet">
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
-</head>
 
+</head>
 <body>
 
 <div class="page">
 
     <!-- HERO -->
     <section class="hero">
-
         <div class="hero-content">
-
             <h1 class="headline">
                 Insider Market Intelligence
             </h1>
-
             <p class="subtitle">
                 Analyze executive trades, insider activity, and market signals in real time.
             </p>
-
             <!-- FORM -->
             <form class="prompt-form" method="POST">
-
                 <div class="prompt-container">
                     <!-- DROPDOWN -->
                     <select class="ai-dropdown" name="symbol" required>
-
                         <option disabled selected value="">
                             Select a company to analyze...
                         </option>
-
                         {% for symbol, name in companies.items() %}
                         <option value="{{ symbol }}">
                             {{ name }}
@@ -55,31 +48,16 @@
             </form>
 
             <!-- QUICK ACTIONS -->
-            <div class="quick-actions">
-
-                <button class="action-btn" type="button">
-                    <i data-lucide="badge-dollar-sign"></i>
-                    Tickers
+            <div class="panel-wrapper">
+                <button onclick="showSection('insider-section')" class="panel active" id="insider">
+                    Insider Activity
                 </button>
 
-                <button class="action-btn" type="button">
-                    <i data-lucide="user"></i>
-                    CEOs
-                </button>
-
-                <button class="action-btn" type="button">
-                    <i data-lucide="trending-up"></i>
+                <button onclick="showSection('largebuys-section')" class="panel" id="buys">
                     Large Buys
                 </button>
-
-                <button class="action-btn" type="button">
-                    <i data-lucide="building-2"></i>
-                    Industry Sectors
-                </button>
-
-                <button class="action-btn" type="button">
-                    <i data-lucide="file-text"></i>
-                    Recent Filings
+                <button onclick="showSection('fillings-section')" class="panel" id="fillings">
+                    Recent Fillings
                 </button>
 
             </div>
@@ -106,63 +84,77 @@
     </section>
 
     <!-- RESULTS -->
-    <section class="results-section">
-        {% if data and data.transactions %}
-        <div class="results-header">
-            <h2>
-                {{ data.name }} ({{ data.symbol }})
-            </h2>
-            <p>
-                Insider transaction activity
-            </p>
-        </div>
-        <div class="results-grid">
-            {% for t in data.transactions %}
-            <div class="result-card">
-                <div class="card-top">
-                    <div>
-                        <h3>{{ t.executive }}</h3>
-                        <span class="title">
-                            {{ t.title }}
+    <section class="results-section" id="resultsSection">
+        <div id="insider-section" class="content-section active">
+            {% if data and data.transactions %}
+            <div class="results-header">
+                <h2>
+                    {{ data.name }} ({{ data.symbol }})
+                </h2>
+                <p>
+                    Insider transaction activity
+                </p>
+            </div>
+            <div class="results-grid">
+                {% for t in data.transactions %}
+                <div class="result-card">
+                    <div class="card-top">
+                        <div>
+                            <h3>{{ t.executive }}</h3>
+                            <span class="title">
+                                {{ t.title }}
+                            </span>
+                        </div>
+
+                        <span class="{{ 'buy' if t.type == 'Buy' else 'sell' }}">
+                            {{ t.type }}
                         </span>
                     </div>
+                    <div class="card-details">
+                        <div class="detail-item">
+                            <span>Date</span>
+                            <strong>{{ t.date }}</strong>
+                        </div>
 
-                    <span class="{{ 'buy' if t.type == 'Buy' else 'sell' }}">
-                        {{ t.type }}
-                    </span>
-                </div>
-                <div class="card-details">
-                    <div class="detail-item">
-                        <span>Date</span>
-                        <strong>{{ t.date }}</strong>
-                    </div>
+                        <div class="detail-item">
+                            <span>Shares</span>
+                            <strong>{{ t.shares }}</strong>
+                        </div>
 
-                    <div class="detail-item">
-                        <span>Shares</span>
-                        <strong>{{ t.shares }}</strong>
-                    </div>
+                        <div class="detail-item">
+                            <span>Price</span>
+                            <strong>${{ t.price }}</strong>
+                        </div>
 
-                    <div class="detail-item">
-                        <span>Price</span>
-                        <strong>${{ t.price }}</strong>
-                    </div>
-
-                    <div class="detail-item">
-                        <span>Security</span>
-                        <strong>{{ t.security }}</strong>
+                        <div class="detail-item">
+                            <span>Security</span>
+                            <strong>{{ t.security }}</strong>
+                        </div>
                     </div>
                 </div>
+                {% endfor %}
             </div>
-            {% endfor %}
+            {% else %}
+            <div class="empty-results">
+                <div class="empty-icon">✨</div>
+                <h2>Insider market intelligence</h2>
+                <p>Select a company above to explore executive trades, unusual insider activity, and filing trends.</p>
+            </div>
+            {% endif %}
+         </div>
+
+        <div id="largebuys-section" class="content-section hidden">
+            <h2>Large Buys</h2>
         </div>
-        {% else %}
-        <div class="empty-results">
-            <div class="empty-icon">✨</div>
-            <h2>Insider market intelligence</h2>
-            <p>Select a company above to explore executive trades, unusual insider activity, and filing trends.</p>
+
+        <!-- CEOs -->
+        <div id="fillings-section" class="content-section hidden">
+            <h2>Recent Fillings</h2>
         </div>
-        {% endif %}
     </section>
+
+
+
 </div>
 <div class="ticker-wrapper">
     <div class="ticker" id="ticker"></div>
@@ -181,67 +173,61 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <script>
+
     let tickerDiv = document.getElementById("ticker");
 
-    // 🔥 preload skeleton immediately
-    function showSkeleton() {
+function showSkeleton() {
+    tickerDiv.innerHTML = Array(10).fill(0).map(() => `
+        <div class="ticker-item skeleton">
+            <span>LOADING</span>
+            <span>--</span>
+        </div>
+    `).join("");
+}
+
+showSkeleton();
+
+async function loadTicker() {
+    try {
+        const res = await fetch("/api/stocks");
+        const json = await res.json();
+
+        const data = json.data;
+
+        if (!data || data.length === 0) return;
+
         tickerDiv.innerHTML = "";
 
-        const skeletons = Array(10).fill(0).map(() => {
-            return `
-                <div class="ticker-item skeleton">
-                    <span>LOADING</span>
-                    <span>--</span>
-                </div>
+        data.forEach(item => {
+            const symbol = item.symbol;
+            const price = item.price;
+            const change = item.change;
+
+            const color = change >= 0 ? "green" : "red";
+
+            const div = document.createElement("div");
+            div.className = "ticker-item";
+
+            div.innerHTML = `
+                <span>${symbol}</span>
+                <span style="color:${color}">
+                    ${price}
+                </span>
             `;
+
+            tickerDiv.appendChild(div);
         });
 
-        tickerDiv.innerHTML = skeletons.join("");
+    } catch (err) {
+        console.log("ticker error", err);
     }
-
-    showSkeleton();
-    async function loadTicker() {
-    const res = await fetch("/api/stocks");
-    const json = await res.json();
-
-    const data = json.data;
-
-    tickerDiv.innerHTML = "";
-
-    // IMPORTANT: already ordered from backend
-    data.forEach(item => {
-
-        const symbol = item.symbol;
-        const price = item.price;
-        const change = item.change;
-
-        const color = change >= 0 ? "green" : "red";
-
-        const div = document.createElement("div");
-        div.className = "ticker-item";
-
-        div.innerHTML = `
-            <span>${symbol}</span>
-            <span style="color:${color}">
-                ${price}
-            </span>
-        `;
-
-        tickerDiv.appendChild(div);
-    });
 }
-    setInterval(loadTicker, 3000);
-    setTimeout(loadTicker, 500);
+
+setTimeout(loadTicker, 500);
+setInterval(loadTicker, 5000);
     loadTicker();
 
-    // PAUSE ON HOVER
-    tickerDiv.addEventListener("mouseenter", () => {
-        tickerDiv.style.animationPlayState = "paused";
-    });
 
-    tickerDiv.addEventListener("mouseleave", () => {
-        tickerDiv.style.animationPlayState = "running";
-    });
 
     // MODAL
     function openChart(symbol) {
@@ -271,6 +257,29 @@
             }
         });
     }
+
+function showSection(sectionId) {
+
+    document.querySelectorAll(".content-section").forEach(section => {
+        section.style.opacity = "0";
+        section.style.transform = "translateX(10px)";
+
+        setTimeout(() => {
+            section.classList.add("hidden");
+            section.classList.remove("active");
+        }, 150);
+    });
+
+    const activeSection = document.getElementById(sectionId);
+
+    activeSection.classList.remove("hidden");
+    activeSection.classList.add("active");
+
+    setTimeout(() => {
+        activeSection.style.opacity = "1";
+        activeSection.style.transform = "translateX(0)";
+    }, 10);
+}
 </script>
 </body>
 </html>

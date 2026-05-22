@@ -7,8 +7,44 @@
     <link href="/static/style.css" rel="stylesheet">
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="../static/script.js"></script>
 
 </head>
+<nav class="navbar">
+
+    <div class="nav-left">
+        <h2>InsiderAI</h2>
+    </div>
+
+    <div class="nav-center">
+        <a href="/">Dashboard</a>
+        <a href="#">Activity</a>
+        <a href="#">Watchlists</a>
+    </div>
+
+    <div class="nav-right">
+
+        {% if current_user.is_authenticated %}
+
+            <div class="profile-menu">
+                👤 {{ current_user.username }}
+
+                <a href="/logout">
+                    Logout
+                </a>
+            </div>
+
+        {% else %}
+
+            <a href="/login">Login</a>
+            <a href="/signup">Sign Up</a>
+
+        {% endif %}
+
+    </div>
+
+</nav>
+
 <body>
 
 <div class="page">
@@ -39,8 +75,9 @@
                     </select>
 
                     <!-- SUBMIT -->
-                    <button class="submit-btn" type="submit">
-                        →
+                   <button class="submit-btn" id="submitBtn" type="submit">
+                    <span class="btn-icon" id="btnIcon">➜</span>
+                    <span class="spinner hidden" id="spinner"></span>
                     </button>
 
                 </div>
@@ -49,14 +86,14 @@
 
             <!-- QUICK ACTIONS -->
             <div class="panel-wrapper">
-                <button onclick="showSection('insider-section')" class="panel active" id="insider">
+                <button onclick="showSection('insider-section')" class="panel active" id="insiderBtn">
                     Insider Activity
                 </button>
 
-                <button onclick="showSection('largebuys-section')" class="panel" id="buys">
-                    Large Buys
+                <button onclick="showSection('largebuys-section')" class="panel" id="largeBuysBtn">
+                    Institutional Holdings
                 </button>
-                <button onclick="showSection('fillings-section')" class="panel" id="fillings">
+                <button onclick="showSection('news-section')" class="panel" id="newsBtn">
                     Recent Fillings
                 </button>
 
@@ -78,7 +115,6 @@
                 </button>
 
             </div>
-
         </div>
 
     </section>
@@ -143,13 +179,206 @@
             {% endif %}
          </div>
 
-        <div id="largebuys-section" class="content-section hidden">
-            <h2>Large Buys</h2>
+       <div id="largebuys-section" class="content-section hidden">
+
+    <!-- HEADER -->
+    <div class="results-header">
+        <h2>Institutional Holdings</h2>
+        <p>Big money positioning in {{ data.symbol }}</p>
+    </div>
+
+    <!-- SUMMARY GRID -->
+    <div class="summary-grid">
+
+        <div class="summary-card">
+            <span>Total Holders</span>
+            <strong>{{ data.institutional_summary.total_holders }}</strong>
         </div>
 
+        <div class="summary-card">
+            <span>Total Shares</span>
+            <strong>{{ data.institutional_summary.total_shares }}</strong>
+        </div>
+
+        <div class="summary-card">
+            <span>Ownership %</span>
+            <strong>{{ data.institutional_summary.ownership_pct }}</strong>
+        </div>
+
+        <div class="summary-card">
+            <span>Increased Holders</span>
+            <strong>{{ data.institutional_summary.increased_holders }}</strong>
+        </div>
+
+        <div class="summary-card">
+            <span>Increased Shares</span>
+            <strong>{{ data.institutional_summary.increased_shares }}</strong>
+        </div>
+
+        <div class="summary-card">
+            <span>Decreased Holders</span>
+            <strong>{{ data.institutional_summary.decreased_holders }}</strong>
+        </div>
+
+        <div class="summary-card">
+            <span>Decreased Shares</span>
+            <strong>{{ data.institutional_summary.decreased_shares }}</strong>
+        </div>
+
+        <div class="summary-card">
+            <span>Unchanged Holders</span>
+            <strong>{{ data.institutional_summary.unchanged_holders }}</strong>
+        </div>
+
+    </div>
+
+    <!-- HOLDINGS GRID -->
+    <div class="results-grid">
+
+        {% for h in data.institutional %}
+
+        <div class="result-card">
+
+            <div class="card-top">
+                <div>
+                    <h3>{{ h.holder }}</h3>
+                    <span class="title">Institutional Holder</span>
+                </div>
+
+                <span class="{{ h.css }}">
+                    {{ h.type }}
+                </span>
+            </div>
+
+            <div class="card-details">
+
+                <div class="detail-item">
+                    <span>Shares Held</span>
+                    <strong>{{ h.shares }}</strong>
+                </div>
+
+                <div class="detail-item">
+                    <span>Change</span>
+                    <strong>{{ h.change }}</strong>
+                </div>
+
+                <div class="detail-item">
+                    <span>Change %</span>
+                    <strong>{{ h.change_pct }}</strong>
+                </div>
+
+                <div class="detail-item">
+                    <span>Last Report</span>
+                    <strong>{{ h.date }}</strong>
+                </div>
+
+            </div>
+
+        </div>
+
+        {% endfor %}
+
+    </div>
+
+</div>
         <!-- CEOs -->
-        <div id="fillings-section" class="content-section hidden">
-            <h2>Recent Fillings</h2>
+        <div id="news-section" class="content-section hidden">
+            <div class="summary-grid">
+
+    <div class="summary-card">
+        <h3>Total Articles</h3>
+        <p>{{ data.news_summary.total_articles }}</p>
+    </div>
+
+    <div class="summary-card bullish">
+        <h3>Bullish</h3>
+        <p>{{ data.news_summary.bullish }}</p>
+    </div>
+
+    <div class="summary-card bearish">
+        <h3>Bearish</h3>
+        <p>{{ data.news_summary.bearish }}</p>
+    </div>
+
+    <div class="summary-card neutral">
+        <h3>Neutral</h3>
+        <p>{{ data.news_summary.neutral }}</p>
+    </div>
+
+    <div class="summary-card">
+        <div class="info-corner">
+    i
+    <div class="info-tooltip">
+        Average Sentiment represents the overall market tone of the selected news articles.<br>
+        It is calculated by combining sentiment scores from each article mentioning the ticker.<br>
+        Values closer to +1 indicate bullish sentiment, 0 is neutral, and -1 indicates bearish sentiment.
+    </div>
+</div>
+        <h3>Avg Sentiment</h3>
+        <p>{{ data.news_summary.avg_score }}</p>
+    </div>
+
+    <div class="summary-card">
+        <h3>Top Topic</h3>
+        <p>{{ data.news_summary.top_topic }}</p>
+    </div>
+
+</div>
+            <div class="results-header">
+        <h2>News & Sentiment</h2>
+        <p>Latest market intelligence for {{ data.symbol }}</p>
+    </div>
+
+    {% for n in data.news %}
+
+    <div class="news-card">
+
+        {% if n.image %}
+        <img class="news-image" src="{{ n.image }}">
+        {% endif %}
+
+        <div class="news-body">
+
+            <div class="news-top">
+                <h3>{{ n.title }}</h3>
+
+                <span class="
+                    {% if n.sentiment_label == 'Bullish' %}buy
+                    {% elif n.sentiment_label == 'Bearish' %}sell
+                    {% else %}neutral
+                    {% endif %}
+                ">
+                    {{ n.sentiment_label }}
+                </span>
+            </div>
+
+            <p class="news-summary">
+                {{ n.summary[:200] }}...
+            </p>
+
+            <div class="news-meta">
+                <span>Source: {{ n.source }}</span>
+                <span>{{ n.time }}</span>
+            </div>
+
+            <div class="tag-row">
+                {% for t in n.topics %}
+                    <span class="tag">{{ t }}</span>
+                {% endfor %}
+            </div>
+
+            <div class="ticker-row">
+                {% for t in n.tickers %}
+                    <span class="ticker-chip">
+                        {{ t.symbol }} ({{ t.label }})
+                    </span>
+                {% endfor %}
+            </div>
+
+        </div>
+    </div>
+
+    {% endfor %}
         </div>
     </section>
 
@@ -167,119 +396,7 @@
         </div>
     </div>
 </div>
-<script>
-    lucide.createIcons();
-</script>
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-<script>
-
-    let tickerDiv = document.getElementById("ticker");
-
-function showSkeleton() {
-    tickerDiv.innerHTML = Array(10).fill(0).map(() => `
-        <div class="ticker-item skeleton">
-            <span>LOADING</span>
-            <span>--</span>
-        </div>
-    `).join("");
-}
-
-showSkeleton();
-
-async function loadTicker() {
-    try {
-        const res = await fetch("/api/stocks");
-        const json = await res.json();
-
-        const data = json.data;
-
-        if (!data || data.length === 0) return;
-
-        tickerDiv.innerHTML = "";
-
-        data.forEach(item => {
-            const symbol = item.symbol;
-            const price = item.price;
-            const change = item.change;
-
-            const color = change >= 0 ? "green" : "red";
-
-            const div = document.createElement("div");
-            div.className = "ticker-item";
-
-            div.innerHTML = `
-                <span>${symbol}</span>
-                <span style="color:${color}">
-                    ${price}
-                </span>
-            `;
-
-            tickerDiv.appendChild(div);
-        });
-
-    } catch (err) {
-        console.log("ticker error", err);
-    }
-}
-
-setTimeout(loadTicker, 500);
-setInterval(loadTicker, 5000);
-    loadTicker();
-
-
-
-    // MODAL
-    function openChart(symbol) {
-        document.getElementById("modal").classList.remove("hidden");
-        document.getElementById("modal-title").innerText = symbol;
-
-        loadChart(symbol);
-    }
-
-    function closeModal() {
-        document.getElementById("modal").classList.add("hidden");
-    }
-
-    // SIMPLE DEMO CHART
-    function loadChart(symbol) {
-        const ctx = document.getElementById("chart").getContext("2d");
-
-        new Chart(ctx, {
-            type: "line",
-            data: {
-                labels: ["1", "2", "3", "4", "5"],
-                datasets: [{
-                    label: symbol,
-                    data: [10, 12, 9, 14, 13],
-                    borderColor: "blue"
-                }]
-            }
-        });
-    }
-
-function showSection(sectionId) {
-
-    document.querySelectorAll(".content-section").forEach(section => {
-        section.style.opacity = "0";
-        section.style.transform = "translateX(10px)";
-
-        setTimeout(() => {
-            section.classList.add("hidden");
-            section.classList.remove("active");
-        }, 150);
-    });
-
-    const activeSection = document.getElementById(sectionId);
-
-    activeSection.classList.remove("hidden");
-    activeSection.classList.add("active");
-
-    setTimeout(() => {
-        activeSection.style.opacity = "1";
-        activeSection.style.transform = "translateX(0)";
-    }, 10);
-}
-</script>
 </body>
 </html>

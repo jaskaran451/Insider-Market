@@ -1,34 +1,139 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, redirect
 import requests
 from config import COMPANY_MAP
 import time
 import threading
 from config import TICKERS
-app = Flask(__name__)
+import os
+import json
+from datetime import datetime, timedelta
+from typing import Dict
+from cache_utils import load_cache, save_cache
+from models import db, User,Traffic
+from collections import defaultdict
 
-API_KEY = "3S9G9VER47CI2ZT3"
+from flask_login import (
+    LoginManager,
+    login_user,
+    logout_user,
+    login_required,
+    current_user
+)
+
+from werkzeug.security import (
+    generate_password_hash,
+    check_password_hash
+)
+
+
+app = Flask(__name__)
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+db_path = os.path.join(BASE_DIR, "database", "users.db")
+app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path}"
+app.config["SECRET_KEY"] = "supersecretkey"
+os.makedirs(os.path.join(BASE_DIR, "database"), exist_ok=True)
+db.init_app(app)
+
+CACHE_FOLDER_insider = "cache/insider"
+os.makedirs(CACHE_FOLDER_insider, exist_ok=True)
+
+CACHE_FOLDER_news = "cache/news"
+os.makedirs(CACHE_FOLDER_news, exist_ok=True)
+
+# API_KEY = "MWVQMX02ULG4MRQI"
+API_KEY="XN815F5G472K82LV"
 FINNHUB_KEY = "d85n6lpr01qitd92s09gd85n6lpr01qitd92s0a0"
 
 stock_cache = {ticker: {"price": "--", "change": 0} for ticker in TICKERS}
 
 last_updated = 0
 CACHE_INTERVAL = 120  # seconds (2 min)
+CACHE_EXPIRY_HOURS = 24
+
+login_manager = LoginManager()
+login_manager.init_app(app)
+
+# website traffic
+page_views = defaultdict(int)
+daily_visits = 0
+last_reset = time.time()
+
+@app.before_request
+def track():
+    if request.endpoint in ["static"]:
+        return
+
+    # avoid logging analytics endpoint itself
+    if request.path.startswith("/api"):
+        return
+    page = request.path.split("?")[0]
+    visit = Traffic(page=request.path)
+    db.session.add(visit)
+    db.session.commit()
+
+@app.route("/api/analytics")
+def analytics():
+
+    total = Traffic.query.count()
+    top_pages = db.session.query(
+        Traffic.page,
+        db.func.count(Traffic.id)
+    ).group_by(Traffic.page).all()
+
+    return {
+        "total_visits": total,
+        "top_pages": dict(top_pages)
+    }
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
 
 @app.route("/", methods=["GET", "POST"])
 def home():
-    data = None
-
+    insider_data = None
+    institutional_data=None
+    data = {
+        "symbol": "",
+        "name": "",
+        "transactions": [],
+        "institutional": [],
+        "institutional_summary": {
+            "total_holders": 0,
+            "total_shares": 0,
+            "increased_holders": 0,
+            "increased_shares": 0,
+            "decreased_holders": 0,
+            "decreased_shares": 0,
+            "unchanged_holders": 0,
+            "ownership_pct": "0%"
+        },
+        "news": [],
+        "news_summary": {
+            "top_sentiment": None,
+            "bullish_count": 0,
+            "bearish_count": 0,
+            "top_topics": []
+        }
+    }
     if request.method == "POST":
         symbol = request.form.get("symbol")
         company_name = COMPANY_MAP.get(symbol, "Unknown Company")
-        url = f"https://www.alphavantage.co/query?function=INSIDER_TRANSACTIONS&symbol={symbol}&apikey={API_KEY}"
-        response = requests.get(url)
-        json_data = response.json()
+        cache_key = symbol
 
-        transactions_raw = json_data.get("data", [])
+        # =========================
+        # INSIDER DATA
+        # =========================
+        insider_data = load_cache("insider", cache_key, max_age_seconds=24*3600)
+
+        if not insider_data:
+            url = f"https://www.alphavantage.co/query?function=INSIDER_TRANSACTIONS&symbol={symbol}&from=2025-01-01&apikey={API_KEY}"
+            insider_data = requests.get(url).json()
+            save_cache("insider", cache_key, insider_data)
+
+        transactions_raw = insider_data.get("data", [])
 
         transactions = []
-
         for t in transactions_raw:
             transactions.append({
                 "date": t.get("transaction_date"),
@@ -40,12 +145,130 @@ def home():
                 "security": t.get("security_type")
             })
 
+        # =========================
+        # INSTITUTIONAL DATA (FIXED)
+        # =========================
+        institutional = []
+
+        institutional_data = load_cache("institutions", cache_key, max_age_seconds=24*3600)
+
+        if not institutional_data:
+            time.sleep(2)
+            inst_url = f"https://www.alphavantage.co/query?function=INSTITUTIONAL_HOLDINGS&symbol={symbol}&apikey={API_KEY}"
+            institutional_data = requests.get(inst_url).json()
+            save_cache("institutions", cache_key, institutional_data)
+
+        payload = institutional_data
+        holdings_raw = institutional_data.get("holdings", [])
+        for h in holdings_raw:
+            change_type = (h.get("change_type") or "").lower()
+            if "increase" in change_type:
+                status = "Increase"
+                css_class = "buy"
+            elif "decrease" in change_type:
+                status = "Decrease"
+                css_class = "sell"
+            else:
+                status = "Hold"
+                css_class = "neutral"
+
+            institutional.append({
+                "holder": h.get("holder_name"),
+                "shares": h.get("shares_held"),
+                "change": h.get("shares_changed"),
+                "change_pct": h.get("shares_changed_percentage"),
+                "type": status,
+                "css": css_class,
+                "date": h.get("last_reported")
+            })
+
+        institutional_summary = {
+            "total_holders": payload.get("total_institutional_holders"),
+            "total_shares": payload.get("total_institutional_shares"),
+            "increased_holders": payload.get("holders_with_increased_holdings"),
+            "increased_shares": payload.get("shares_with_increased_holdings"),
+            "decreased_holders": payload.get("holders_with_decreased_holdings"),
+            "decreased_shares": payload.get("shares_with_decreased_holdings"),
+            "unchanged_holders": payload.get("holders_with_unchanged_holdings"),
+            "unchanged_shares": payload.get("shares_with_unchanged_holdings"),
+            "ownership_pct": payload.get("total_institutional_ownership_percentage")
+        }
+
+        # =========================
+        # News and sentiments
+        # =========================
+        news_data = load_cache("news", cache_key, max_age_seconds=3600)  # 30 min cache
+        if not news_data:
+            time.sleep(2)
+            url = (
+                "https://www.alphavantage.co/query"f"?function=NEWS_SENTIMENT&tickers={symbol}&limit=50&apikey={API_KEY}"
+            )
+            news_data = requests.get(url).json()
+            save_cache("news", cache_key, news_data)
+        feed_raw = news_data.get("feed", [])
+        bullish = 0
+        bearish = 0
+        neutral = 0
+        total_score = 0
+        topic_map: Dict[str, float] = {}
+        for item in feed_raw:
+            label = item.get("overall_sentiment_label")
+            score = item.get("overall_sentiment_score") or 0
+            total_score += score
+            if label == "Bullish":
+                bullish += 1
+            elif label == "Bearish":
+                bearish += 1
+            else:
+                neutral += 1
+            for t in item.get("topics", []):
+                topic = t.get("topic")
+                score = float(t.get("relevance_score", 0))
+                topic_map[t["topic"]] = topic_map.get(t["topic"], 0) + 1
+        news = []
+        top_topic = max(topic_map, key=topic_map.get) if topic_map else "N/A"
+        summary = {
+            "total_articles": len(feed_raw),
+            "bullish": bullish,
+            "bearish": bearish,
+            "neutral": neutral,
+            "avg_score": round(total_score / len(feed_raw), 3) if feed_raw else 0,
+            "top_topic": top_topic
+        }
+
+        for item in feed_raw:
+            news.append({
+                "title": item.get("title"),
+                "summary": item.get("summary"),
+                "image": item.get("banner_image"),
+                "source": item.get("source"),
+                "url": item.get("url"),
+                "time": item.get("time_published"),
+                "sentiment_label": item.get("overall_sentiment_label"),
+                "sentiment_score": item.get("overall_sentiment_score"),
+                "topics": [t["topic"] for t in item.get("topics", [])],
+                "tickers": [
+                    {
+                        "symbol": t["ticker"],
+                        "label": t["ticker_sentiment_label"],
+                        "score": t["ticker_sentiment_score"]
+                    }
+                    for t in item.get("ticker_sentiment", [])
+                ]
+            })
+
+
+
+
         data = {
             "symbol": symbol,
             "name": company_name,
-            "transactions": transactions
+            "transactions": transactions,
+            "institutional": institutional,
+            "institutional_summary": institutional_summary,
+            "news": news,
+            "news_summary": summary
         }
-
     return render_template("index.html", data=data, companies=COMPANY_MAP)
 
 @app.route("/api/stocks")
@@ -73,6 +296,7 @@ def get_stocks():
 
 def fetch_quotes():
     global stock_cache, last_updated
+    time.sleep(2)
     while True:
         for ticker in TICKERS:
             try:
@@ -92,6 +316,65 @@ def fetch_quotes():
 
         time.sleep(CACHE_INTERVAL)
 
-threading.Thread(target=fetch_quotes, daemon=True).start()
+@app.route("/signup", methods=["GET", "POST"])
+def signup():
+    if request.method == "POST":
+
+        username = request.form.get("username")
+        email = request.form.get("email")
+        password = request.form.get("password")
+
+        existing_user = User.query.filter_by(email=email).first()
+
+        if existing_user:
+            return "Email already exists"
+
+        hashed_password = generate_password_hash(password)
+
+        new_user = User(
+            username=username,
+            email=email,
+            password=hashed_password
+        )
+
+        db.session.add(new_user)
+        db.session.commit()
+
+        return redirect("/login")
+
+    return render_template("signup.html")
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+
+        email = request.form.get("email")
+        password = request.form.get("password")
+
+        user = User.query.filter_by(email=email).first()
+
+        if user and check_password_hash(user.password, password):
+
+            login_user(user)
+
+            return redirect("/")
+
+        return "Invalid credentials"
+
+    return render_template("login.html")
+
+@app.route("/logout")
+@login_required
+def logout():
+
+    logout_user()
+
+    return redirect("/")
+
+
 if __name__ == "__main__":
+    with app.app_context():
+        db.create_all()
+    threading.Thread(target=fetch_quotes, daemon=True).start()
     app.run(debug=True)

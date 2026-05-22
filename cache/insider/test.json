@@ -1,0 +1,18 @@
+{
+  "symbol": "IBM",
+  "quarter": "2024Q1",
+  "transcript": [
+    {
+      "speaker": "Olympia McNerney",
+      "title": "Global Head of Investor Relations",
+      "content": "a large text",
+      "sentiment": "0.6"
+    },
+    {
+      "speaker": "Arvind Krishna",
+      "title": "CEO",
+      "content": "a large text",
+      "sentiment": "0.7"
+    }
+  ]
+}

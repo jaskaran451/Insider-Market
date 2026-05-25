@@ -7,10 +7,12 @@ from config import TICKERS
 import os
 import json
 from datetime import datetime, timedelta
+from flask import jsonify
 from typing import Dict
 from cache_utils import load_cache, save_cache
 from models import db, User,Traffic
 from collections import defaultdict
+from utils.charts import create_insider_chart
 
 from flask_login import (
     LoginManager,
@@ -41,7 +43,8 @@ CACHE_FOLDER_news = "cache/news"
 os.makedirs(CACHE_FOLDER_news, exist_ok=True)
 
 # API_KEY = "MWVQMX02ULG4MRQI"
-API_KEY="XN815F5G472K82LV"
+# API_KEY="XN815F5G472K82LV"
+API_KEY= "XN815F5G472K82LV"
 FINNHUB_KEY = "d85n6lpr01qitd92s09gd85n6lpr01qitd92s0a0"
 
 stock_cache = {ticker: {"price": "--", "change": 0} for ticker in TICKERS}
@@ -89,6 +92,18 @@ def analytics():
 def load_user(user_id):
     return User.query.get(int(user_id))
 
+def get_insider_data(symbol):
+    cache_key = symbol
+
+    data = load_cache("insider", cache_key, max_age_seconds=24*3600)
+
+    if not data:
+        url = f"https://www.alphavantage.co/query?function=INSIDER_TRANSACTIONS&symbol={symbol}&apikey={API_KEY}"
+        data = requests.get(url).json()
+
+        save_cache("insider", cache_key, data)
+
+    return data
 @app.route("/", methods=["GET", "POST"])
 def home():
     insider_data = None
@@ -97,6 +112,7 @@ def home():
         "symbol": "",
         "name": "",
         "transactions": [],
+        "insider_transaction_chart": None,
         "institutional": [],
         "institutional_summary": {
             "total_holders": 0,
@@ -124,13 +140,7 @@ def home():
         # =========================
         # INSIDER DATA
         # =========================
-        insider_data = load_cache("insider", cache_key, max_age_seconds=24*3600)
-
-        if not insider_data:
-            url = f"https://www.alphavantage.co/query?function=INSIDER_TRANSACTIONS&symbol={symbol}&from=2025-01-01&apikey={API_KEY}"
-            insider_data = requests.get(url).json()
-            save_cache("insider", cache_key, insider_data)
-
+        insider_data = get_insider_data(symbol)
         transactions_raw = insider_data.get("data", [])
 
         transactions = []
@@ -270,6 +280,28 @@ def home():
             "news_summary": summary
         }
     return render_template("index.html", data=data, companies=COMPANY_MAP)
+
+
+@app.route("/chart/<symbol>/<int:months>")
+def insider_chart(symbol, months):
+
+    insider_data = get_insider_data(symbol)
+    transactions_raw = insider_data.get("data", [])
+
+    transactions = []
+
+    for t in transactions_raw:
+        transactions.append({
+            "date": t.get("transaction_date"),
+            "type": "Buy" if t.get("acquisition_or_disposal") == "A" else "Sell",
+            "shares": t.get("shares")
+        })
+
+    chart = create_insider_chart(transactions, months)
+
+    return jsonify({
+        "chart": chart
+    })
 
 @app.route("/api/stocks")
 def get_stocks():

@@ -6,8 +6,12 @@
     <title>Insider AI Search</title>
     <link href="/static/style.css" rel="stylesheet">
     <!-- Lucide Icons -->
+    <script>
+    window.currentSymbol = "{{ data.symbol }}";
+</script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="../static/script.js"></script>
+    <script src="https://cdn.plot.ly/plotly-2.30.0.min.js"></script>
 
 </head>
 <nav class="navbar">
@@ -124,13 +128,34 @@
         <div id="insider-section" class="content-section active">
             {% if data and data.transactions %}
             <div class="results-header">
-                <h2>
-                    {{ data.name }} ({{ data.symbol }})
-                </h2>
+                <div class="company-header">
+    <h2 class="company-name">
+        {{ data.name }} ({{ data.symbol }})
+    </h2>
+
+    <span class="chart-btn" onclick="toggleChart()">
+        📊
+        <span class="chart-tooltip">Open chart</span>
+    </span>
+</div>
                 <p>
                     Insider transaction activity
                 </p>
             </div>
+            <div class="chart-wrapper hidden" id="chartWrapper">
+
+    <div class="chart-toolbar">
+        <select id="chartFilter" class="chart-filter">
+            <option value="3">Last 3 Months</option>
+            <option value="6">Last 6 Months</option>
+            <option value="12">Last 1 Year</option>
+        </select>
+    </div>
+
+    <div id="chartContainer" data-symbol="{{ data.symbol }}">
+    </div>
+
+    </div>
             <div class="results-grid">
                 {% for t in data.transactions %}
                 <div class="result-card">

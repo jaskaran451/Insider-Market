@@ -869,6 +869,145 @@ body {
     visibility: visible;
     transform: translateY(0);
 }
+.company-header {
+    display: flex;
+    align-items: center;
+    gap: 10px; /* spacing between name and icon */
+}
+
+/* remove default margin from h2 if needed */
+.company-name {
+    margin: 0;
+}
+
+/* keep your existing chart button styles */
+.chart-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    font-size: 24px;
+    cursor: pointer;
+
+    color: #2563eb;
+    animation: softPulse 2.2s infinite;
+    transition: transform 0.2s ease;
+}
+
+/* glowing pulse animation */
+@keyframes softPulse {
+    0% {
+        text-shadow: 0 0 0px rgba(37, 99, 235, 0.2);
+    }
+    50% {
+        text-shadow:
+            0 0 6px rgba(37, 99, 235, 0.6),
+            0 0 12px rgba(37, 99, 235, 0.4);
+    }
+    100% {
+        text-shadow: 0 0 0px rgba(37, 99, 235, 0.2);
+    }
+}
+/* tooltip bubble */
+.chart-tooltip {
+    position: absolute;
+    top: -32px;
+    left: 50%;
+    transform: translateX(-50%);
+
+    background: #111827;
+    color: white;
+    font-size: 11px;
+    padding: 4px 8px;
+    border-radius: 6px;
+
+    white-space: nowrap;
+
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.2s ease;
+}
+
+/* tooltip arrow */
+.chart-tooltip::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+
+    border-width: 5px;
+    border-style: solid;
+    border-color: #111827 transparent transparent transparent;
+}
+
+/* show tooltip on hover */
+.chart-btn:hover .chart-tooltip {
+    opacity: 1;
+    visibility: visible;
+    top: -38px;
+}
+
+.chart-btn:hover {
+    transform: scale(1.15);
+}
+
+.chart-container {
+    overflow: hidden;
+    max-height: 0;
+    opacity: 0;
+    transition:
+        max-height 0.35s ease,
+        opacity 0.35s ease;
+}
+
+.hidden {
+    display: none;
+}
+
+.title-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+
+.chart-filter {
+
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+
+    padding: 8px 12px;
+
+    border-radius: 10px;
+
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+
+    outline: none;
+
+    transition: all 0.2s ease;
+}
+
+.chart-filter:hover {
+    border-color: #cbd5e1;
+}
+
+.chart-wrapper {
+    margin-top: 20px;
+    margin-bottom: 40px;
+}
+
+
+.chart-toolbar {
+
+    display: flex;
+    justify-content: flex-end;
+
+    margin-bottom: 12px;
+}
 
 
 

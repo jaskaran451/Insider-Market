@@ -1,4 +1,11 @@
 document.addEventListener("DOMContentLoaded", function () {
+    // ensure clean dashboard start
+    document.querySelectorAll(".content-section").forEach(section => {
+        section.classList.remove("active");
+    });
+
+    // optional default view
+    showSection("insider-section");
 let tickerDiv = document.getElementById("ticker");
 const filter = document.getElementById("chartFilter");
 

@@ -333,7 +333,6 @@ body {
 
 /* EMPTY STATE */
 .empty-results {
-    text-align: center;
     padding: 100px 20px;
 }
 
@@ -350,7 +349,6 @@ body {
 .empty-results p {
     color: #6b7280;
     max-width: 700px;
-    margin: auto;
     line-height: 1.7;
 }
 
@@ -1007,6 +1005,14 @@ body {
     justify-content: flex-end;
 
     margin-bottom: 12px;
+}
+
+.hidden-section {
+    display: none;
+}
+.nav-item.active {
+    color: #16a34a;
+    font-weight: 600;
 }
 
 

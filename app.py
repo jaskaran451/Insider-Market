@@ -13,6 +13,11 @@ from cache_utils import load_cache, save_cache
 from models import db, User,Traffic
 from collections import defaultdict
 from utils.charts import create_insider_chart
+from edgar import Company, set_identity
+import base64
+from flask import jsonify, request
+from utils.edgar_wrapper import get_logo_of_company,edgar_client
+
 
 from flask_login import (
     LoginManager,
@@ -76,7 +81,6 @@ def track():
 
 @app.route("/api/analytics")
 def analytics():
-
     total = Traffic.query.count()
     top_pages = db.session.query(
         Traffic.page,
@@ -92,22 +96,53 @@ def analytics():
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-def get_insider_data(symbol):
+def fetch_market_data(folder, symbol):
     cache_key = symbol
 
-    data = load_cache("insider", cache_key, max_age_seconds=24*3600)
+    data = load_cache(folder,cache_key,max_age_seconds=24 * 3600)
+    if folder == "insider":
+        url = f"https://www.alphavantage.co/query?function=INSIDER_TRANSACTIONS&symbol={symbol}&apikey={API_KEY}"
+    elif folder == "institutions":
+        time.sleep(2)
+        url = f"https://www.alphavantage.co/query?function=INSTITUTIONAL_HOLDINGS&symbol={symbol}&apikey={API_KEY}"
+    elif folder == "news":
+        time.sleep(2)
+        url = f"https://www.alphavantage.co/query?function=NEWS_SENTIMENT&tickers={symbol}&limit=50&apikey={API_KEY}"
+    else:
+        return {}
+
+    # =========================
+    # Decide if refresh needed
+    # =========================
+    refresh = False
 
     if not data:
-        url = f"https://www.alphavantage.co/query?function=INSIDER_TRANSACTIONS&symbol={symbol}&apikey={API_KEY}"
-        data = requests.get(url).json()
+        refresh = True
+    elif not is_valid_api_response(data):
+        refresh = True
+    if refresh:
+        try:
+            response = requests.get(url, timeout=10)
+            fresh_data = response.json()
+            # ONLY cache valid data
+            if is_valid_api_response(fresh_data):
+                save_cache(folder, cache_key, fresh_data)
+                data = fresh_data
+            else:
+                print(f"Invalid API response for {folder}: {symbol}")
+                # keep old cache if possible
+                if not data:
+                    data = {}
+        except Exception as e:
+            print(f"API fetch error: {e}")
 
-        save_cache("insider", cache_key, data)
-
+            # fallback if no cache exists
+            if not data:
+                data = {}
     return data
+
 @app.route("/", methods=["GET", "POST"])
 def home():
-    insider_data = None
-    institutional_data=None
     data = {
         "symbol": "",
         "name": "",
@@ -135,12 +170,11 @@ def home():
     if request.method == "POST":
         symbol = request.form.get("symbol")
         company_name = COMPANY_MAP.get(symbol, "Unknown Company")
-        cache_key = symbol
 
         # =========================
         # INSIDER DATA
         # =========================
-        insider_data = get_insider_data(symbol)
+        insider_data = fetch_market_data("insider", symbol)
         transactions_raw = insider_data.get("data", [])
 
         transactions = []
@@ -159,16 +193,7 @@ def home():
         # INSTITUTIONAL DATA (FIXED)
         # =========================
         institutional = []
-
-        institutional_data = load_cache("institutions", cache_key, max_age_seconds=24*3600)
-
-        if not institutional_data:
-            time.sleep(2)
-            inst_url = f"https://www.alphavantage.co/query?function=INSTITUTIONAL_HOLDINGS&symbol={symbol}&apikey={API_KEY}"
-            institutional_data = requests.get(inst_url).json()
-            save_cache("institutions", cache_key, institutional_data)
-
-        payload = institutional_data
+        institutional_data=fetch_market_data("institutions", symbol)
         holdings_raw = institutional_data.get("holdings", [])
         for h in holdings_raw:
             change_type = (h.get("change_type") or "").lower()
@@ -193,29 +218,22 @@ def home():
             })
 
         institutional_summary = {
-            "total_holders": payload.get("total_institutional_holders"),
-            "total_shares": payload.get("total_institutional_shares"),
-            "increased_holders": payload.get("holders_with_increased_holdings"),
-            "increased_shares": payload.get("shares_with_increased_holdings"),
-            "decreased_holders": payload.get("holders_with_decreased_holdings"),
-            "decreased_shares": payload.get("shares_with_decreased_holdings"),
-            "unchanged_holders": payload.get("holders_with_unchanged_holdings"),
-            "unchanged_shares": payload.get("shares_with_unchanged_holdings"),
-            "ownership_pct": payload.get("total_institutional_ownership_percentage")
+            "total_holders": institutional_data.get("total_institutional_holders"),
+            "total_shares": institutional_data.get("total_institutional_shares"),
+            "increased_holders": institutional_data.get("holders_with_increased_holdings"),
+            "increased_shares": institutional_data.get("shares_with_increased_holdings"),
+            "decreased_holders": institutional_data.get("holders_with_decreased_holdings"),
+            "decreased_shares": institutional_data.get("shares_with_decreased_holdings"),
+            "unchanged_holders": institutional_data.get("holders_with_unchanged_holdings"),
+            "unchanged_shares": institutional_data.get("shares_with_unchanged_holdings"),
+            "ownership_pct": institutional_data.get("total_institutional_ownership_percentage")
         }
 
         # =========================
         # News and sentiments
         # =========================
-        news_data = load_cache("news", cache_key, max_age_seconds=3600)  # 30 min cache
-        if not news_data:
-            time.sleep(2)
-            url = (
-                "https://www.alphavantage.co/query"f"?function=NEWS_SENTIMENT&tickers={symbol}&limit=50&apikey={API_KEY}"
-            )
-            news_data = requests.get(url).json()
-            save_cache("news", cache_key, news_data)
-        feed_raw = news_data.get("feed", [])
+        news_data=fetch_market_data("news", symbol)
+        feed_raw = news_data.get("feed", [])[:20]
         bullish = 0
         bearish = 0
         neutral = 0
@@ -233,7 +251,7 @@ def home():
                 neutral += 1
             for t in item.get("topics", []):
                 topic = t.get("topic")
-                score = float(t.get("relevance_score", 0))
+                relevance_score = float(t.get("relevance_score", 0))
                 topic_map[t["topic"]] = topic_map.get(t["topic"], 0) + 1
         news = []
         top_topic = max(topic_map, key=topic_map.get) if topic_map else "N/A"
@@ -266,8 +284,10 @@ def home():
                     for t in item.get("ticker_sentiment", [])
                 ]
             })
-
-
+        # get logo of company
+        image_bytes = get_logo_of_company(symbol)
+        encoded_string = base64.b64encode(image_bytes).decode('utf-8')
+        image_src = f"data:image/jpeg;base64,{encoded_string}"
 
 
         data = {
@@ -277,15 +297,17 @@ def home():
             "institutional": institutional,
             "institutional_summary": institutional_summary,
             "news": news,
-            "news_summary": summary
+            "news_summary": summary,
+            "logo": image_src,
         }
-    return render_template("index.html", data=data, companies=COMPANY_MAP)
 
+
+    return render_template("index.html", data=data, companies=COMPANY_MAP)
 
 @app.route("/chart/<symbol>/<int:months>")
 def insider_chart(symbol, months):
 
-    insider_data = get_insider_data(symbol)
+    insider_data = fetch_market_data("insider",symbol)
     transactions_raw = insider_data.get("data", [])
 
     transactions = []
@@ -348,6 +370,16 @@ def fetch_quotes():
 
         time.sleep(CACHE_INTERVAL)
 
+
+# =========================================================
+# SMART MONEY DASHBOARD
+# =========================================================
+
+@app.route("/smart-money/dashboard")
+def smart_money_dashboard():
+    print("test")
+
+
 @app.route("/signup", methods=["GET", "POST"])
 def signup():
     if request.method == "POST":
@@ -403,7 +435,19 @@ def logout():
     logout_user()
 
     return redirect("/")
+def is_valid_api_response(data):
+    if not isinstance(data, dict):
+        return False
 
+    # Alpha Vantage error cases
+    if "Information" in data:
+        return False
+    if "Error Message" in data:
+        return False
+    if "Note" in data:
+        return False
+
+    return True
 
 if __name__ == "__main__":
     with app.app_context():

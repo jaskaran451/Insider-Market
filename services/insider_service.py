@@ -1,8 +1,8 @@
 
-
-from dataclasses import dataclass
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
+from dataclasses import dataclass, field
+from sqlalchemy.sql.functions import next_value
 
 
 # =========================================================
@@ -27,21 +27,19 @@ class InsiderSummary:
 
     total_buys: int
     total_sells: int
-
+    total_taxes: int
+    total_grants: int
     net_activity: int
     insider_momentum: float
     insider_score: float
     smart_money_score: float
-
     bullish: bool
     bearish: bool
-
     cluster_buying: bool
-
     signals: List[InsiderSignal]
-
     recent_transactions: List[Dict[str, Any]]
     signal_groups: dict
+    summary_stats: Dict = field(default_factory=dict)
 
 
 # =========================================================
@@ -92,7 +90,7 @@ class InsiderService:
                 activities = [activities]
 
             for activity in activities:
-                context = self._extract_filing_context(filing)
+                context = self._extract_filing_context(filing,activity)
                 parsed = self._normalize_transaction(activity, context)
 
                 if parsed:
@@ -103,9 +101,13 @@ class InsiderService:
         # -------------------------------------------------
         buys = [t for t in transactions if t["type"] == "BUY"]
         sells = [t for t in transactions if t["type"] == "SELL"]
+        taxes = [t for t in transactions if t["type"] == "Tax"]
+        grants = [t for t in transactions if t["type"] == "Grant"]
 
         total_buys = len(buys)
         total_sells = len(sells)
+        total_taxes = len(taxes)
+        total_grants = len(grants)
 
         net_activity = total_buys - total_sells
 
@@ -124,19 +126,38 @@ class InsiderService:
             cluster_buying=cluster_buying,
             score=insider_score
         )
-        # -------------------------------------------------
-        # SCORE CALCULATION
-        # -------------------------------------------------
-        insider_score = self._calculate_score(
-            transactions=transactions,
-            cluster_buying=cluster_buying
-        )
+
         smart_money_score = self._calculate_smart_money_score(
             insider_score=insider_score,
             signals=raw_signals,
             transactions=transactions,
             cluster_buying=cluster_buying
         )
+        summary_stats = {
+
+            "buy_count": len(buys),
+            "sell_count": len(sells),
+            "tax_count": len(taxes),
+            "grant_count": len(grants),
+
+            "buy_value":
+                sum(t["value"] or 0 for t in buys),
+
+            "sell_value":
+                sum(t["value"] or 0 for t in sells),
+
+            "tax_value":
+                sum(t["value"] or 0 for t in taxes),
+
+            "grant_shares":
+                sum(t["shares"] or 0 for t in grants),
+
+            "tax_shares":
+                sum(t["shares"] or 0 for t in taxes),
+
+            "net_shares":
+                sum(t["net_change"] or 0 for t in transactions)
+        }
 
         return InsiderSummary(
             company=company,
@@ -148,19 +169,19 @@ class InsiderService:
 
             insider_score=insider_score,
             smart_money_score=smart_money_score,
-
             bullish=smart_money_score >= 65,
             bearish=smart_money_score <= 35,
-
             cluster_buying=cluster_buying,
 
             signals=raw_signals,
             signal_groups=self._group_signals(raw_signals),
-
             insider_momentum=self._calculate_insider_momentum(transactions),
-
-            recent_transactions=transactions[-10:]
+            recent_transactions=transactions,
+            total_taxes=total_taxes,
+            total_grants=total_grants,
+            summary_stats=summary_stats
         )
+
 
     def _signal_description(self, signal: str) -> str:
 
@@ -174,6 +195,7 @@ class InsiderService:
         }
 
         return descriptions.get(signal, "")
+
     # =====================================================
     # TRANSACTION NORMALIZATION
     # =====================================================
@@ -195,11 +217,16 @@ class InsiderService:
                     # -------------------------------------------------
                     "insider": context.get("insider"),
                     "role": context.get("role"),
-                    "date": context.get("date")
+                    "date": context.get("date"),
+                    "net_change": context.get("net_change"),
+                    "net_value": context.get("net_value"),
+                    "remaining_shares": context.get("remaining_shares")
                 }
 
             except Exception:
                 return None
+
+
 
     # =====================================================
     # BUY/SELL CLASSIFICATION
@@ -208,17 +235,15 @@ class InsiderService:
         code = getattr(activity, "code", "")
         ttype = getattr(activity, "transaction_type", "").lower()
 
-        # -------------------------------------------------
-        # BUY SIGNALS
-        # -------------------------------------------------
+
         if code in ["P"]:  # Purchase
             return "BUY"
-
-        # -------------------------------------------------
-        # SELL SIGNALS
-        # -------------------------------------------------
-        if code in ["S", "F"]:
+        if code in ["S"]:
             return "SELL"
+        if code in ["F"]:
+            return "Tax"
+        if code in ["A"]:
+            return "Grant"
 
         # -------------------------------------------------
         # OPTION EXERCISES / TRANSFERS (NEUTRAL)
@@ -228,7 +253,9 @@ class InsiderService:
 
         return "OTHER"
 
-    def _extract_filing_context(self, filing):
+
+
+    def _extract_filing_context(self, filing,activity):
 
         if not filing or not hasattr(filing, "data"):
             return {"insider": None, "role": None, "date": None}
@@ -237,20 +264,42 @@ class InsiderService:
 
         insider_name = data.get("insider_name")
 
+
         ownership = data.get("ownership_summary")
 
         role = None
         date = None
-
+        code = getattr(activity, "code", None)
         if ownership:
             role = getattr(ownership, "position", None)
             date = getattr(ownership, "reporting_date", None)
+            if code not in ["A", "F"]:
+                net_change=getattr(ownership, "net_change", None)
+                net_value=getattr(ownership, "net_value", None)
+                remaining_shares=getattr(ownership, "remaining_shares", None)
+            elif code == "F":
+                shares = getattr(activity, "shares", 0)
+                net_change = -shares
+                net_value = -getattr(activity, "value", 0)
+                remaining_shares = getattr(ownership,"remaining_shares",None)
+            elif code == "A":
+                shares = getattr(activity, "shares", 0)
+                net_change = shares
+                net_value = getattr(activity, "value", 0)
+                remaining_shares = getattr(ownership,"remaining_shares",None)
+
+
 
         return {
             "insider": insider_name,
             "role": role,
-            "date": date
+            "date": date,
+            "net_change": net_change,
+            "net_value": net_value,
+            "remaining_shares": remaining_shares,
         }
+
+
     # =====================================================
     # CLUSTER BUYING DETECTION
     # =====================================================
@@ -277,53 +326,104 @@ class InsiderService:
 
         return False
 
-    # =====================================================
-    # CEO BUY DETECTION
-    # =====================================================
-    def _detect_ceo_buying(self, buys: List[Dict]) -> bool:
 
-        for buy in buys:
 
-            role = str(buy.get("role", "")).lower()
-
-            if "ceo" in role:
-                return True
-
-        return False
 
     # =====================================================
     # SCORE ENGINE
     # =====================================================
-    def _calculate_score(self,transactions,cluster_buying: bool):
+    def _calculate_score(self, transactions, cluster_buying: bool):
 
         score = 50
 
-        buy_score = 0
-        sell_score = 0
+        intent_transactions = [
+            t for t in transactions
+            if t["type"] in ["BUY", "SELL"]
+        ]
 
-        for t in transactions:
+        buys = [t for t in intent_transactions if t["type"] == "BUY"]
+        sells = [t for t in intent_transactions if t["type"] == "SELL"]
 
-            weight = self.ROLE_WEIGHTS.get(
-                (t.get("role") or "").strip(),
-                0.5
-            )
+        total = len(intent_transactions)
 
-            if t["type"] == "BUY":
-                buy_score += weight * (t.get("value") or 0)
+        if total == 0:
+            return 50
 
-            elif t["type"] == "SELL":
-                sell_score += weight * (t.get("value") or 0)
+        buy_ratio = len(buys) / total
+        sell_ratio = len(sells) / total
 
-        # normalize
-        net = buy_score - sell_score
+        # BUY pressure
+        score += buy_ratio * 40
 
-        score += net / 10000  # scaling factor
+        # SELL pressure
+        score -= sell_ratio * 40
+
+        # cluster effect
+        if cluster_buying:
+            score += 10
+
+        # heavy selling penalty
+        if len(sells) >= 5:
+            score -= 10
+
+        # optional: grant signal (weak positive bias)
+        grant_count = len([t for t in transactions if t["type"] == "Grant"])
+        if grant_count > 10:
+            score += 2
+
+        score = max(0, min(100, score))
+
+        return round(score, 2)
+
+    def _generate_signals(self, transactions, cluster_buying, score):
+
+        signals = []
+
+        buys = [t for t in transactions if t["type"] == "BUY"]
+        sells = [t for t in transactions if t["type"] == "SELL"]
+
+        buy_value = sum(t.get("value") or 0 for t in buys)
+        sell_value = sum(t.get("value") or 0 for t in sells)
+
+        net = buy_value - sell_value
 
         if cluster_buying:
-            score += 15
+            signals.append({
+                "signal": "CLUSTERED_ACTIVITY",
+                "score": 30
+            })
 
-        return max(0, min(100, score))
+        if net > 50000 and buy_value > sell_value:
+            signals.append({
+                "signal": "ACCUMULATION",
+                "score": 25
+            })
 
+        if net < -50000 and sell_value > buy_value:
+            signals.append({
+                "signal": "DISTRIBUTION",
+                "score": 25
+            })
+
+        if score >= 75:
+            signals.append({
+                "signal": "BULLISH_INSIDER_SENTIMENT",
+                "score": 20
+            })
+
+        if score <= 25:
+            signals.append({
+                "signal": "BEARISH_INSIDER_SENTIMENT",
+                "score": 20
+            })
+
+        if not signals:
+            signals.append({
+                "signal": "NEUTRAL_ACTIVITY",
+                "score": 10
+            })
+
+        return signals
     def _calculate_smart_money_score(self,insider_score,signals,transactions,cluster_buying):
 
         score = insider_score
@@ -331,7 +431,7 @@ class InsiderService:
         # -------------------------------------------------
         # SIGNAL STRENGTH BOOST
         # -------------------------------------------------
-        signal_boost = sum(s[1] for s in signals)
+        signal_boost = sum(s.get("score", 0) for s in signals)
         score += signal_boost * 0.2
 
         # -------------------------------------------------
@@ -358,53 +458,6 @@ class InsiderService:
         # -------------------------------------------------
         return max(0, min(100, score))
 
-    def _generate_signals(self, transactions, cluster_buying, score):
-
-        signals = []
-
-        buys = [t for t in transactions if t["type"] == "BUY"]
-        sells = [t for t in transactions if t["type"] == "SELL"]
-
-        buy_value = sum(t.get("value", 0) for t in buys)
-        sell_value = sum(t.get("value", 0) for t in sells)
-
-        net = buy_value - sell_value
-
-        # -------------------------------------------------
-        # 1. Cluster signal
-        # -------------------------------------------------
-        if cluster_buying:
-            signals.append(("CLUSTERED_ACTIVITY", 30))
-
-        # -------------------------------------------------
-        # 2. Strong accumulation
-        # -------------------------------------------------
-        if net > 50000 and buy_value > sell_value:
-            signals.append(("ACCUMULATION", 25))
-
-        # -------------------------------------------------
-        # 3. Strong distribution
-        # -------------------------------------------------
-        if net < -50000 and sell_value > buy_value:
-            signals.append(("DISTRIBUTION", 25))
-
-        # -------------------------------------------------
-        # 4. Insider confidence extremes
-        # -------------------------------------------------
-        if score >= 75:
-            signals.append(("BULLISH_INSIDER_SENTIMENT", 20))
-
-        if score <= 25:
-            signals.append(("BEARISH_INSIDER_SENTIMENT", 20))
-
-        # -------------------------------------------------
-        # 5. Neutral / noisy zone
-        # -------------------------------------------------
-        if not signals:
-            signals.append(("NEUTRAL_ACTIVITY", 10))
-
-        return signals
-
     def _group_signals(self, signals):
 
         grouped = {
@@ -427,7 +480,8 @@ class InsiderService:
         }
 
         for s in signals:
-            name = s[0]
+
+            name = s.get("signal")
 
             if name in bullish_signals:
                 grouped["bullish"].append(s)
@@ -449,6 +503,21 @@ class InsiderService:
             return 0
 
         return (buys - sells) / (buys + sells)
+
+    # =====================================================
+    # CEO BUY DETECTION
+    # =====================================================
+    def _detect_ceo_buying(self, buys: List[Dict]) -> bool:
+
+        for buy in buys:
+
+            role = str(buy.get("role", "")).lower()
+
+            if "ceo" in role:
+                return True
+
+        return False
+
 
 
 # =========================================================

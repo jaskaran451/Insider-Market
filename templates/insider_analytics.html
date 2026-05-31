@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Insider Dashboard</title>
+    <link rel="stylesheet" href="/static/style_insider_analysis.css">
+</head>
+
+<body>
+
+<div class="container">
+
+    <!-- SEARCH -->
+    <form method="GET" action="/insider" class="search-box">
+        <input type="text" name="ticker" placeholder="Enter ticker (e.g. BBAI)">
+        <button type="submit">Analyze</button>
+    </form>
+
+    <!-- SUMMARY CARDS -->
+    <div class="cards">
+
+        <div class="card">
+            <h3>{{ summary.company }}</h3>
+            <p>Insider Score</p>
+            <h2>{{ summary.insider_score }}</h2>
+        </div>
+
+        <div class="card">
+            <p>Buys</p>
+            <h2>{{ summary.total_buys }}</h2>
+        </div>
+
+        <div class="card">
+            <p>Sells</p>
+            <h2>{{ summary.total_sells }}</h2>
+        </div>
+
+        <div class="card">
+            <p>Net Activity</p>
+            <h2>{{ summary.net_activity }}</h2>
+        </div>
+
+    </div>
+
+    <!-- SIGNALS -->
+    <div class="section">
+        <h2>Signals</h2>
+
+        {% for signal in summary.signals %}
+            <div class="signal">
+                <b>{{ signal.signal }}</b> ({{ signal.score }})
+                <p>{{ signal.description }}</p>
+            </div>
+        {% endfor %}
+    </div>
+
+    <!-- TABLE -->
+    <div class="section">
+        <h2>Recent Transactions</h2>
+
+        <table>
+            <tr>
+                <th>Insider</th>
+                <th>Role</th>
+                <th>Type</th>
+                <th>Shares</th>
+                <th>Price</th>
+                <th>Date</th>
+            </tr>
+
+            {% for tx in summary.recent_transactions %}
+            <tr>
+                <td>{{ tx.insider }}</td>
+                <td>{{ tx.role }}</td>
+                <td>{{ tx.type }}</td>
+                <td>{{ tx.shares }}</td>
+                <td>{{ tx.price }}</td>
+                <td>{{ tx.date }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+
+</div>
+
+</body>
+</html>

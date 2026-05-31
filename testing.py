@@ -21,44 +21,44 @@ def test_insider_pipeline(ticker="BBAI"):
     print("\n📄 STEP 2: Fetch filings...\n")
 
     entity = company.raw
-
     filings = entity.get_filings(form=["4"])
 
     if not filings:
-        print("❌ No insider filings found")
+        print("❌ No filings found")
         return
 
-    print(f"✅ Found {len(filings)} insider filings")
+    filings = list(filings)  # ensure list
+
+    print(f"✅ Found {len(filings)} filings")
 
     # -------------------------------------------------
     # STEP 3: PARSE FILINGS
     # -------------------------------------------------
-    print("\n🧠 STEP 3: Parse insider filings...\n")
+    print("\n🧠 STEP 3: Parse filings...\n")
 
     parsed_filings = []
 
-    # Only test recent filings for now
-    for idx, filing in enumerate(filings):
-
-        if idx >= 10:
-            break
+    for i, filing in enumerate(filings[:30]):  # adjustable limit
 
         try:
-
             parsed = filing_parser.parse(filing)
 
             if parsed:
                 parsed_filings.append(parsed)
 
         except Exception as e:
-            print(f"❌ Parse error: {e}")
+            print(f"❌ Parse error at filing {i}: {e}")
 
-    print(f"✅ Parsed {len(parsed_filings)} filings")
+    print(f"✅ Parsed filings: {len(parsed_filings)}")
+
+    if not parsed_filings:
+        print("❌ No parsed filings")
+        return
 
     # -------------------------------------------------
-    # STEP 4: ANALYZE INSIDER SIGNALS
+    # STEP 4: ANALYZE
     # -------------------------------------------------
-    print("\n📊 STEP 4: Generate insider intelligence...\n")
+    print("\n📊 STEP 4: Running analysis...\n")
 
     summary = insider_service.analyze(
         filings=parsed_filings,
@@ -66,7 +66,7 @@ def test_insider_pipeline(ticker="BBAI"):
     )
 
     # -------------------------------------------------
-    # OUTPUT RESULTS
+    # STEP 5: BASIC METRICS
     # -------------------------------------------------
     print("\n==============================")
     print("INSIDER SUMMARY")
@@ -74,34 +74,68 @@ def test_insider_pipeline(ticker="BBAI"):
 
     print(f"Company: {summary.company}")
 
-    print(f"\nTotal Buys: {summary.total_buys}")
-    print(f"Total Sells: {summary.total_sells}")
+    print(f"Buys: {summary.total_buys}")
+    print(f"Sells: {summary.total_sells}")
+    print(f"Taxes: {summary.total_taxes}")
+    print(f"Grants: {summary.total_grants}")
 
     print(f"\nNet Activity: {summary.net_activity}")
 
     print(f"\nInsider Score: {summary.insider_score}")
+    print(f"Smart Money Score: {summary.smart_money_score}")
 
     print(f"\nBullish: {summary.bullish}")
     print(f"Bearish: {summary.bearish}")
 
     print(f"\nCluster Buying: {summary.cluster_buying}")
 
+    # -------------------------------------------------
+    # STEP 6: SIGNALS DEBUG
+    # -------------------------------------------------
     print("\n==============================")
-    print("SIGNALS")
+    print("SIGNALS (RAW)")
     print("==============================\n")
 
-    for name, score  in summary.signals:
-        print(f"{name} ({score})")
+    for s in summary.signals:
+        print(f"{s['signal']} ({s['score']})")
 
+    # -------------------------------------------------
+    # STEP 7: GROUPED SIGNALS
+    # -------------------------------------------------
+    print("\n==============================")
+    print("SIGNAL GROUPS")
+    print("==============================\n")
+
+    print("Bullish:")
+    for s in summary.signal_groups.get("bullish", []):
+        print(f"  - {s['signal']} ({s['score']})")
+
+    print("\nBearish:")
+    for s in summary.signal_groups.get("bearish", []):
+        print(f"  - {s['signal']} ({s['score']})")
+
+    print("\nNeutral:")
+    for s in summary.signal_groups.get("neutral", []):
+        print(f"  - {s['signal']} ({s['score']})")
+
+    # -------------------------------------------------
+    # STEP 8: MOMENTUM
+    # -------------------------------------------------
+    print("\n==============================")
+    print("MOMENTUM")
+    print("==============================\n")
+
+    print(f"Insider Momentum: {summary.insider_momentum}")
+
+    # -------------------------------------------------
+    # STEP 9: SAMPLE TRANSACTIONS
+    # -------------------------------------------------
     print("\n==============================")
     print("RECENT TRANSACTIONS")
     print("==============================\n")
 
-    for tx in summary.recent_transactions:
-
+    for tx in summary.recent_transactions[-10:]:
         print(tx)
-
-
 
 
 if __name__ == "__main__":

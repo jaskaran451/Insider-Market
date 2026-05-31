@@ -17,7 +17,10 @@ from edgar import Company, set_identity
 import base64
 from flask import jsonify, request
 from utils.edgar_wrapper import get_logo_of_company,edgar_client
-
+from flask import render_template, request
+from services.insider_service import insider_service
+from utils.edgar_wrapper import edgar_client
+from sec.parser import filing_parser
 
 from flask_login import (
     LoginManager,
@@ -325,6 +328,34 @@ def insider_chart(symbol, months):
         "chart": chart
     })
 
+@app.route("/insider", methods=["GET"])
+def insider_dashboard():
+
+    ticker = request.args.get("ticker", "BBAI")
+
+    company = edgar_client.find(ticker)
+    if not company:
+        return "Company not found"
+
+    entity = company.raw
+    filings = entity.get_filings(form=["4"])
+
+    parsed_filings = []
+
+    for f in filings[:30]:
+        try:
+            parsed = filing_parser.parse(f)
+            if parsed:
+                parsed_filings.append(parsed)
+        except:
+            continue
+
+    summary = insider_service.analyze(parsed_filings, company.name)
+
+    return render_template(
+        "insider.html",
+        summary=summary
+    )
 @app.route("/api/stocks")
 def get_stocks():
     ordered_data = []

@@ -3,7 +3,7 @@ from sec.parser import filing_parser
 from services.insider_service import insider_service
 
 
-def test_insider_pipeline(ticker="BBAI"):
+def test_insider_pipeline(ticker="APLD"):
 
     print("\n🔎 STEP 1: Resolve company...\n")
 
@@ -38,7 +38,7 @@ def test_insider_pipeline(ticker="BBAI"):
 
     parsed_filings = []
 
-    for i, filing in enumerate(filings[:30]):  # adjustable limit
+    for i, filing in enumerate(filings[3:5]):  # adjustable limit
 
         try:
             parsed = filing_parser.parse(filing)
@@ -70,6 +70,7 @@ def test_insider_pipeline(ticker="BBAI"):
     # -------------------------------------------------
     print("\n==============================")
     print("INSIDER SUMMARY")
+    print(summary)
     print("==============================\n")
 
     print(f"Company: {summary.company}")
@@ -96,8 +97,7 @@ def test_insider_pipeline(ticker="BBAI"):
     print("SIGNALS (RAW)")
     print("==============================\n")
 
-    for s in summary.signals:
-        print(f"{s['signal']} ({s['score']})")
+    print(f"{summary.signals})")
 
     # -------------------------------------------------
     # STEP 7: GROUPED SIGNALS
@@ -134,9 +134,9 @@ def test_insider_pipeline(ticker="BBAI"):
     print("RECENT TRANSACTIONS")
     print("==============================\n")
 
-    for tx in summary.recent_transactions[-10:]:
+    for tx in summary.recent_transactions[-5:]:
         print(tx)
 
 
 if __name__ == "__main__":
-    test_insider_pipeline("BBAI")
+    test_insider_pipeline("APLD")

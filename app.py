@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect
+from flask import Flask, render_template, request, redirect, get_flashed_messages, session
 import requests
 from config import COMPANY_MAP
 import time
@@ -6,7 +6,7 @@ import threading
 from config import TICKERS
 import os
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from flask import jsonify
 from typing import Dict
 from cache_utils import load_cache, save_cache
@@ -21,6 +21,10 @@ from flask import render_template, request
 from services.insider_service import insider_service
 from utils.edgar_wrapper import edgar_client
 from sec.parser import filing_parser
+from flask import flash
+import pandas as pd
+import numpy as np
+
 
 from flask_login import (
     LoginManager,
@@ -35,8 +39,10 @@ from werkzeug.security import (
     check_password_hash
 )
 
+from utils.notifier import notifier
 
 app = Flask(__name__)
+app.secret_key = "my-secret-key"
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 db_path = os.path.join(BASE_DIR, "database", "users.db")
 app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path}"
@@ -171,7 +177,9 @@ def home():
         }
     }
     if request.method == "POST":
+        notifier.success("Analysis complete")
         symbol = request.form.get("symbol")
+        session["ticker"] = symbol
         company_name = COMPANY_MAP.get(symbol, "Unknown Company")
 
         # =========================
@@ -304,7 +312,7 @@ def home():
             "logo": image_src,
         }
 
-
+    flash("Insider data loaded successfully", "success")
     return render_template("index.html", data=data, companies=COMPANY_MAP)
 
 @app.route("/chart/<symbol>/<int:months>")
@@ -328,34 +336,53 @@ def insider_chart(symbol, months):
         "chart": chart
     })
 
+from flask import jsonify
+from dataclasses import asdict
+
+
 @app.route("/insider", methods=["GET"])
 def insider_dashboard():
 
-    ticker = request.args.get("ticker", "BBAI")
+    ticker = session.get("ticker")
+
+    if not ticker:
+        return jsonify({
+            "success": False,
+            "message": "Ticker is required"
+        }), 400
 
     company = edgar_client.find(ticker)
+
     if not company:
-        return "Company not found"
+        return jsonify({
+            "success": False,
+            "message": "Company not found"
+        }), 404
 
     entity = company.raw
     filings = entity.get_filings(form=["4"])
 
     parsed_filings = []
 
-    for f in filings[:30]:
+    for idx, filing in enumerate(filings):
+        if idx >= 30:
+            break
+
         try:
-            parsed = filing_parser.parse(f)
+            parsed = filing_parser.parse(filing)
             if parsed:
                 parsed_filings.append(parsed)
-        except:
-            continue
+        except Exception as e:
+            print(f"[INSIDER PARSE ERROR] {ticker}: {e}")
 
     summary = insider_service.analyze(parsed_filings, company.name)
+    summary_dict = make_json_safe(asdict(summary))
 
-    return render_template(
-        "insider.html",
-        summary=summary
-    )
+    return jsonify({
+        "success": True,
+        "data": summary_dict
+    })
+
 @app.route("/api/stocks")
 def get_stocks():
     ordered_data = []
@@ -479,6 +506,33 @@ def is_valid_api_response(data):
         return False
 
     return True
+
+def make_json_safe(value):
+    if isinstance(value, dict):
+        return {k: make_json_safe(v) for k, v in value.items()}
+
+    if isinstance(value, list):
+        return [make_json_safe(v) for v in value]
+
+    if isinstance(value, tuple):
+        return [make_json_safe(v) for v in value]
+
+    if isinstance(value, (np.integer,)):
+        return int(value)
+
+    if isinstance(value, (np.floating,)):
+        return float(value)
+
+    if isinstance(value, (np.ndarray,)):
+        return value.tolist()
+
+    if isinstance(value, (pd.Timestamp, datetime, date)):
+        return value.isoformat()
+
+    if pd.isna(value):
+        return None
+
+    return value
 
 if __name__ == "__main__":
     with app.app_context():

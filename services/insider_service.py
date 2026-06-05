@@ -240,7 +240,7 @@ class InsiderService:
             return "BUY"
         if code in ["S"]:
             return "SELL"
-        if code in ["F"]:
+        if code in ["F","M"]:
             return "Tax"
         if code in ["A"]:
             return "Grant"
@@ -273,11 +273,11 @@ class InsiderService:
         if ownership:
             role = getattr(ownership, "position", None)
             date = getattr(ownership, "reporting_date", None)
-            if code not in ["A", "F"]:
+            if code not in ["A", "F", "M"]:
                 net_change=getattr(ownership, "net_change", None)
                 net_value=getattr(ownership, "net_value", None)
                 remaining_shares=getattr(ownership, "remaining_shares", None)
-            elif code == "F":
+            elif code in ["F","M"]:
                 shares = getattr(activity, "shares", 0)
                 net_change = -shares
                 net_value = -getattr(activity, "value", 0)
@@ -456,7 +456,7 @@ class InsiderService:
         # -------------------------------------------------
         # FINAL NORMALIZATION
         # -------------------------------------------------
-        return max(0, min(100, score))
+        return max(5, min(95, round(score, 2)))
 
     def _group_signals(self, signals):
 

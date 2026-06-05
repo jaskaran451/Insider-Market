@@ -10,8 +10,10 @@
         window.currentSymbol = "{{ data.symbol }}";
     </script>
     <script src="https://unpkg.com/lucide@latest"></script>
-    <script src="../static/script.js"></script>
+    <script src="../static/JS/script.js"></script>
     <script src="https://cdn.plot.ly/plotly-2.30.0.min.js"></script>
+    <script src="../static/JS/notification.js"></script>
+
 
 </head>
 <nav class="navbar">
@@ -48,6 +50,7 @@
 
 </nav>
 <body>
+<div id="notification-container"></div>
 
 <div class="page">
 
@@ -130,12 +133,15 @@
                     <h2 class="company-name">
                         {{ data.name }} ({{ data.symbol }})
                     </h2>
-                    <img src="{{ data.logo }}" alt="Uploaded Image">
+                    <div class="header-actions">
+                    <span class="chart-btn" onclick="toggleChart()">📊
+                        <span class="chart-tooltip">Open chart</span>
+                    </span>
+                        <a href="#" id="smart-money-btn">
+                            <img src="../static/grok.svg" class="smart-money-icon" alt="Smart Money">
+                        </a>
 
-                    <span class="chart-btn" onclick="toggleChart()">
-        📊
-        <span class="chart-tooltip">Open chart</span>
-    </span>
+                    </div>
                 </div>
                 <p>
                     Insider transaction activity
@@ -202,6 +208,88 @@
             </div>
             {% endif %}
         </div>
+                    <!-- SMART MONEY OVERLAY -->
+            <div id="smart-money-panel" class="smart-money-panel hidden">
+
+                <div class="sm-header">
+                    <div class="sm-back-btn" id="sm-back-btn">← Dashboard</div>
+
+                    <div class="sm-title">
+                        Smart Money Intelligence
+                        <span class="sm-company" id="smCompany">--</span>
+                    </div>
+
+                    <div class="sm-score-box">
+                         <div class="sm-score" id="smSmartMoneyScore">--</div>
+                        <div class="sm-label">Smart Money Score</div>
+                        <div class="sm-score-status" id="smScoreStatus">--</div>
+                    </div>
+                </div>
+
+                <div class="sm-metrics">
+                    <div class="metric-card bullish">
+                        <div class="metric-value" id="smBuys">0</div>
+                        <div class="metric-label">Buys</div>
+                    </div>
+
+                    <div class="metric-card bearish">
+                        <div class="metric-value" id="smSells">0</div>
+                        <div class="metric-label">Sells</div>
+                    </div>
+
+                    <div class="metric-card neutral">
+                        <div class="metric-value" id="smTaxes">0</div>
+                        <div class="metric-label">Taxes</div>
+                    </div>
+
+                    <div class="metric-card neutral">
+                        <div class="metric-value" id="smGrants">0</div>
+                        <div class="metric-label">Grants</div>
+                    </div>
+
+                    <div class="metric-card momentum">
+                        <div class="metric-value" id="smMomentum">0</div>
+                        <div class="metric-label">Momentum</div>
+                    </div>
+                </div>
+
+                <div class="sm-grid">
+                    <div class="card gauge-card">
+                        <canvas id="smartMoneyGauge"></canvas>
+                    </div>
+
+                    <div class="card donut-card">
+                        <canvas id="activityDonut"></canvas>
+                    </div>
+
+                    <div class="card radar-card">
+                        <canvas id="signalRadar"></canvas>
+                    </div>
+
+                    <div class="card ownership-card">
+                        <h3>Insider Ownership</h3>
+                        <div id="ownershipBars"></div>
+                    </div>
+                </div>
+
+                <div class="sm-signals">
+                    <h3>Signals</h3>
+                    <div class="signal-list" id="smSignalList"></div>
+                </div>
+
+                <div class="sm-timeline card">
+                    <h3>Insider Timeline</h3>
+                    <div id="timelineContainer"></div>
+                </div>
+
+                <div class="sm-leaderboard card">
+                    <h3>Insider Activity</h3>
+                    <div id="leaderboardContainer"></div>
+                </div>
+
+            </div>
+
+            <div id="smart-money-backdrop" class="smart-money-backdrop hidden"></div>
 
         <div id="largebuys-section" class="content-section">
 
@@ -422,5 +510,17 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    window.addEventListener("DOMContentLoaded", function () {
+
+        const flaskMessages = JSON.parse('{{ get_flashed_messages(with_categories=true) | tojson | safe }}');
+
+        flaskMessages.forEach(([type, message]) => {
+            window.notify(message, type);
+        });
+
+    });
+</script>
 </body>
 </html>
+

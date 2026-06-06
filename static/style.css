@@ -111,8 +111,6 @@
 
     z-index: 9999;
 
-    background: white; /* IMPORTANT */
-    border-bottom: 1px solid #eee;
 
     padding: 10px 0;
 }
@@ -1405,4 +1403,35 @@
     .sm-metrics,.sm-grid{
         grid-template-columns:1fr;
     }
+}
+.page-chart-bg{
+    position:absolute;
+    pointer-events:none;
+    right:-250px;
+    mask-image:
+        radial-gradient(
+            ellipse at center,
+            black 45%,
+            transparent 75%
+        );
+
+    -webkit-mask-image:
+        radial-gradient(
+            ellipse at center,
+            black 45%,
+            transparent 75%
+        );
+}
+
+.page-chart-bg img{
+    width:100%;
+    height:100%;
+    opacity:.3;
+    pointer-events:none;
+    z-index:0;
+
+}
+
+.page > *:not(.page-chart-bg){
+    z-index:2;
 }

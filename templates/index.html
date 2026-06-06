@@ -16,46 +16,18 @@
 
 
 </head>
-<nav class="navbar">
-
-    <div class="nav-left">
-        <h2>InsiderAI</h2>
-    </div>
-
-    <div class="nav-center">
-        <a href="/" class="nav-item {% if request.path == '/' %}active{% endif %}">Dashboard</a>
-        <a href="/smart-money/dashboard?symbol=NVDA" class="nav-item">Smart Money</a>
-        <a href="#" class="nav-item">Watchlists</a>
-    </div>
-    <div class="nav-right">
-
-        {% if current_user.is_authenticated %}
-
-        <div class="profile-menu">
-            👤 {{ current_user.username }}
-
-            <a href="/logout">
-                Logout
-            </a>
-        </div>
-
-        {% else %}
-
-        <a href="/login">Login</a>
-        <a href="/signup">Sign Up</a>
-
-        {% endif %}
-
-    </div>
-
-</nav>
+{% include 'nav.html' %}
 <body>
 <div id="notification-container"></div>
 
 <div class="page">
+     <div class="page-chart-bg">
+         <img src="../static/trade.png" alt="">
+     </div>
 
     <!-- HERO -->
     <section class="hero">
+
         <div class="hero-content">
             <h1 class="headline">
                 Insider Market Intelligence

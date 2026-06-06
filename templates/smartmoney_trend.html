@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <title>Insider AI Search</title>
+    <link href="/static/smart-money-trend.css" rel="stylesheet">
+     <link href="/static/style.css" rel="stylesheet">
+
+     <script src="../static/JS/smartmoney_trend.js"></script>
+
+</head>
+{% include 'nav.html' %}
+<body>
+<div id="notification-container"></div>
+<section class="smt-hero">
+    <div class="smt-hero-bg" aria-hidden="true">
+        <video class="smt-hero-video" autoplay muted loop playsinline preload="metadata" poster="../static/videos/smart-money-poster.png">
+            <source src="../static/videos/smart-money-hero.webm" type="video/webm">
+            <source src="../static/videos/smart-money-hero.mp4" type="video/mp4">
+        </video>
+    </div>
+    <div class="smt-hero-inner">
+        <div class="smt-hero-content">
+            <h1 class="smt-headline">
+                <span>Smart Money Trends.</span>
+                <strong>Track where giants invest.</strong>
+            </h1>
+            <p class="smt-desc">Search a company or fund to decode its latest 13F portfolio, new positions, concentration, and capital flow.</p>
+            <form id="trendSearchForm" class="smt-search">
+                <input id="trendSearchInput" type="text" placeholder="Search NVIDIA, Berkshire Hathaway, BlackRock..." autocomplete="off">
+                <button type="submit">Analyze</button>
+            </form>
+            <div class="smt-ribbon">
+                <div class="smt-ribbon-track">
+                    <button data-query="NVDA">NVIDIA</button>
+                    <button data-query="BRK-B">Berkshire Hathaway</button>
+                    <button data-query="BLK">BlackRock</button>
+                    <button data-query="MSFT">Microsoft</button>
+                    <button data-query="AAPL">Apple</button>
+                    <button data-query="META">Meta</button>
+                    <button data-query="AMZN">Amazon</button>
+                    <button data-query="TSLA">Tesla</button>
+                    <button data-query="NVDA">NVIDIA</button>
+                    <button data-query="BRK-B">Berkshire Hathaway</button>
+                    <button data-query="BLK">BlackRock</button>
+                    <button data-query="MSFT">Microsoft</button>
+                    <button data-query="AAPL">Apple</button>
+                    <button data-query="META">Meta</button>
+                    <button data-query="AMZN">Amazon</button>
+                    <button data-query="TSLA">Tesla</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+<section id="trendResults" class="smt-results hidden">
+    <div class="smt-results-header">
+        <div>
+            <h2 id="trendManager">--</h2>
+            <p id="trendPeriod">--</p>
+        </div>
+        <div class="smt-score-card">
+            <span>Portfolio Style</span>
+            <strong id="trendStyle">--</strong>
+        </div>
+    </div>
+    <div class="smt-kpis">
+        <div><span>Portfolio Value</span><strong id="trendPortfolioValue">--</strong></div>
+        <div><span>Total Holdings</span><strong id="trendTotalHoldings">--</strong></div>
+        <div><span>New Positions</span><strong id="trendNewPositions">--</strong></div>
+        <div><span>Top 5 Concentration</span><strong id="trendTop5">--</strong></div>
+    </div>
+    <div class="smt-chart-grid">
+        <div class="smt-card">
+            <h3>Portfolio Allocation</h3>
+            <canvas id="trendAllocationChart"></canvas>
+        </div>
+        <div class="smt-card">
+            <h3>Top Holdings</h3>
+            <canvas id="trendTopHoldingsChart"></canvas>
+        </div>
+    </div>
+    <div class="smt-card">
+        <h3>Top Holdings</h3>
+        <div id="trendHoldingsTable"></div>
+    </div>
+</section>
+<script src="../static/JS/smartmoney_trend.js"></script>
+</body>
+</html>

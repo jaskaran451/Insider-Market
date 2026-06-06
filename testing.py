@@ -1,142 +1,130 @@
-from utils.edgar_wrapper import edgar_client
-from sec.parser import filing_parser
-from services.insider_service import insider_service
 
 
-def test_insider_pipeline(ticker="APLD"):
+from edgar.core import limits
+from edgar import set_identity
+set_identity("SmartMoneyDashboard (your_email@gmail.com)")
 
-    print("\n🔎 STEP 1: Resolve company...\n")
+import json
+import argparse
+from pathlib import Path
+from edgar import Company, obj
 
-    company = edgar_client.find(ticker)
+OUTPUT_DIR=Path("test_outputs")
+OUTPUT_DIR.mkdir(exist_ok=True)
 
-    if not company:
-        print("❌ Company not found")
-        return
+def safe_value(v):
+    if v is None:
+        return None
+    if hasattr(v,"item"):
+        try:
+            return v.item()
+        except Exception:
+            pass
+    return str(v) if not isinstance(v,(int,float,bool)) else v
 
-    print(f"✅ Company: {company.name}")
+def safe_filings(collection,limit=None):
+    items=[]
+    for idx,filing in enumerate(collection):
+        if limit and idx>=limit:
+            break
+        items.append(filing)
+    return items
 
-    # -------------------------------------------------
-    # STEP 2: FETCH FILINGS
-    # -------------------------------------------------
-    print("\n📄 STEP 2: Fetch filings...\n")
+def normalize_holding(row):
+    return {
+        "issuer":safe_value(row.get("Issuer")),
+        "ticker":safe_value(row.get("Ticker")),
+        "cusip":safe_value(row.get("Cusip")),
+        "class":safe_value(row.get("Class")),
+        "value":safe_value(row.get("Value")),
+        "shares":safe_value(row.get("SharesPrnAmount")),
+        "type":safe_value(row.get("Type")),
+        "put_call":safe_value(row.get("PutCall")),
+        "investment_discretion":safe_value(row.get("InvestmentDiscretion")),
+        "sole_voting":safe_value(row.get("SoleVoting")),
+        "shared_voting":safe_value(row.get("SharedVoting")),
+        "non_voting":safe_value(row.get("NonVoting"))
+    }
 
-    entity = company.raw
-    filings = entity.get_filings(form=["4"])
+def parse_13f_filing(filing):
+    data_obj=obj(filing)
 
-    if not filings:
-        print("❌ No filings found")
-        return
+    if not data_obj or not hasattr(data_obj,"infotable"):
+        return None
 
-    filings = list(filings)  # ensure list
+    df=data_obj.infotable
 
-    print(f"✅ Found {len(filings)} filings")
+    if df is None or df.empty:
+        return None
 
-    # -------------------------------------------------
-    # STEP 3: PARSE FILINGS
-    # -------------------------------------------------
-    print("\n🧠 STEP 3: Parse filings...\n")
+    holdings=[]
 
-    parsed_filings = []
+    for _,row in df.iterrows():
+        holdings.append(normalize_holding(row))
 
-    for i, filing in enumerate(filings[3:5]):  # adjustable limit
+    return {
+        "filing": {
+            "manager":safe_value(getattr(filing,"company",None)),
+            "cik":safe_value(getattr(filing,"cik",None)),
+            "form":safe_value(getattr(filing,"form",None)),
+            "filing_date":safe_value(getattr(filing,"filing_date",None)),
+            "report_period":safe_value(getattr(data_obj,"report_period",None)),
+            "accession_number":safe_value(getattr(filing,"accession_number",None)),
+            "total_value":safe_value(getattr(data_obj,"total_value",None)),
+            "total_holdings":safe_value(getattr(data_obj,"total_holdings",None))
+        },
+        "holdings":holdings
+    }
+
+def build_manager_13f_json(symbol,limit):
+    print(f"\nSTEP 1: Load company/manager: {symbol}")
+
+    company=Company(symbol)
+
+    print(f"Company loaded: {company}")
+
+    print("\nSTEP 2: Fetch 13F-HR filings")
+
+    filings=company.get_filings(form=["13F-HR","13F-HR/A"])
+    filings=safe_filings(filings,limit)
+
+    print(f"13F filings found/tested: {len(filings)}")
+
+    result={
+        "query":symbol,
+        "filings_count":len(filings),
+        "filings":[]
+    }
+
+    for idx,filing in enumerate(filings,1):
+        print(f"\nSTEP 3.{idx}: Parse filing {getattr(filing,'accession_number',None)}")
 
         try:
-            parsed = filing_parser.parse(filing)
+            parsed=parse_13f_filing(filing)
 
             if parsed:
-                parsed_filings.append(parsed)
+                print(f"Report period: {parsed['filing']['report_period']}")
+                print(f"Holdings: {len(parsed['holdings'])}")
+                result["filings"].append(parsed)
+            else:
+                print("No infotable found")
 
         except Exception as e:
-            print(f"❌ Parse error at filing {i}: {e}")
+            print(f"Parse error: {e}")
 
-    print(f"✅ Parsed filings: {len(parsed_filings)}")
+    output_path=OUTPUT_DIR/f"{symbol.upper()}_13f_holdings.json"
 
-    if not parsed_filings:
-        print("❌ No parsed filings")
-        return
-
-    # -------------------------------------------------
-    # STEP 4: ANALYZE
-    # -------------------------------------------------
-    print("\n📊 STEP 4: Running analysis...\n")
-
-    summary = insider_service.analyze(
-        filings=parsed_filings,
-        company=company.name
+    output_path.write_text(
+        json.dumps(result,indent=2,default=str),
+        encoding="utf-8"
     )
 
-    # -------------------------------------------------
-    # STEP 5: BASIC METRICS
-    # -------------------------------------------------
-    print("\n==============================")
-    print("INSIDER SUMMARY")
-    print(summary)
-    print("==============================\n")
+    print(f"\nSaved JSON: {output_path.resolve()}")
 
-    print(f"Company: {summary.company}")
+if __name__=="__main__":
+    parser=argparse.ArgumentParser()
+    parser.add_argument("--symbol",default="NVDA")
+    parser.add_argument("--limit",type=int,default=2)
+    args=parser.parse_args()
 
-    print(f"Buys: {summary.total_buys}")
-    print(f"Sells: {summary.total_sells}")
-    print(f"Taxes: {summary.total_taxes}")
-    print(f"Grants: {summary.total_grants}")
-
-    print(f"\nNet Activity: {summary.net_activity}")
-
-    print(f"\nInsider Score: {summary.insider_score}")
-    print(f"Smart Money Score: {summary.smart_money_score}")
-
-    print(f"\nBullish: {summary.bullish}")
-    print(f"Bearish: {summary.bearish}")
-
-    print(f"\nCluster Buying: {summary.cluster_buying}")
-
-    # -------------------------------------------------
-    # STEP 6: SIGNALS DEBUG
-    # -------------------------------------------------
-    print("\n==============================")
-    print("SIGNALS (RAW)")
-    print("==============================\n")
-
-    print(f"{summary.signals})")
-
-    # -------------------------------------------------
-    # STEP 7: GROUPED SIGNALS
-    # -------------------------------------------------
-    print("\n==============================")
-    print("SIGNAL GROUPS")
-    print("==============================\n")
-
-    print("Bullish:")
-    for s in summary.signal_groups.get("bullish", []):
-        print(f"  - {s['signal']} ({s['score']})")
-
-    print("\nBearish:")
-    for s in summary.signal_groups.get("bearish", []):
-        print(f"  - {s['signal']} ({s['score']})")
-
-    print("\nNeutral:")
-    for s in summary.signal_groups.get("neutral", []):
-        print(f"  - {s['signal']} ({s['score']})")
-
-    # -------------------------------------------------
-    # STEP 8: MOMENTUM
-    # -------------------------------------------------
-    print("\n==============================")
-    print("MOMENTUM")
-    print("==============================\n")
-
-    print(f"Insider Momentum: {summary.insider_momentum}")
-
-    # -------------------------------------------------
-    # STEP 9: SAMPLE TRANSACTIONS
-    # -------------------------------------------------
-    print("\n==============================")
-    print("RECENT TRANSACTIONS")
-    print("==============================\n")
-
-    for tx in summary.recent_transactions[-5:]:
-        print(tx)
-
-
-if __name__ == "__main__":
-    test_insider_pipeline("APLD")
+    build_manager_13f_json(args.symbol,args.limit)

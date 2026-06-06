@@ -1,22 +1,18 @@
-from flask import Flask, render_template, request, redirect, get_flashed_messages, session
+from flask import Flask, redirect, session
 import requests
 from config import COMPANY_MAP
 import time
 import threading
 from config import TICKERS
 import os
-import json
-from datetime import datetime, timedelta, date
-from flask import jsonify
+from datetime import datetime, date
 from typing import Dict
-from cache_utils import load_cache, save_cache
+from utils.cache_utils import load_cache, save_cache
 from models import db, User,Traffic
 from collections import defaultdict
 from utils.charts import create_insider_chart
-from edgar import Company, set_identity
 import base64
-from flask import jsonify, request
-from utils.edgar_wrapper import get_logo_of_company,edgar_client
+from utils.edgar_wrapper import get_logo_of_company
 from flask import render_template, request
 from services.insider_service import insider_service
 from utils.edgar_wrapper import edgar_client
@@ -24,22 +20,17 @@ from sec.parser import filing_parser
 from flask import flash
 import pandas as pd
 import numpy as np
-
-
 from flask_login import (
     LoginManager,
     login_user,
     logout_user,
-    login_required,
-    current_user
+    login_required
 )
-
-from werkzeug.security import (
-    generate_password_hash,
-    check_password_hash
-)
-
+from werkzeug.security import (generate_password_hash,check_password_hash)
 from utils.notifier import notifier
+from services.manager_portfolio_service import manager_portfolio_service
+from dataclasses import asdict
+
 
 app = Flask(__name__)
 app.secret_key = "my-secret-key"
@@ -428,15 +419,29 @@ def fetch_quotes():
 
         time.sleep(CACHE_INTERVAL)
 
+@app.route("/smart-money-trend",methods=["GET"])
+def smart_money_trend_page():
+    return render_template("smartmoney_trend.html")
 
-# =========================================================
-# SMART MONEY DASHBOARD
-# =========================================================
-
-@app.route("/smart-money/dashboard")
-def smart_money_dashboard():
-    print("test")
-
+@app.route("/api/smart-money-trend",methods=["GET"])
+def smart_money_trend_api():
+    query=request.args.get("query")
+    if not query:
+        return jsonify({
+            "success":False,
+            "message":"Query is required"
+        }),400
+    try:
+        result=manager_portfolio_service.analyze(query,limit=8)
+        result=make_json_safe(result)
+        status=200 if result.get("success") else 404
+        return jsonify(result),status
+    except Exception as e:
+        print(f"[SMART MONEY TREND ERROR] {query}: {e}")
+        return jsonify({
+            "success":False,
+            "message":"Failed to load Smart Money Trend data"
+        }),500
 
 @app.route("/signup", methods=["GET", "POST"])
 def signup():

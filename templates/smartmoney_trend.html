@@ -6,8 +6,10 @@
     <title>Insider AI Search</title>
     <link href="/static/smart-money-trend.css" rel="stylesheet">
      <link href="/static/style.css" rel="stylesheet">
-
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
      <script src="../static/JS/smartmoney_trend.js"></script>
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+     <script src="../static/JS/notification.js"></script>
 
 </head>
 {% include 'nav.html' %}
@@ -33,22 +35,30 @@
             </form>
             <div class="smt-ribbon">
                 <div class="smt-ribbon-track">
-                    <button data-query="NVDA">NVIDIA</button>
                     <button data-query="BRK-B">Berkshire Hathaway</button>
+                    <button data-query="MS">MORGAN STANLEY </button>
+                    <button data-query="BAC">Bank of America</button>
+                    <button data-query="JPM">JPMorgan Chase & Co</button>
+                    <button data-query="GS">GOLDMAN SACHS</button>
                     <button data-query="BLK">BlackRock</button>
-                    <button data-query="MSFT">Microsoft</button>
-                    <button data-query="AAPL">Apple</button>
-                    <button data-query="META">Meta</button>
                     <button data-query="AMZN">Amazon</button>
-                    <button data-query="TSLA">Tesla</button>
                     <button data-query="NVDA">NVIDIA</button>
-                    <button data-query="BRK-B">Berkshire Hathaway</button>
-                    <button data-query="BLK">BlackRock</button>
-                    <button data-query="MSFT">Microsoft</button>
-                    <button data-query="AAPL">Apple</button>
-                    <button data-query="META">Meta</button>
-                    <button data-query="AMZN">Amazon</button>
-                    <button data-query="TSLA">Tesla</button>
+                    <button data-query="WMT">Walmart</button>
+
+                    <button data-query="AMD">ADVANCED MICRO DEVICES</button>
+
+
+                    <button data-query="JNJ">JOHNSON & JOHNSON</button>
+                    <button data-query="INTC">Intel</button>
+                    <button data-query="CSCO">Cisco</button>
+                    <button data-query="BAC">Bank of America</button>
+                    <button data-query="GE">General Electric</button>
+
+                    <button data-query="PLTR">Palantir</button>
+
+                    <button data-query="SNDK">Sandisk</button>
+                    <button data-query="AXP">AMERICAN EXPRESS</button>
+
                 </div>
             </div>
         </div>
@@ -71,6 +81,22 @@
         <div><span>New Positions</span><strong id="trendNewPositions">--</strong></div>
         <div><span>Top 5 Concentration</span><strong id="trendTop5">--</strong></div>
     </div>
+
+    <div class="smt-card smt-bubble-card">
+    <div class="smt-card-head">
+        <div>
+            <h3>Portfolio Evolution</h3>
+            <p>Bubble size represents reported position value. Y-axis shows portfolio weight.</p>
+        </div>
+        <select id="trendBubbleFilter" class="smt-chart-select">
+            <option value="3">Recent 3 reports</option>
+            <option value="6">Recent 6 reports</option>
+            <option value="all" selected>All reports</option>
+        </select>
+    </div>
+    <div id="trendBubbleChart"></div>
+</div>
+
     <div class="smt-chart-grid">
         <div class="smt-card">
             <h3>Portfolio Allocation</h3>

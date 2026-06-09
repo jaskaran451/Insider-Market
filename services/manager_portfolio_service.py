@@ -30,7 +30,8 @@ class ManagerPortfolioService:
             "holding_timeline":self.build_holding_timeline(filings),
             "copy_trade_portfolio":self.copy_trade_portfolio(latest),
             "manager_dna":self.manager_dna(filings),
-            "raw_filings":filings
+            "raw_filings":filings,
+            "bubble_chart_data": self.build_bubble_chart_data(filings)
         }
 
     def num(self,value):
@@ -201,5 +202,31 @@ class ManagerPortfolioService:
             "average_holdings":round(sum(len(f.get("holdings",[])) for f in filings)/len(filings),2),
             "quarters_available":len(filings)
         }
+
+    def build_bubble_chart_data(self, filings):
+        rows = []
+        previous = None
+        for filing in reversed(filings):
+            changes = self.compare_filings(filing, previous) if previous else []
+            change_map = {self.holding_key(c): c for c in changes}
+            total = self.num(filing["filing"].get("total_value"))
+            for h in filing["holdings"]:
+                key = self.holding_key(h)
+                value = self.num(h.get("value"))
+                change = change_map.get(key, {})
+                rows.append({
+                    "report_period": filing["filing"].get("report_period"),
+                    "filing_date": filing["filing"].get("filing_date"),
+                    "issuer": h.get("issuer"),
+                    "ticker": h.get("ticker"),
+                    "shares": self.num(h.get("shares")),
+                    "value": value,
+                    "portfolio_weight": round((value / total) * 100, 4) if total else 0,
+                    "status": change.get("status", "CURRENT"),
+                    "share_change": change.get("share_change", 0),
+                    "value_change": change.get("value_change", 0)
+                })
+            previous = filing
+        return rows
 
 manager_portfolio_service=ManagerPortfolioService()

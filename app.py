@@ -432,7 +432,7 @@ def smart_money_trend_api():
             "message":"Query is required"
         }),400
     try:
-        result=manager_portfolio_service.analyze(query,limit=8)
+        result=manager_portfolio_service.analyze(query)
         result=make_json_safe(result)
         status=200 if result.get("success") else 404
         return jsonify(result),status

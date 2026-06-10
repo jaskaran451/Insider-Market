@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>AI Stock Forecast Lab | InsiderAI</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="../static/css/nav.css" rel="stylesheet">
+    <link rel="stylesheet" href="../static/css/prediction.css">
+</head>
+{% include 'nav.html' %}
+<body>
+<section class="forecast-hero">
+    <div class="hero-bg-glow"></div>
+
+    <div class="hero-content">
+        <h1>AI Stock Forecast Lab</h1>
+        <p>
+            Predict stock prices using deep neural networks, model confidence,
+            backtesting accuracy, and scenario intelligence.
+        </p>
+
+        <form class="forecast-search" id="predictionSearchForm">
+            <input
+                type="text"
+                id="predictionSymbolInput"
+                value="AAPL"
+                placeholder="Enter ticker symbol..."
+                autocomplete="off"
+            >
+
+            <button type="submit">
+                →
+            </button>
+        </form>
+
+        <div class="hero-tabs">
+            <span>Neural Forecasting</span>
+            <span>Model Confidence</span>
+            <span>Backtesting</span>
+        </div>
+
+        <div class="hero-chips">
+            <button type="button" data-symbol="AAPL">AAPL</button>
+            <button type="button" data-symbol="MSFT">MSFT</button>
+            <button type="button" data-symbol="NVDA">NVDA</button>
+            <button type="button" data-symbol="TSLA">TSLA</button>
+            <button type="button" data-symbol="IBM">IBM</button>
+        </div>
+
+        <small id="predictionStatus">
+            Demo mode: frontend ready. LSTM backend connection comes next.
+        </small>
+    </div>
+</section>
+
+<main class="forecast-main">
+
+    <section class="forecast-title-row">
+        <div>
+            <h2 id="forecastCompanyTitle">AAPL Forecast Intelligence</h2>
+            <p>Neural next-day prediction, confidence range, and model diagnostics.</p>
+        </div>
+
+        <div class="style-badge">
+            <span>Forecast Mode</span>
+            <strong id="activeModelPill">LSTM Demo</strong>
+        </div>
+    </section>
+
+    <section class="metric-grid">
+
+        <div class="metric-card">
+            <span>Current Price</span>
+            <strong id="currentPriceValue">$0.00</strong>
+            <small>Latest adjusted close</small>
+        </div>
+
+        <div class="metric-card">
+            <span>Predicted Next Close</span>
+            <strong id="predictedPriceValue">$0.00</strong>
+            <small>Next trading day</small>
+        </div>
+
+        <div class="metric-card">
+            <span>Expected Move</span>
+            <strong id="expectedMoveValue">0.00%</strong>
+            <small>Model-implied change</small>
+        </div>
+
+        <div class="metric-card">
+            <span>Direction</span>
+            <strong id="directionValue">Neutral</strong>
+            <small>Signal classification</small>
+        </div>
+
+    </section>
+
+    <section class="dashboard-card chart-card">
+        <div class="card-heading">
+            <div>
+                <h3>Neural Forecast Chart</h3>
+                <p>Actual price, predicted price, and forecast confidence range.</p>
+            </div>
+        </div>
+
+        <div class="chart-wrapper">
+            <canvas id="forecastChart"></canvas>
+        </div>
+    </section>
+
+    <section class="two-column-grid">
+
+        <div class="dashboard-card confidence-panel">
+            <div class="card-heading">
+                <div>
+                    <h3>AI Confidence Meter</h3>
+                    <p>Signal quality based on trend, momentum, and risk.</p>
+                </div>
+            </div>
+
+            <div class="confidence-ring">
+                <div class="confidence-inner">
+                    <strong id="confidenceRingValue">0%</strong>
+                    <span>Confidence</span>
+                </div>
+            </div>
+
+            <div class="confidence-bars">
+
+                <div class="confidence-row">
+                    <label>
+                        Momentum
+                        <span id="momentumScoreText">0%</span>
+                    </label>
+                    <div class="bar-track">
+                        <div class="bar-fill" id="momentumBar"></div>
+                    </div>
+                </div>
+
+                <div class="confidence-row">
+                    <label>
+                        Trend
+                        <span id="trendScoreText">0%</span>
+                    </label>
+                    <div class="bar-track">
+                        <div class="bar-fill" id="trendBar"></div>
+                    </div>
+                </div>
+
+                <div class="confidence-row">
+                    <label>
+                        Volatility Safety
+                        <span id="volatilityScoreText">0%</span>
+                    </label>
+                    <div class="bar-track">
+                        <div class="bar-fill" id="volatilityBar"></div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <div class="dashboard-card explanation-panel">
+            <div class="card-heading">
+                <div>
+                    <h3>Why The AI Thinks This</h3>
+                    <p>Explainable signals behind the forecast.</p>
+                </div>
+            </div>
+
+            <div class="reason-grid">
+                <div>
+                    <h4>Bullish Signals</h4>
+                    <ul id="bullishReasons"></ul>
+                </div>
+
+                <div>
+                    <h4>Bearish Risks</h4>
+                    <ul id="bearishReasons"></ul>
+                </div>
+            </div>
+        </div>
+
+    </section>
+
+    <section class="two-column-grid">
+
+        <div class="dashboard-card">
+            <div class="card-heading">
+                <div>
+                    <h3>Model Battle Arena</h3>
+                    <p>Compare neural model outputs side by side.</p>
+                </div>
+            </div>
+
+            <div class="table-wrap">
+                <table class="model-table">
+                    <thead>
+                    <tr>
+                        <th>Model</th>
+                        <th>Prediction</th>
+                        <th>Direction</th>
+                        <th>Confidence</th>
+                        <th>Error</th>
+                    </tr>
+                    </thead>
+                    <tbody id="modelRows"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="dashboard-card">
+            <div class="card-heading">
+                <div>
+                    <h3>Backtesting Accuracy</h3>
+                    <p>Historical model performance snapshot.</p>
+                </div>
+            </div>
+
+            <div class="backtest-grid">
+                <div>
+                    <span>MAE</span>
+                    <strong id="maeValue">$0.00</strong>
+                </div>
+
+                <div>
+                    <span>RMSE</span>
+                    <strong id="rmseValue">$0.00</strong>
+                </div>
+
+                <div>
+                    <span>Direction Accuracy</span>
+                    <strong id="directionAccuracyValue">0%</strong>
+                </div>
+
+                <div>
+                    <span>Range Hit Rate</span>
+                    <strong id="rangeHitRateValue">0%</strong>
+                </div>
+            </div>
+        </div>
+
+    </section>
+
+    <section class="dashboard-card scenario-card">
+        <div class="card-heading">
+            <div>
+                <h3>Scenario Simulator</h3>
+                <p>Stress-test the forecast using sentiment, volume, volatility, and macro pressure.</p>
+            </div>
+
+            <div class="scenario-result">
+                <span>Scenario Forecast</span>
+                <strong id="scenarioForecastValue">$0.00</strong>
+                <small id="scenarioMoveValue">0.00% vs base prediction</small>
+            </div>
+        </div>
+
+        <div class="scenario-grid">
+
+            <div class="scenario-control">
+                <label>
+                    Market Sentiment
+                    <span id="sentimentValue">0</span>
+                </label>
+                <input type="range" min="-50" max="50" value="0" id="sentimentSlider">
+            </div>
+
+            <div class="scenario-control">
+                <label>
+                    Volume Change
+                    <span id="volumeValue">0</span>
+                </label>
+                <input type="range" min="-50" max="50" value="0" id="volumeSlider">
+            </div>
+
+            <div class="scenario-control">
+                <label>
+                    Volatility Pressure
+                    <span id="volatilityValue">0</span>
+                </label>
+                <input type="range" min="-50" max="50" value="0" id="volatilitySlider">
+            </div>
+
+            <div class="scenario-control">
+                <label>
+                    Rate / Macro Pressure
+                    <span id="macroValue">0</span>
+                </label>
+                <input type="range" min="-50" max="50" value="0" id="macroSlider">
+            </div>
+
+        </div>
+    </section>
+
+    <section class="dashboard-card model-setup-card">
+        <h3>Model Setup</h3>
+
+        <div class="setup-grid">
+            <div>
+                <span>Base Model</span>
+                <strong>PyTorch LSTM</strong>
+            </div>
+
+            <div>
+                <span>Lookback</span>
+                <strong>20 Days</strong>
+            </div>
+
+            <div>
+                <span>Target</span>
+                <strong>Next Close</strong>
+            </div>
+
+            <div>
+                <span>Data Source</span>
+                <strong>Alpha Vantage</strong>
+            </div>
+
+            <div>
+                <span>Feature Set</span>
+                <strong>Adjusted Close</strong>
+            </div>
+
+            <div>
+                <span>Status</span>
+                <strong>Frontend Ready</strong>
+            </div>
+        </div>
+
+        <p class="disclaimer">
+            Forecasts are experimental and educational. This dashboard is not financial advice
+            or a buy/sell recommendation.
+        </p>
+    </section>
+
+</main>
+
+<script src="../static/JS/prediction.js"></script>
+</body>
+</html>

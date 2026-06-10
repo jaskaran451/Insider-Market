@@ -443,6 +443,15 @@ def smart_money_trend_api():
             "message":"Failed to load Smart Money Trend data"
         }),500
 
+
+@app.route("/prediction")
+def prediction():
+    return render_template("prediction.html")
+
+
+
+
+
 @app.route("/signup", methods=["GET", "POST"])
 def signup():
     if request.method == "POST":

@@ -621,6 +621,17 @@
 .result-card {
     position: relative; /* IMPORTANT for corner positioning */
 }
+.sec-link{
+    color:#2563eb;
+    font-weight:700;
+    text-decoration:none;
+    transition:.2s ease;
+}
+
+.sec-link:hover{
+    color:#1d4ed8;
+    text-decoration:underline;
+}
 
 /* top-right info icon */
 .info-corner {

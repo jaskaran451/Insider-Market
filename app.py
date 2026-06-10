@@ -30,6 +30,7 @@ from werkzeug.security import (generate_password_hash,check_password_hash)
 from utils.notifier import notifier
 from services.manager_portfolio_service import manager_portfolio_service
 from dataclasses import asdict
+from services.edgar_insider_api_adapter import edgar_insider_api_adapter
 
 
 app = Flask(__name__)
@@ -175,8 +176,8 @@ def home():
 
         # =========================
         # INSIDER DATA
-        # =========================
-        insider_data = fetch_market_data("insider", symbol)
+        # ========================= news_data.get("feed", [])
+        insider_data = edgar_insider_api_adapter.get_insider_transactions(symbol)
         transactions_raw = insider_data.get("data", [])
 
         transactions = []
@@ -188,7 +189,9 @@ def home():
                 "type": "Buy" if t.get("acquisition_or_disposal") == "A" else "Sell",
                 "shares": t.get("shares"),
                 "price": t.get("share_price"),
-                "security": t.get("security_type")
+                "shares_value": t.get("share_value"),
+                "security": t.get("security_type"),
+                "sec_link": t.get("sec_link")
             })
 
         # =========================

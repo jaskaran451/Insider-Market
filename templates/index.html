@@ -169,6 +169,28 @@
                             <span>Security</span>
                             <strong>{{ t.security }}</strong>
                         </div>
+                        <div class="detail-item">
+                        <span>Value</span>
+                        <strong>
+                            ${{ "{:,.0f}".format(t.shares_value|float) if t.shares_value else "-" }}
+                        </strong>
+                    </div>
+
+                    <div class="detail-item">
+                        <span>SEC Filing</span>
+                        <strong>
+                            {% if t.sec_link %}
+                            <a href="{{ t.sec_link }}"
+                               target="_blank"
+                               rel="noopener noreferrer"
+                               class="sec-link">
+                                View Filing
+                            </a>
+                            {% else %}
+                            -
+                            {% endif %}
+                        </strong>
+                    </div>
                     </div>
                 </div>
                 {% endfor %}

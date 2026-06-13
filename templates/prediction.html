@@ -7,7 +7,10 @@
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="../static/css/nav.css" rel="stylesheet">
+    <link href="../static/css/style.css" rel="stylesheet">
     <link rel="stylesheet" href="../static/css/prediction.css">
+    <script src="../static/JS/notification.js"></script>
+
 </head>
 {% include 'nav.html' %}
 <body>
@@ -25,7 +28,6 @@
             <input
                 type="text"
                 id="predictionSymbolInput"
-                value="AAPL"
                 placeholder="Enter ticker symbol..."
                 autocomplete="off"
             >
@@ -55,7 +57,7 @@
     </div>
 </section>
 
-<main class="forecast-main">
+<main class="forecast-main hidden" id="forecastMain">
 
     <section class="forecast-title-row">
         <div>
@@ -94,6 +96,34 @@
             <strong id="directionValue">Neutral</strong>
             <small>Signal classification</small>
         </div>
+        <div class="metric-card">
+        <span>Confidence</span>
+        <strong id="confidenceValue">0%</strong>
+        <small>Consensus forecast strength</small>
+        </div>
+
+        <div class="metric-card">
+        <span>Risk Level</span>
+        <strong id="riskValue">Medium</strong>
+        <small>Volatility-adjusted risk</small>
+        </div>
+
+        <section class="dashboard-card">
+    <div class="card-heading">
+        <div>
+            <h3>InsiderAI Signal Breakdown</h3>
+            <p>LSTM, trend, momentum, and volatility contribution.</p>
+        </div>
+    </div>
+
+    <div class="signal-breakdown-grid">
+        <div><span>LSTM</span><strong id="signalLstm">0%</strong></div>
+        <div><span>Trend</span><strong id="signalTrend">0%</strong></div>
+        <div><span>Momentum</span><strong id="signalMomentum">0%</strong></div>
+        <div><span>Volatility Adj.</span><strong id="signalVolatility">0%</strong></div>
+        <div><span>Consensus</span><strong id="signalConsensus">0%</strong></div>
+    </div>
+</section>
 
     </section>
 

@@ -8,7 +8,7 @@ import os
 from datetime import datetime, date
 from typing import Dict
 from utils.cache_utils import load_cache, save_cache
-from models import db, User,Traffic
+from trafficmodels import db, User,Traffic
 from collections import defaultdict
 from utils.charts import create_insider_chart
 import base64
@@ -31,6 +31,7 @@ from utils.notifier import notifier
 from services.manager_portfolio_service import manager_portfolio_service
 from dataclasses import asdict
 from services.edgar_insider_api_adapter import edgar_insider_api_adapter
+from services.stock_data_service import build_prediction_response
 
 
 app = Flask(__name__)
@@ -306,7 +307,6 @@ def home():
             "logo": image_src,
         }
 
-    flash("Insider data loaded successfully", "success")
     return render_template("index.html", data=data, companies=COMPANY_MAP)
 
 @app.route("/chart/<symbol>/<int:months>")
@@ -436,6 +436,7 @@ def smart_money_trend_api():
         }),400
     try:
         result=manager_portfolio_service.analyze(query)
+        time.sleep(3)
         result=make_json_safe(result)
         status=200 if result.get("success") else 404
         return jsonify(result),status
@@ -451,8 +452,18 @@ def smart_money_trend_api():
 def prediction():
     return render_template("prediction.html")
 
+@app.route("/api/predict/<symbol>")
+def predict_stock(symbol):
+    symbol = symbol.upper().strip()
+    try:
+        result = build_prediction_response(symbol)
+        return jsonify(result)
 
-
+    except Exception as error:
+        return jsonify({
+            "error": True,
+            "message": str(error)
+        }), 400
 
 
 @app.route("/signup", methods=["GET", "POST"])

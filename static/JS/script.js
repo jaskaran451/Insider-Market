@@ -123,10 +123,6 @@ loadTicker();
         });
 
     const panel = document.getElementById("smart-money-panel");
-    const backdrop = document.getElementById("smart-money-backdrop");
-    document.getElementById("sm-back-btn").addEventListener("click", closeSmartMoney);
-
-    backdrop.addEventListener("click", closeSmartMoney);
 
     document.getElementById("smart-money-btn").addEventListener("click", async function (e)
     {
@@ -168,7 +164,6 @@ loadTicker();
     function populateSmartMoneyPanel() {
     const data = window.smartMoneyData;
 
-    document.getElementById("smCompany").textContent = data.company || "--";
     document.getElementById("smSmartMoneyScore").textContent = data.smart_money_score ?? "--";
     const score=Number(data.smart_money_score || 0);
     document.getElementById("smSmartMoneyScore").textContent=score;
@@ -206,26 +201,33 @@ loadTicker();
 
 
     function openSmartMoneyPanel(){
+    const panel=document.getElementById("smart-money-panel");
+    const resultsGrid=document.querySelector(".results-grid");
+
+    if(resultsGrid){
+        resultsGrid.classList.add("hidden");
+    }
 
     panel.classList.remove("hidden");
-    backdrop.classList.remove("hidden");
 
-    setTimeout(() => {
-        panel.classList.add("active");
-        backdrop.classList.add("active");
-    }, 10);
+    setTimeout(()=>{
+        panel.scrollIntoView({
+            behavior:"smooth",
+            block:"start"
+        });
+    },100);
 }
 
     function closeSmartMoney(){
+    const panel=document.getElementById("smart-money-panel");
+    const resultsGrid=document.querySelector(".results-grid");
 
-        panel.classList.remove("active");
-        backdrop.classList.remove("active");
+    panel.classList.add("hidden");
 
-        setTimeout(() => {
-            panel.classList.add("hidden");
-            backdrop.classList.add("hidden");
-        }, 350);
+    if(resultsGrid){
+        resultsGrid.classList.remove("hidden");
     }
+}
     function renderSmartMoneyCharts() {
         renderGauge();
         renderDonut();
@@ -303,12 +305,25 @@ loadTicker();
             }
         });
     }
+
+    window.signalRadarChart=window.signalRadarChart || null;
     function renderRadar(){
+    const canvas=document.getElementById("signalRadar");
+
+    if(!canvas){
+        return;
+    }
+
+    if(window.signalRadarChart){
+        window.signalRadarChart.destroy();
+        window.signalRadarChart=null;
+    }
+
     const signals=window.smartMoneyData.signals || [];
     const labels=signals.map(s=>s.signal.replaceAll("_"," "));
     const values=signals.map(s=>s.score);
 
-    new Chart(document.getElementById("signalRadar"),{
+    window.signalRadarChart=new Chart(canvas,{
         type:"bar",
         data:{
             labels:labels,
@@ -329,6 +344,7 @@ loadTicker();
             indexAxis:"y",
             responsive:true,
             maintainAspectRatio:false,
+            resizeDelay:100,
             plugins:{
                 legend:{display:false},
                 tooltip:{enabled:true}
@@ -337,13 +353,13 @@ loadTicker();
                 x:{
                     beginAtZero:true,
                     max:100,
-                    grid:{color:"rgba(255,255,255,.06)"},
-                    ticks:{color:"#94a3b8"}
+                    grid:{color:"rgba(15,23,42,.08)"},
+                    ticks:{color:"#64748b"}
                 },
                 y:{
                     grid:{display:false},
                     ticks:{
-                        color:"#cbd5e1",
+                        color:"#111827",
                         font:{weight:"700"}
                     }
                 }
@@ -351,6 +367,8 @@ loadTicker();
         }
     });
 }
+
+
     function renderOwnership() {
 
         const container = document.getElementById("ownershipBars");

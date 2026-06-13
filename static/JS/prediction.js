@@ -307,6 +307,11 @@
     }
 
     function renderDashboard(data) {
+        const forecastMain = getEl("forecastMain");
+
+        if (forecastMain) {
+            forecastMain.classList.remove("hidden");
+        }
         activeForecastData = data;
 
         renderMetricCards(data);
@@ -316,22 +321,37 @@
         renderBacktest(data);
         renderForecastChart(data);
         updateScenarioForecast();
+        renderSignalBreakdown(data);
 
-        getEl("activeModelPill").textContent = data.symbol + " · LSTM Ensemble Demo";
-        getEl("predictionStatus").textContent = "Loaded demo forecast for " + data.symbol + ".";
+        getEl("activeModelPill").textContent = data.symbol + " · " + (data.model || "Consensus Forecast");
         getEl("forecastCompanyTitle").textContent = data.symbol + " Forecast Intelligence";
     }
 
-    function renderMetricCards(data) {
-        getEl("currentPriceValue").textContent = formatCurrency(data.currentPrice);
-        getEl("predictedPriceValue").textContent = formatCurrency(data.predictedPrice);
-        getEl("expectedMoveValue").textContent = formatPercent(data.expectedMove);
-        getEl("directionValue").textContent = data.direction;
-        getEl("confidenceValue").textContent = data.confidence + "%";
-        getEl("riskValue").textContent = data.risk;
+    function setText(id, value) {
+    const element = getEl(id);
 
-        getEl("expectedMoveValue").className = data.expectedMove >= 0 ? "direction-bullish" : "direction-bearish";
-        getEl("directionValue").className = getDirectionClass(data.direction);
+    if (element) {
+        element.textContent = value;
+    }
+}
+
+    function renderMetricCards(data) {
+        setText("currentPriceValue", formatCurrency(data.currentPrice));
+        setText("predictedPriceValue", formatCurrency(data.predictedPrice));
+        setText("expectedMoveValue", formatPercent(data.expectedMove));
+        setText("directionValue", data.direction);
+        setText("confidenceValue", data.confidence + "%");
+        setText("riskValue", data.risk);
+
+        const expectedMoveEl = getEl("expectedMoveValue");
+        if (expectedMoveEl) {
+            expectedMoveEl.className = data.expectedMove >= 0 ? "direction-bullish" : "direction-bearish";
+        }
+
+        const directionEl = getEl("directionValue");
+        if (directionEl) {
+            directionEl.className = getDirectionClass(data.direction);
+        }
     }
 
     function renderConfidence(data) {
@@ -409,26 +429,26 @@
                     {
                         label: "Actual Price",
                         data: data.actual,
-                        borderColor: "#ffffff",
-                        backgroundColor: "rgba(255, 255, 255, 0.08)",
-                        borderWidth: 2.5,
+                        borderColor: "#111827",
+                        backgroundColor: "rgba(17, 24, 39, 0.06)",
+                        borderWidth: 3,
                         pointRadius: 0,
                         tension: 0.35
                     },
                     {
                         label: "Predicted Price",
                         data: data.predicted,
-                        borderColor: "#00d5ff",
-                        backgroundColor: "rgba(0, 213, 255, 0.1)",
-                        borderWidth: 2.5,
-                        pointRadius: 3,
+                        borderColor: "#16a34a",
+                        backgroundColor: "rgba(22, 163, 74, 0.10)",
+                        borderWidth: 3,
+                        pointRadius: 5,
                         tension: 0.35
                     },
                     {
                         label: "Upper Range",
                         data: data.upperBand,
-                        borderColor: "rgba(66, 245, 167, 0.75)",
-                        borderWidth: 1.5,
+                        borderColor: "rgba(37, 99, 235, 0.75)",
+                        borderWidth: 2,
                         pointRadius: 0,
                         borderDash: [6, 6],
                         tension: 0.35
@@ -436,8 +456,8 @@
                     {
                         label: "Lower Range",
                         data: data.lowerBand,
-                        borderColor: "rgba(255, 107, 138, 0.75)",
-                        borderWidth: 1.5,
+                        borderColor: "rgba(220, 38, 38, 0.75)",
+                        borderWidth: 2,
                         pointRadius: 0,
                         borderDash: [6, 6],
                         tension: 0.35
@@ -454,46 +474,56 @@
                 plugins: {
                     legend: {
                         labels: {
-                            color: "#aeb9d7",
+                            color: "#334155",
                             usePointStyle: true,
                             boxWidth: 8,
                             boxHeight: 8
                         }
                     },
                     tooltip: {
-                        backgroundColor: "rgba(8, 13, 28, 0.96)",
-                        borderColor: "rgba(255, 255, 255, 0.12)",
+                        backgroundColor: "rgba(255, 255, 255, 0.96)",
+                        borderColor: "rgba(15, 23, 42, 0.12)",
                         borderWidth: 1,
-                        titleColor: "#ffffff",
-                        bodyColor: "#dce6ff",
+                        titleColor: "#111827",
+                        bodyColor: "#334155",
                         padding: 12
                     }
                 },
                 scales: {
                     x: {
                         ticks: {
-                            color: "#8f9cc4",
+                            color: "#64748b",
                             maxTicksLimit: 8
                         },
                         grid: {
-                            color: "rgba(255, 255, 255, 0.055)"
+                            color: "rgba(15, 23, 42, 0.06)"
                         }
                     },
                     y: {
                         ticks: {
-                            color: "#8f9cc4",
+                            color: "#64748b",
                             callback: function (value) {
                                 return "$" + value;
                             }
                         },
                         grid: {
-                            color: "rgba(255, 255, 255, 0.07)"
+                            color: "rgba(15, 23, 42, 0.08)"
                         }
                     }
                 }
             }
         });
     }
+
+    function renderSignalBreakdown(data) {
+    const breakdown = data.signalBreakdown || {};
+
+    getEl("signalLstm").textContent = formatPercent(breakdown.lstm || 0);
+    getEl("signalTrend").textContent = formatPercent(breakdown.trend || 0);
+    getEl("signalMomentum").textContent = formatPercent(breakdown.momentum || 0);
+    getEl("signalVolatility").textContent = formatPercent(breakdown.volatility_adjustment || 0);
+    getEl("signalConsensus").textContent = formatPercent(breakdown.consensus || 0);
+}
 
     function updateScenarioForecast() {
         if (!activeForecastData) return;
@@ -526,23 +556,28 @@
         const input = getEl("predictionSymbolInput");
 
         form.addEventListener("submit", function (event) {
-            event.preventDefault();
+        event.preventDefault();
 
-            const symbol = input.value.trim().toUpperCase();
+        const symbol = input.value.trim().toUpperCase();
 
-            if (!symbol) {
-                getEl("predictionStatus").textContent = "Please enter a stock symbol.";
-                return;
-            }
+        if (!symbol) {
+            setInlineStatus(
+            "predictionStatus",
+            "Enter a ticker symbol to run the InsiderAI forecast.",
+            "warning"
+        );
+        return;
+    }
 
-            renderDashboard(buildForecastData(symbol));
-        });
+    loadPredictionForecast(symbol);
+});
 
         document.querySelectorAll("[data-symbol]").forEach(function (button) {
     button.addEventListener("click", function () {
         const symbol = button.getAttribute("data-symbol");
+
         input.value = symbol;
-        renderDashboard(buildForecastData(symbol));
+        loadPredictionForecast(symbol);
     });
 });
 
@@ -552,9 +587,126 @@
     }
 
     function initPredictionDashboard() {
-        bindEvents();
-        renderDashboard(buildForecastData("AAPL"));
+    bindEvents();
+
+   setInlineStatus(
+        "predictionStatus",
+        "Enter a ticker symbol to run the InsiderAI forecast.",
+        "info"
+    );
+}
+
+async function fetchPredictionFromApi(symbol) {
+    const cleanSymbol = symbol.toUpperCase().trim();
+
+    const response = await fetch("/api/predict/" + encodeURIComponent(cleanSymbol));
+    const data = await response.json();
+
+    if (!response.ok || data.error) {
+        throw new Error(data.message || "Prediction API failed");
     }
+
+    return data;
+}
+
+async function loadPredictionForecast(symbol) {
+    const cleanSymbol = symbol.toUpperCase().trim();
+
+    const pipeline = createStatusPipeline("predictionStatus", [
+        "Validating ticker symbol...",
+        "Fetching historical OHLC price data for " + cleanSymbol + "...",
+        "Preparing 10-year training dataset...",
+        "Normalizing price series and building lookback windows...",
+        "Running PyTorch LSTM neural network forecast...",
+        "Calculating trend, momentum, and volatility signals...",
+        "Combining signals into InsiderAI Consensus Forecast...",
+        "Building forecast range, backtest metrics, and chart data..."
+    ], {
+        interval: 1100
+    });
+
+    try {
+        const apiData = await fetchPredictionFromApi(cleanSymbol);
+        const dashboardData = buildForecastDataFromApi(apiData);
+
+        renderDashboard(dashboardData);
+
+        pipeline.success(
+            "Forecast ready for " + cleanSymbol + ". " +
+            "Model: " + apiData.model + ". " +
+            "Expected move: " + formatPercent(apiData.expected_move) + "."
+        );
+
+    } catch (error) {
+        console.error(error);
+
+        pipeline.error(
+            "Forecast failed for " + cleanSymbol + ". Please check the ticker and try again."
+        );
+    }
+}
+
+function buildForecastDataFromApi(apiData) {
+    const symbol = apiData.symbol.toUpperCase();
+
+    const profile = {
+        current: apiData.current_price,
+        drift: apiData.expected_move / 100,
+        volatility: apiData.volatility,
+        confidence: apiData.confidence,
+        risk: apiData.risk
+    };
+
+    const data = buildForecastData(symbol);
+
+    data.symbol = symbol;
+    data.labels = apiData.labels || data.labels;
+    data.actual = apiData.actual || data.actual;
+    data.predicted = apiData.predicted || data.predicted;
+    data.upperBand = apiData.upper_band || data.upperBand;
+    data.lowerBand = apiData.lower_band || data.lowerBand;
+
+    data.currentPrice = apiData.current_price;
+    data.predictedPrice = apiData.predicted_price;
+    data.expectedMove = apiData.expected_move;
+    data.direction = apiData.direction;
+    data.confidence = apiData.confidence;
+    data.risk = apiData.risk;
+    data.signalBreakdown = apiData.signal_breakdown || null;
+    data.model = apiData.model;
+
+    data.momentumScore = clamp(Math.round(55 + apiData.expected_move * 5), 30, 95);
+    data.trendScore = clamp(Math.round(apiData.confidence + apiData.expected_move * 2), 35, 95);
+    data.volatilitySafetyScore = clamp(Math.round(100 - apiData.volatility * 1450), 25, 95);
+
+    data.mae = apiData.mae || apiData.current_price * apiData.volatility * 0.75;
+    data.rmse = apiData.rmse || data.mae * 1.35;
+    data.directionAccuracy = apiData.direction_accuracy || clamp(Math.round(apiData.confidence + 4), 45, 88);
+    data.rangeHitRate = clamp(Math.round(apiData.confidence + 8), 50, 90);
+
+    data.models = buildModelComparison(
+        apiData.current_price,
+        apiData.predicted_price,
+        apiData.expected_move,
+        profile
+    );
+
+    data.bullishReasons = buildBullishReasons(
+        apiData.direction,
+        apiData.expected_move,
+        data.momentumScore,
+        data.trendScore
+    );
+
+    data.bearishReasons = buildBearishReasons(
+        apiData.risk,
+        apiData.volatility,
+        data.volatilitySafetyScore
+    );
+
+    return data;
+}
+
 
     if (document.readyState === "loading") {
         document.addEventListener("DOMContentLoaded", initPredictionDashboard);

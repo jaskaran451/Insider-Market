@@ -204,87 +204,136 @@
             {% endif %}
         </div>
                     <!-- SMART MONEY OVERLAY -->
-            <div id="smart-money-panel" class="smart-money-panel hidden">
+        <!-- SMART MONEY PANEL -->
+<section id="smart-money-panel"
+         class="smart-money-panel hidden">
 
-                <div class="sm-header">
-                    <div class="sm-back-btn" id="sm-back-btn">← Dashboard</div>
+    <div class="results-header sm-results-header">
 
-                    <div class="sm-title">
-                        Smart Money Intelligence
-                        <span class="sm-company" id="smCompany">--</span>
-                    </div>
+        <div>
+            <h2 id="smCompany">Smart Money Intelligence</h2>
+            <p id="smSubtitle">
+                Institutional accumulation and insider conviction signals
+            </p>
+        </div>
 
-                    <div class="sm-score-box">
-                         <div class="sm-score" id="smSmartMoneyScore">--</div>
-                        <div class="sm-label">Smart Money Score</div>
-                        <div class="sm-score-status" id="smScoreStatus">--</div>
-                    </div>
-                </div>
+        <div class="sm-header-actions">
 
-                <div class="sm-metrics">
-                    <div class="metric-card bullish">
-                        <div class="metric-value" id="smBuys">0</div>
-                        <div class="metric-label">Buys</div>
-                    </div>
-
-                    <div class="metric-card bearish">
-                        <div class="metric-value" id="smSells">0</div>
-                        <div class="metric-label">Sells</div>
-                    </div>
-
-                    <div class="metric-card neutral">
-                        <div class="metric-value" id="smTaxes">0</div>
-                        <div class="metric-label">Taxes</div>
-                    </div>
-
-                    <div class="metric-card neutral">
-                        <div class="metric-value" id="smGrants">0</div>
-                        <div class="metric-label">Grants</div>
-                    </div>
-
-                    <div class="metric-card momentum">
-                        <div class="metric-value" id="smMomentum">0</div>
-                        <div class="metric-label">Momentum</div>
-                    </div>
-                </div>
-
-                <div class="sm-grid">
-                    <div class="card gauge-card">
-                        <canvas id="smartMoneyGauge"></canvas>
-                    </div>
-
-                    <div class="card donut-card">
-                        <canvas id="activityDonut"></canvas>
-                    </div>
-
-                    <div class="card radar-card">
-                        <canvas id="signalRadar"></canvas>
-                    </div>
-
-                    <div class="card ownership-card">
-                        <h3>Insider Ownership</h3>
-                        <div id="ownershipBars"></div>
-                    </div>
-                </div>
-
-                <div class="sm-signals">
-                    <h3>Signals</h3>
-                    <div class="signal-list" id="smSignalList"></div>
-                </div>
-
-                <div class="sm-timeline card">
-                    <h3>Insider Timeline</h3>
-                    <div id="timelineContainer"></div>
-                </div>
-
-                <div class="sm-leaderboard card">
-                    <h3>Insider Activity</h3>
-                    <div id="leaderboardContainer"></div>
-                </div>
-
+            <div class="sm-score-pill">
+                <span id="smSmartMoneyScore">--</span>
+                <small>Score</small>
             </div>
 
-            <div id="smart-money-backdrop" class="smart-money-backdrop hidden"></div>
+            <div class="sm-score-status"
+                 id="smScoreStatus">
+                --
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- KPI ROW -->
+
+    <div class="results-grid sm-metrics">
+
+        <div class="metric-card bullish">
+            <div class="metric-value" id="smBuys">0</div>
+            <div class="metric-label">Buys</div>
+        </div>
+
+        <div class="metric-card bearish">
+            <div class="metric-value" id="smSells">0</div>
+            <div class="metric-label">Sells</div>
+        </div>
+
+        <div class="metric-card neutral">
+            <div class="metric-value" id="smTaxes">0</div>
+            <div class="metric-label">Taxes</div>
+        </div>
+
+        <div class="metric-card neutral">
+            <div class="metric-value" id="smGrants">0</div>
+            <div class="metric-label">Grants</div>
+        </div>
+
+        <div class="metric-card momentum">
+            <div class="metric-value" id="smMomentum">0</div>
+            <div class="metric-label">Momentum</div>
+        </div>
+
+    </div>
+
+    <!-- PRIMARY VISUAL -->
+
+    <div class="sm-chart-row">
+
+        <div class="result-card bubble-card">
+            <h3>Smart Money Flow</h3>
+            <div id="smartMoneyBubbleChart"></div>
+        </div>
+
+    </div>
+
+    <!-- SECONDARY CHARTS -->
+
+    <div class="sm-grid">
+
+        <div class="result-card">
+            <h3>Smart Money Score</h3>
+            <canvas id="smartMoneyGauge"></canvas>
+        </div>
+
+        <div class="result-card">
+            <h3>Activity Mix</h3>
+            <canvas id="activityDonut"></canvas>
+        </div>
+
+       <div class="result-card signal-radar-card">
+    <h3>Signal Strength</h3>
+    <canvas id="signalRadar"></canvas>
+</div>
+
+        <div class="result-card">
+            <h3>Insider Ownership</h3>
+            <div id="ownershipBars"></div>
+        </div>
+
+    </div>
+
+    <!-- SIGNALS -->
+
+    <div class="result-card">
+
+        <h3>Signals</h3>
+
+        <div class="signal-list"
+             id="smSignalList">
+        </div>
+
+    </div>
+
+    <!-- TIMELINE -->
+
+    <div class="result-card">
+
+        <h3>Insider Timeline</h3>
+
+        <div id="timelineContainer"></div>
+
+    </div>
+
+    <!-- LEADERBOARD -->
+
+    <div class="result-card">
+
+        <h3>Insider Activity</h3>
+
+        <div id="leaderboardContainer"></div>
+
+    </div>
+
+</section>
 
         <div id="largebuys-section" class="content-section">
 

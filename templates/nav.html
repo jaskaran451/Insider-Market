@@ -1,26 +1,20 @@
 <nav class="navbar">
 
-    <div class="nav-left">
-        <h2>InsiderAI</h2>
-    </div>
+     <a href="/" class="logo">InsiderAI</a>
 
-    <div class="nav-center">
+    <div class="nav-links">
         <a href="/" class="nav-item {% if request.path == '/' %}active{% endif %}">Dashboard</a>
         <a href="/smart-money-trend" class="nav-item">Smart Money</a>
         <a href="/prediction" class="nav-item">AI Stock Forecast Lab</a>
     </div>
-    <div class="nav-right">
-
+    <div class="auth-links">
         {% if current_user.is_authenticated %}
-
         <div class="profile-menu">
             👤 {{ current_user.username }}
-
             <a href="/logout">
                 Logout
             </a>
         </div>
-
         {% else %}
 
         <a href="/login">Login</a>

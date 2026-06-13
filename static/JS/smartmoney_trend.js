@@ -36,23 +36,47 @@ document.addEventListener("DOMContentLoaded",function(){
 });
 
 async function loadSmartMoneyTrend(query){
+    const pipeline = createStatusPipeline("trendStatus", [
+        "Validating search query...",
+        "Fetching latest 13F filing data for " + query + "...",
+        "Parsing institutional holdings and report periods...",
+        "Calculating portfolio value, concentration, and position weights...",
+        "Detecting new, increased, decreased, and closed positions...",
+        "Building allocation, top holdings, and bubble trend charts...",
+        "Finalizing Smart Money Trend analysis..."
+    ], {
+        interval: 1100
+    });
+
     try{
-        notify("Loading Smart Money Trend...","info");
         const response=await fetch(`/api/smart-money-trend?query=${encodeURIComponent(query)}`);
         const result=await response.json();
 
         if(!result.success){
-            notify(result.message || "No 13F filings found","error");
+            pipeline.error(result.message || "No 13F filings found for " + query + ".");
             return;
         }
 
         renderTrendDashboard(result);
+
         document.getElementById("trendResults").classList.remove("hidden");
-        document.getElementById("trendResults").scrollIntoView({behavior:"smooth",block:"start"});
-        notify("Smart Money Trend loaded","success");
+        document.getElementById("trendResults").scrollIntoView({
+            behavior:"smooth",
+            block:"start"
+        });
+
+        pipeline.success(
+            "Smart Money Trend analysis ready for " + (result.manager || query) + ". " +
+            "Loaded " + ((result.top_holdings || []).length) + " top holdings and " +
+            ((result.bubble_chart_data || []).length) + " position trend records."
+        );
+
     }catch(error){
         console.error(error);
-        notify("Failed to load Smart Money Trend","error");
+
+        pipeline.error(
+            "Smart Money Trend analysis failed for " + query + ". Please check the symbol/name and try again."
+        );
     }
 }
 

@@ -397,8 +397,10 @@
     position: fixed;
     bottom: 0;
     width: 100%;
-    background: #0f172a;
-    border-top: 1px solid #1e293b;
+    background: #293863;
+    box-shadow: 0 -2px 8px rgba(0,0,0,.04),
+        0 -12px 28px rgba(36,58,115,.12);
+    border-top: 1px solid rgba(255,255,255,.06);
 }
 
 .ticker {
@@ -431,14 +433,6 @@
     100% {
         opacity: 0.3;
     }
-}
-
-.ticker-wrapper {
-    position: fixed;
-    bottom: 0;
-    width: 100%;
-    background: #0b1220;
-    border-top: 1px solid #1e293b;
 }
 
 /* smooth infinite illusion */

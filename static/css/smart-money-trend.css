@@ -28,16 +28,21 @@
 .smt-hero-inner{
     position:relative;
     z-index:2;
+    display: flex;
     max-width:1500px;
     margin:0 auto;
     padding:92px 70px;
+    justify-content: space-around;
+
 }
 .smt-hero-content{
-    width:min(760px,95%);
+    width:min(904px,95%);
+    text-align: center;
+
 }
 .smt-headline{
     margin:0;
-    font-size:clamp(58px,7vw,118px);
+    font-size:72px;
     line-height:.9;
     letter-spacing:-5px;
     color:#334236;
@@ -52,9 +57,8 @@
     font-weight:900;
 }
 .smt-desc{
-    width:min(640px,100%);
     margin:34px 0 30px;
-    color:#334236;
+    color:#6b7280;
     font-size:22px;
     line-height:1.35;
     font-weight:500;
@@ -62,6 +66,7 @@
 .smt-search{
     display:flex;
     align-items:center;
+    margin-left: 8%;
     width:min(760px,100%);
     background:#fff;
     border:1px solid rgba(15,23,42,.08);

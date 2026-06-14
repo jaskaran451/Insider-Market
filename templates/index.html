@@ -6,6 +6,7 @@
     <title>Insider AI Search</title>
     <link href="../static/css/style.css" rel="stylesheet">
     <link href="../static/css/nav.css" rel="stylesheet">
+    <link href="../static/css/autocomplete.css" rel="stylesheet">
     <!-- Lucide Icons -->
     <script>
         window.currentSymbol = "{{ data.symbol }}";
@@ -14,6 +15,7 @@
     <script src="../static/JS/script.js"></script>
     <script src="https://cdn.plot.ly/plotly-2.30.0.min.js"></script>
     <script src="../static/JS/notification.js"></script>
+    <script src="../static/JS/autocomplete.js"></script>
 
 
 </head>
@@ -37,20 +39,12 @@
                 Analyze executive trades, insider activity, and market signals in real time.
             </p>
             <!-- FORM -->
-            <form class="prompt-form" method="POST">
+            <form class="prompt-form" method="POST" id="dashboardSearchForm">
                 <div class="prompt-container">
                     <!-- DROPDOWN -->
-                    <select class="ai-dropdown" name="symbol" required>
-                        <option disabled selected value="">
-                            Select a company to analyze...
-                        </option>
-                        {% for symbol, name in companies.items() %}
-                        <option value="{{ symbol }}">
-                            {{ name }}
-                        </option>
-                        {% endfor %}
+                    <input class="ai-dropdown" id="dashboardCompanySearch" type="text" placeholder="Search company name or ticker..." autocomplete="off" required>
 
-                    </select>
+                <input type="hidden" name="symbol" id="dashboardSymbolInput">
 
                     <!-- SUBMIT -->
                     <button class="submit-btn" id="submitBtn" type="submit">
@@ -61,6 +55,17 @@
                 </div>
 
             </form>
+
+                <script>
+                document.addEventListener("DOMContentLoaded", function () {
+                    attachCompanyAutocomplete({
+                        inputId: "dashboardCompanySearch",
+                        hiddenInputId: "dashboardSymbolInput",
+                        formId: "dashboardSearchForm",
+                        wrapperSelector: ".prompt-container"
+                    });
+                });
+                </script>
 
             <!-- QUICK ACTIONS -->
             <div class="panel-wrapper">

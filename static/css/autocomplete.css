@@ -1,0 +1,67 @@
+.company-autocomplete-box {
+    background: rgba(255, 255, 255, 0.96);
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    border-radius: 22px;
+    box-shadow: 0 24px 60px rgba(15, 23, 42, 0.16);
+    overflow: hidden;
+    backdrop-filter: blur(14px);
+}
+
+.company-autocomplete-item {
+    width: 100%;
+    border: none;
+    background: transparent;
+    padding: 16px 18px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.18s ease;
+}
+
+.company-autocomplete-item:hover {
+    background: #f3f6fb;
+}
+
+.company-suggestion-symbol {
+    min-width: 76px;
+    height: 42px;
+    border-radius: 14px;
+    background: #111827;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+}
+
+.company-suggestion-info {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.company-suggestion-info strong {
+    color: #111827;
+    font-size: 15px;
+    font-weight: 850;
+}
+
+.company-suggestion-info span {
+    color: #64748b;
+    font-size: 13px;
+    font-weight: 650;
+}
+.panel-wrapper.autocomplete-hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateY(12px);
+    transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s ease;
+}
+.panel-wrapper {
+    transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s ease;
+}

@@ -82,7 +82,7 @@ a {
 
 .hero-content h1 {
     margin: 0;
-    font-size: clamp(56px, 7.5vw, 112px);
+    font-size: 72px;
     line-height: 0.95;
     letter-spacing: -0.07em;
     font-weight: 950;
@@ -92,25 +92,23 @@ a {
 .hero-content p {
     max-width: 760px;
     margin: 28px auto 48px;
-    font-size: 26px;
+    font-size: 22px;
     line-height: 1.35;
     color: #768077;
     font-weight: 500;
 }
 
 .forecast-search {
-    width: min(1120px, 100%);
-    margin: 0 auto;
-    height: 108px;
-    padding: 14px;
-    border-radius: 32px;
     display: flex;
     align-items: center;
-    gap: 18px;
     background: rgba(255, 255, 255, 0.70);
     border: 1px solid rgba(15, 23, 42, 0.10);
     box-shadow: 0 22px 70px rgba(15, 23, 42, 0.13);
     backdrop-filter: blur(16px);
+    margin-left: 8%;
+    width:min(760px,100%);
+    background:#fff;
+    border-radius:22px;
 }
 
 .forecast-search input {
@@ -642,10 +640,6 @@ a {
         padding: 40px 18px 60px;
     }
 
-    .hero-content h1 {
-        font-size: 54px;
-    }
-
     .hero-content p {
         font-size: 20px;
     }
@@ -725,3 +719,4 @@ a {
         grid-template-columns: 1fr;
     }
 }
+

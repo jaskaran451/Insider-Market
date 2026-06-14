@@ -47,6 +47,8 @@
     padding: 10px;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
     border: 1px solid #e5e7eb;
+    position: relative;
+    z-index: 2000;
 }
 
 .prompt-input {
@@ -104,15 +106,13 @@
     justify-content: center;
     gap: 12px;
     flex-wrap: wrap;
-    transition: transform 0.5s ease;
     position: sticky;
     backdrop-filter: blur(12px);
     top: 0;
-
     z-index: 9999;
-
-
     padding: 10px 0;
+    transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s ease;
+
 }
 
 
@@ -395,7 +395,10 @@
 
 .ticker-wrapper {
     position: fixed;
+    left: 0;
+    right: 0;
     bottom: 0;
+    z-index: 9999;
     width: 100%;
     background: #293863;
     box-shadow: 0 -2px 8px rgba(0,0,0,.04),

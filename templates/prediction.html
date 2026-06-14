@@ -8,8 +8,11 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="../static/css/nav.css" rel="stylesheet">
     <link href="../static/css/style.css" rel="stylesheet">
+    <link href="../static/css/autocomplete.css" rel="stylesheet">
     <link rel="stylesheet" href="../static/css/prediction.css">
     <script src="../static/JS/notification.js"></script>
+    <script src="../static/JS/autocomplete.js"></script>
+
 
 </head>
 {% include 'nav.html' %}
@@ -36,6 +39,15 @@
                 →
             </button>
         </form>
+        <script>
+            document.addEventListener("DOMContentLoaded", function () {
+                attachCompanyAutocomplete({
+                    inputId: "predictionSymbolInput",
+                    formId: "predictionSearchForm",
+                    wrapperSelector: ".forecast-search"
+                });
+            });
+            </script>
 
         <div class="hero-tabs">
             <span>Neural Forecasting</span>

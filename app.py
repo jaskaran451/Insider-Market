@@ -32,6 +32,8 @@ from services.manager_portfolio_service import manager_portfolio_service
 from dataclasses import asdict
 from services.edgar_insider_api_adapter import edgar_insider_api_adapter
 from services.stock_data_service import build_prediction_response
+import yfinance as yf
+from flask import jsonify
 
 
 app = Flask(__name__)
@@ -330,8 +332,7 @@ def insider_chart(symbol, months):
         "chart": chart
     })
 
-from flask import jsonify
-from dataclasses import asdict
+
 
 
 @app.route("/insider", methods=["GET"])
@@ -465,6 +466,53 @@ def predict_stock(symbol):
             "message": str(error)
         }), 400
 
+
+
+@app.route("/search")
+def search_symbols():
+    query = request.args.get("q", "").strip()
+
+    if len(query) < 2:
+        return jsonify({"success": True, "results": []})
+
+    try:
+        search = yf.Search(
+            query,
+            max_results=8,
+            news_count=0,
+            lists_count=0,
+            include_research=False
+        )
+
+        quotes = search.quotes or []
+
+        results = []
+
+        for item in quotes:
+            symbol = item.get("symbol")
+            name = item.get("shortname") or item.get("longname") or item.get("name")
+            exchange = item.get("exchange") or item.get("exchDisp")
+            quote_type = item.get("quoteType")
+
+            if symbol and name:
+                results.append({
+                    "symbol": symbol,
+                    "name": name,
+                    "exchange": exchange,
+                    "type": quote_type
+                })
+
+        return jsonify({
+            "success": True,
+            "results": results
+        })
+
+    except Exception as error:
+        return jsonify({
+            "success": False,
+            "message": str(error),
+            "results": []
+        }), 400
 
 @app.route("/signup", methods=["GET", "POST"])
 def signup():

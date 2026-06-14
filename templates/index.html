@@ -45,6 +45,7 @@
                     <input class="ai-dropdown" id="dashboardCompanySearch" type="text" placeholder="Search company name or ticker..." autocomplete="off" required>
 
                 <input type="hidden" name="symbol" id="dashboardSymbolInput">
+                    <input type="hidden" name="company_name" id="dashboardCompanyNameInput">
 
                     <!-- SUBMIT -->
                     <button class="submit-btn" id="submitBtn" type="submit">
@@ -62,7 +63,11 @@
                         inputId: "dashboardCompanySearch",
                         hiddenInputId: "dashboardSymbolInput",
                         formId: "dashboardSearchForm",
-                        wrapperSelector: ".prompt-container"
+                        wrapperSelector: ".prompt-container",
+                         onSelect: function (item) {
+                            document.getElementById("dashboardCompanyNameInput").value =
+                                item.name || item.symbol;
+                         }
                     });
                 });
                 </script>
@@ -210,8 +215,7 @@
         </div>
                     <!-- SMART MONEY OVERLAY -->
         <!-- SMART MONEY PANEL -->
-<section id="smart-money-panel"
-         class="smart-money-panel hidden">
+<section id="smart-money-panel" class="smart-money-panel hidden">
 
     <div class="results-header sm-results-header">
 
@@ -223,17 +227,12 @@
         </div>
 
         <div class="sm-header-actions">
-
-            <div class="sm-score-pill">
-                <span id="smSmartMoneyScore">--</span>
-                <small>Score</small>
-            </div>
-
-            <div class="sm-score-status"
-                 id="smScoreStatus">
+            <div class="sm-score-status" id="smScoreStatus">
                 --
             </div>
-
+            <button type="button" class="sm-close-btn" id="closeSmartMoneyBtn">
+            ✕
+        </button>
         </div>
 
     </div>
@@ -269,38 +268,58 @@
 
     </div>
 
-    <!-- PRIMARY VISUAL -->
+    <!-- MAIN SMART MONEY CHARTS -->
 
-    <div class="sm-chart-row">
+    <div class="sm-insight-grid">
 
-        <div class="result-card bubble-card">
-            <h3>Smart Money Flow</h3>
-            <div id="smartMoneyBubbleChart"></div>
+        <div class="sm-insight-card">
+            <div class="sm-card-header">
+                <h3>Smart Money Score</h3>
+                <p>
+                    Overall insider conviction based on buying, selling, grants,
+                    taxes, and momentum.
+                </p>
+            </div>
+
+            <div class="sm-chart-wrap">
+                <canvas id="smartMoneyGauge"></canvas>
+            </div>
         </div>
 
-    </div>
+        <div class="sm-insight-card">
+            <div class="sm-card-header">
+                <h3>Activity Mix</h3>
+                <p>
+                    Breakdown of reported insider transaction categories.
+                </p>
+            </div>
 
-    <!-- SECONDARY CHARTS -->
-
-    <div class="sm-grid">
-
-        <div class="result-card">
-            <h3>Smart Money Score</h3>
-            <canvas id="smartMoneyGauge"></canvas>
+            <div class="sm-chart-wrap">
+                <canvas id="activityDonut"></canvas>
+            </div>
         </div>
 
-        <div class="result-card">
-            <h3>Activity Mix</h3>
-            <canvas id="activityDonut"></canvas>
+        <div class="sm-insight-card signal-radar-card">
+            <div class="sm-card-header">
+                <h3>Signal Strength</h3>
+                <p>
+                    Relative strength of bullish, bearish, and neutral insider signals.
+                </p>
+            </div>
+
+            <div class="sm-chart-wrap">
+                <canvas id="signalRadar"></canvas>
+            </div>
         </div>
 
-       <div class="result-card signal-radar-card">
-    <h3>Signal Strength</h3>
-    <canvas id="signalRadar"></canvas>
-</div>
+        <div class="sm-insight-card">
+            <div class="sm-card-header">
+                <h3>Insider Ownership</h3>
+                <p>
+                    Ownership concentration and insider exposure for the selected company.
+                </p>
+            </div>
 
-        <div class="result-card">
-            <h3>Insider Ownership</h3>
             <div id="ownershipBars"></div>
         </div>
 
@@ -308,21 +327,29 @@
 
     <!-- SIGNALS -->
 
-    <div class="result-card">
+    <div class="result-card sm-full-card">
 
-        <h3>Signals</h3>
-
-        <div class="signal-list"
-             id="smSignalList">
+        <div class="sm-card-header">
+            <h3>Signals</h3>
+            <p>
+                Key smart money signals detected from insider activity.
+            </p>
         </div>
+
+        <div class="signal-list" id="smSignalList"></div>
 
     </div>
 
     <!-- TIMELINE -->
 
-    <div class="result-card">
+    <div class="result-card sm-full-card">
 
-        <h3>Insider Timeline</h3>
+        <div class="sm-card-header">
+            <h3>Insider Timeline</h3>
+            <p>
+                Recent insider transaction activity over time.
+            </p>
+        </div>
 
         <div id="timelineContainer"></div>
 
@@ -330,9 +357,14 @@
 
     <!-- LEADERBOARD -->
 
-    <div class="result-card">
+    <div class="result-card sm-full-card">
 
-        <h3>Insider Activity</h3>
+        <div class="sm-card-header">
+            <h3>Insider Activity</h3>
+            <p>
+                Executives and insiders with the most notable reported activity.
+            </p>
+        </div>
 
         <div id="leaderboardContainer"></div>
 
@@ -557,6 +589,200 @@
         </div>
     </div>
 </div>
+<!-- COMPANY INFO SIDE DRAWER -->
+
+<div class="company-info-drawer" id="companyInfoDrawer">
+
+    <button type="button" class="company-info-toggle" id="companyInfoToggle" aria-label="Open company info">
+        i
+    </button>
+
+    <aside class="company-info-panel">
+
+        <div class="company-info-header">
+            <div>
+                <h3>Company Info</h3>
+                <p>Snapshot and key market metrics</p>
+            </div>
+
+            <button type="button" class="company-info-close" id="companyInfoClose" aria-label="Close company info">
+                ✕
+            </button>
+        </div>
+
+        <!-- SNAPSHOT -->
+
+        <div class="company-info-section">
+            <h4>Snapshot</h4>
+
+            <div class="company-info-item">
+                <span>Name</span>
+                <strong id="companyInfoName">--</strong>
+            </div>
+
+            <div class="company-info-item">
+                <span>Sector</span>
+                <strong id="companyInfoSector">--</strong>
+            </div>
+
+            <div class="company-info-item">
+                <span>Website</span>
+                <a id="companyInfoWebsite" href="#" target="_blank" rel="noopener noreferrer">
+                    --
+                </a>
+            </div>
+        </div>
+
+        <!-- MARKET DATA -->
+
+        <div class="company-info-section">
+            <h4>Market Data</h4>
+
+            <div class="company-info-grid">
+                <div class="company-info-mini">
+                    <span>Price</span>
+                    <strong id="companyMarketPrice">--</strong>
+                </div>
+
+                <div class="company-info-mini">
+                    <span>Prev Close</span>
+                    <strong id="companyPreviousClose">--</strong>
+                </div>
+
+                <div class="company-info-mini">
+                    <span>Open</span>
+                    <strong id="companyOpen">--</strong>
+                </div>
+
+                <div class="company-info-mini">
+                    <span>Volume</span>
+                    <strong id="companyVolume">--</strong>
+                </div>
+            </div>
+
+            <div class="company-info-item">
+                <span>Day Range</span>
+                <strong id="companyDayRange">--</strong>
+            </div>
+
+            <div class="company-info-item">
+                <span>52W Range</span>
+                <strong id="company52WeekRange">--</strong>
+            </div>
+
+            <div class="company-info-item">
+                <span>Market Cap</span>
+                <strong id="companyMarketCap">--</strong>
+            </div>
+        </div>
+
+        <!-- VALUATION -->
+
+        <div class="company-info-section">
+            <h4>Valuation</h4>
+
+            <div class="company-info-grid">
+                <div class="company-info-mini">
+                    <span>Forward P/E</span>
+                    <strong id="companyForwardPE">--</strong>
+                </div>
+
+                <div class="company-info-mini">
+                    <span>Price / Book</span>
+                    <strong id="companyPriceBook">--</strong>
+                </div>
+
+                <div class="company-info-mini">
+                    <span>Price / Sales</span>
+                    <strong id="companyPriceSales">--</strong>
+                </div>
+
+                <div class="company-info-mini">
+                    <span>Beta</span>
+                    <strong id="companyBeta">--</strong>
+                </div>
+            </div>
+
+            <div class="company-info-item">
+                <span>Enterprise Value</span>
+                <strong id="companyEnterpriseValue">--</strong>
+            </div>
+        </div>
+
+        <!-- FINANCIAL HEALTH -->
+
+        <div class="company-info-section">
+            <h4>Financial Health</h4>
+
+            <div class="company-info-grid">
+                <div class="company-info-mini">
+                    <span>Revenue</span>
+                    <strong id="companyRevenue">--</strong>
+                </div>
+
+                <div class="company-info-mini">
+                    <span>Gross Margin</span>
+                    <strong id="companyGrossMargin">--</strong>
+                </div>
+
+                <div class="company-info-mini">
+                    <span>Operating Margin</span>
+                    <strong id="companyOperatingMargin">--</strong>
+                </div>
+
+                <div class="company-info-mini">
+                    <span>Profit Margin</span>
+                    <strong id="companyProfitMargin">--</strong>
+                </div>
+            </div>
+
+            <div class="company-info-item">
+                <span>Free Cash Flow</span>
+                <strong id="companyFreeCashFlow">--</strong>
+            </div>
+
+            <div class="company-info-item">
+                <span>Total Cash</span>
+                <strong id="companyTotalCash">--</strong>
+            </div>
+
+            <div class="company-info-item">
+                <span>Total Debt</span>
+                <strong id="companyTotalDebt">--</strong>
+            </div>
+        </div>
+
+        <!-- ANALYST VIEW -->
+
+        <div class="company-info-section">
+            <h4>Analyst View</h4>
+
+            <div class="company-info-grid">
+                <div class="company-info-mini">
+                    <span>Target Low</span>
+                    <strong id="companyTargetLow">--</strong>
+                </div>
+
+                <div class="company-info-mini">
+                    <span>Target Mean</span>
+                    <strong id="companyTargetMean">--</strong>
+                </div>
+
+                <div class="company-info-mini">
+                    <span>Target High</span>
+                    <strong id="companyTargetHigh">--</strong>
+                </div>
+
+                <div class="company-info-mini">
+                    <span>Opinions</span>
+                    <strong id="companyAnalystOpinions">--</strong>
+                </div>
+            </div>
+        </div>
+
+    </aside>
+
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
@@ -570,6 +796,8 @@
 
     });
 </script>
+
+
 </body>
 </html>
 

@@ -77,36 +77,6 @@ setTimeout(loadTicker, 500);
 setInterval(loadTicker, 5000);
 loadTicker();
 
-    // // MODAL
-    // function openChart(symbol) {
-    //     document.getElementById("modal").classList.remove("hidden");
-    //     document.getElementById("modal-title").innerText = symbol;
-    //
-    //     loadChart(symbol);
-    // }
-    //
-    // function closeModal() {
-    //     document.getElementById("modal").classList.add("hidden");
-    // }
-    //
-    // // SIMPLE DEMO CHART
-    // function loadChart(symbol) {
-    //     const ctx = document.getElementById("chart").getContext("2d");
-    //
-    //     new Chart(ctx, {
-    //         type: "line",
-    //         data: {
-    //             labels: ["1", "2", "3", "4", "5"],
-    //             datasets: [{
-    //                 label: symbol,
-    //                 data: [10, 12, 9, 14, 13],
-    //                 borderColor: "blue"
-    //             }]
-    //         }
-    //     });
-    // }
-
-
     document.getElementById("insiderBtn")
         .addEventListener("click", () => {
             showSection("insider-section");
@@ -137,6 +107,12 @@ loadTicker();
 
         await loadSmartMoney(ticker);
 });
+
+    const closeSmartMoneyBtn = document.getElementById("closeSmartMoneyBtn");
+
+if (closeSmartMoneyBtn) {
+    closeSmartMoneyBtn.addEventListener("click", closeSmartMoney);
+}
     async function loadSmartMoney(ticker) {
     try {
         notify("Loading Smart Money Intelligence...", "info");
@@ -161,13 +137,12 @@ loadTicker();
     }
 }
 
-    function populateSmartMoneyPanel() {
-    const data = window.smartMoneyData;
+function populateSmartMoneyPanel() {
+    const data = window.smartMoneyData || {};
 
-    document.getElementById("smSmartMoneyScore").textContent = data.smart_money_score ?? "--";
-    const score=Number(data.smart_money_score || 0);
-    document.getElementById("smSmartMoneyScore").textContent=score;
-    document.getElementById("smScoreStatus").textContent=getSmartMoneyLabel(score);
+    const score = Number(data.smart_money_score || 0);
+
+    document.getElementById("smScoreStatus").textContent = getSmartMoneyLabel(score);
 
     document.getElementById("smBuys").textContent = data.total_buys ?? 0;
     document.getElementById("smSells").textContent = data.total_sells ?? 0;
@@ -181,14 +156,22 @@ loadTicker();
     if (data.signals && data.signals.length > 0) {
         data.signals.forEach(signal => {
             const chip = document.createElement("div");
-            chip.className = `signal-chip ${signal.signal.toLowerCase()}`;
-            chip.textContent = `${signal.signal} (${signal.score})`;
+
+            const signalClass = String(signal.signal || "neutral")
+                .toLowerCase()
+                .replaceAll("_", "-")
+                .replaceAll(" ", "-");
+
+            chip.className = `signal-chip ${signalClass}`;
+            chip.textContent = `${String(signal.signal || "Signal").replaceAll("_", " ")} (${signal.score ?? 0})`;
+
             signalList.appendChild(chip);
         });
     } else {
         signalList.innerHTML = `<div class="signal-chip neutral">No strong signal detected</div>`;
     }
 }
+
     function getSmartMoneyLabel(score){
         if(score>=80) return "Strong Accumulation";
         if(score>=65) return "Bullish";
@@ -200,111 +183,195 @@ loadTicker();
 
 
 
-    function openSmartMoneyPanel(){
-    const panel=document.getElementById("smart-money-panel");
-    const resultsGrid=document.querySelector(".results-grid");
+    function openSmartMoneyPanel() {
+    const panel = document.getElementById("smart-money-panel");
 
-    if(resultsGrid){
-        resultsGrid.classList.add("hidden");
-    }
+    document.querySelectorAll(".content-section").forEach(section => {
+        section.classList.remove("active");
+    });
 
     panel.classList.remove("hidden");
 
-    setTimeout(()=>{
+    setTimeout(() => {
         panel.scrollIntoView({
-            behavior:"smooth",
-            block:"start"
+            behavior: "smooth",
+            block: "start"
         });
-    },100);
+    }, 100);
 }
 
-    function closeSmartMoney(){
-    const panel=document.getElementById("smart-money-panel");
-    const resultsGrid=document.querySelector(".results-grid");
+    function closeSmartMoney() {
+    const panel = document.getElementById("smart-money-panel");
 
     panel.classList.add("hidden");
 
-    if(resultsGrid){
-        resultsGrid.classList.remove("hidden");
+    showSection("insider-section");
+
+    const resultsSection = document.getElementById("resultsSection");
+
+    if (resultsSection) {
+        setTimeout(() => {
+            resultsSection.scrollIntoView({
+                behavior: "smooth",
+                block: "start"
+            });
+        }, 100);
     }
 }
+
     function renderSmartMoneyCharts() {
         renderGauge();
         renderDonut();
         renderRadar();
         renderOwnership();
         renderTimeline();
-    }
+        renderLeaderboard();
+}
+    window.smartMoneyGaugeChart = window.smartMoneyGaugeChart || null;
+    window.activityDonutChart = window.activityDonutChart || null;
     function renderGauge() {
+    const canvas = document.getElementById("smartMoneyGauge");
 
-        const score = smartMoneyData.smart_money_score;
+    if (!canvas) return;
 
-        new Chart(document.getElementById("smartMoneyGauge"), {
-            type: "doughnut",
-            data: {
-                datasets: [{
-                    data: [score, 100 - score],
-                    backgroundColor: [
-                        score > 65 ? "#22c55e" :
-                        score > 40 ? "#facc15" : "#ef4444",
-                        "#1f2937"
-                    ],
-                    borderWidth: 0
-                }]
-            },
-            options: {
-                cutout: "75%",
-                plugins: {
-                    tooltip: { enabled: false }
-                }
-            },
-            plugins: [{
-                id: "centerText",
-                beforeDraw(chart) {
-                    const { width } = chart;
-                    const ctx = chart.ctx;
-
-                    ctx.restore();
-                    ctx.font = "bold 28px Arial";
-                    ctx.fillStyle = "white";
-                    ctx.textAlign = "center";
-
-                    ctx.fillText(score, width / 2, 90);
-                    ctx.font = "12px Arial";
-                    ctx.fillText("Smart Money", width / 2, 110);
-                    ctx.save();
-                }
-            }]
-        });
+    if (window.smartMoneyGaugeChart) {
+        window.smartMoneyGaugeChart.destroy();
+        window.smartMoneyGaugeChart = null;
     }
+
+    const score = Number(window.smartMoneyData.smart_money_score || 0);
+    const remaining = Math.max(0, 100 - score);
+
+    window.smartMoneyGaugeChart = new Chart(canvas, {
+        type: "doughnut",
+        data: {
+            datasets: [{
+                data: [score, remaining],
+                backgroundColor: [
+                    score > 65 ? "#22c55e" : score > 40 ? "#facc15" : "#ef4444",
+                    "#e5e7eb"
+                ],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: "72%",
+            plugins: {
+                tooltip: { enabled: false },
+                legend: { display: false }
+            }
+        },
+        plugins: [{
+            id: "smartMoneyCenterText",
+            beforeDraw(chart) {
+                const { width, height } = chart;
+                const ctx = chart.ctx;
+
+                ctx.save();
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+
+                ctx.font = "900 42px Arial";
+                ctx.fillStyle = "#102033";
+                ctx.fillText(`${score}`, width / 2, height / 2 - 12);
+
+                ctx.font = "700 15px Arial";
+                ctx.fillStyle = "#64748b";
+                ctx.fillText("Smart Money", width / 2, height / 2 + 26);
+
+                ctx.restore();
+            }
+        }]
+    });
+}
+
+function renderLeaderboard() {
+    const container = document.getElementById("leaderboardContainer");
+
+    if (!container) return;
+
+    container.innerHTML = "";
+
+    const transactions = window.smartMoneyData.recent_transactions || [];
+
+    if (!transactions.length) {
+        container.innerHTML = `<div class="empty-state">No insider activity available.</div>`;
+        return;
+    }
+
+    transactions.slice(0, 10).forEach(t => {
+        const row = document.createElement("div");
+        row.className = "leaderboard-row";
+
+        row.innerHTML = `
+            <div>
+                <strong>${t.insider || "Unknown Insider"}</strong>
+                <span>${t.title || t.type || "Transaction"}</span>
+            </div>
+            <div>
+                <strong>${Number(t.shares || 0).toLocaleString()}</strong>
+                <span>Shares</span>
+            </div>
+        `;
+
+        container.appendChild(row);
+    });
+}
 
     function renderDonut() {
-        const buys = smartMoneyData.total_buys;
-        const sells = smartMoneyData.total_sells;
-        const taxes = smartMoneyData.total_taxes;
-        const grants = smartMoneyData.total_grants;
+    const canvas = document.getElementById("activityDonut");
 
-        new Chart(document.getElementById("activityDonut"), {
-            type: "doughnut",
-            data: {
-                labels: ["Buys", "Sells", "Taxes", "Grants"],
-                datasets: [{
-                    data: [buys, sells, taxes, grants],
-                    backgroundColor: [
-                        "#22c55e",
-                        "#ef4444",
-                        "#f59e0b",
-                        "#3b82f6"
-                    ]
-                }]
-            },
-            options: {
-                plugins: {
-                    legend: { position: "bottom" }
+    if (!canvas) return;
+
+    if (window.activityDonutChart) {
+        window.activityDonutChart.destroy();
+        window.activityDonutChart = null;
+    }
+
+    const data = window.smartMoneyData || {};
+
+    const buys = Number(data.total_buys || 0);
+    const sells = Number(data.total_sells || 0);
+    const taxes = Number(data.total_taxes || 0);
+    const grants = Number(data.total_grants || 0);
+
+    window.activityDonutChart = new Chart(canvas, {
+        type: "doughnut",
+        data: {
+            labels: ["Buys", "Sells", "Taxes", "Grants"],
+            datasets: [{
+                data: [buys, sells, taxes, grants],
+                backgroundColor: [
+                    "#22c55e",
+                    "#ef4444",
+                    "#f59e0b",
+                    "#3b82f6"
+                ],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: "68%",
+            plugins: {
+                legend: {
+                    position: "bottom",
+                    labels: {
+                        usePointStyle: true,
+                        boxWidth: 10,
+                        font: {
+                            size: 13,
+                            weight: "700"
+                        }
+                    }
                 }
             }
-        });
-    }
+        }
+    });
+}
 
     window.signalRadarChart=window.signalRadarChart || null;
     function renderRadar(){
@@ -370,35 +437,51 @@ loadTicker();
 
 
     function renderOwnership() {
+    const container = document.getElementById("ownershipBars");
 
-        const container = document.getElementById("ownershipBars");
-        container.innerHTML = "";
+    if (!container) return;
 
-        const grouped = {};
+    container.innerHTML = "";
 
-        smartMoneyData.recent_transactions.forEach(t => {
-            const name = t.insider || "Unknown";
-            grouped[name] = (grouped[name] || 0) + (t.shares || 0);
-        });
+    const transactions = window.smartMoneyData.recent_transactions || [];
 
-        const max = Math.max(...Object.values(grouped));
-
-        Object.entries(grouped).forEach(([name, value]) => {
-
-            const bar = document.createElement("div");
-            bar.className = "ownership-row";
-
-            bar.innerHTML = `
-                <div class="label">${name}</div>
-                <div class="bar">
-                    <div class="fill" style="width:${(value/max)*100}%"></div>
-                </div>
-                <div class="value">${value.toLocaleString()}</div>
-            `;
-
-            container.appendChild(bar);
-        });
+    if (!transactions.length) {
+        container.innerHTML = `<div class="empty-state">No ownership data available.</div>`;
+        return;
     }
+
+    const grouped = {};
+
+    transactions.forEach(t => {
+        const name = t.insider || "Unknown";
+        grouped[name] = (grouped[name] || 0) + Number(t.shares || 0);
+    });
+
+    const values = Object.values(grouped);
+    const max = Math.max(...values);
+
+    if (!max || max <= 0) {
+        container.innerHTML = `<div class="empty-state">No ownership data available.</div>`;
+        return;
+    }
+
+    Object.entries(grouped).forEach(([name, value]) => {
+        const bar = document.createElement("div");
+        bar.className = "ownership-row";
+
+        bar.innerHTML = `
+            <div class="label">${name}</div>
+            <div class="bar">
+                <div class="fill" style="width:${(value / max) * 100}%"></div>
+            </div>
+            <div class="value">${Number(value).toLocaleString()}</div>
+        `;
+
+        container.appendChild(bar);
+    });
+}
+
+
     function renderTimeline() {
 
         const container = document.getElementById("timelineContainer");
@@ -429,6 +512,105 @@ loadTicker();
 
             container.appendChild(div);
         });
+    }
+
+    const companyInfoDrawer = document.getElementById("companyInfoDrawer");
+    const companyInfoToggle = document.getElementById("companyInfoToggle");
+    const companyInfoClose = document.getElementById("companyInfoClose");
+
+    if (companyInfoToggle && companyInfoDrawer) {
+        companyInfoToggle.addEventListener("click", () => {
+            companyInfoDrawer.classList.toggle("open");
+        });
+    }
+
+    if (companyInfoClose && companyInfoDrawer) {
+        companyInfoClose.addEventListener("click", () => {
+            companyInfoDrawer.classList.remove("open");
+        });
+    }
+
+    function setText(id, value) {
+    const el = document.getElementById(id);
+
+    if (!el) {
+        console.error("Missing company info element:", id);
+        return;
+    }
+
+    el.textContent = value || "--";
+}
+
+async function loadCompanyInfo(symbol) {
+    try {
+        console.log("Loading company info for:", symbol);
+
+        const response = await fetch(`/company-info/${symbol}`);
+        const result = await response.json();
+
+        console.log("Company info result:", result);
+
+        if (!result.success) {
+            console.error(result.message || "Company info failed");
+            return;
+        }
+
+        const data = result.data || {};
+
+        // Snapshot
+        setText("companyInfoName", data.snapshot?.name);
+        setText("companyInfoSector", data.snapshot?.sector);
+
+        const websiteEl = document.getElementById("companyInfoWebsite");
+
+        if (websiteEl) {
+            if (data.snapshot?.website) {
+                websiteEl.textContent = data.snapshot.website.replace(/^https?:\/\//, "");
+                websiteEl.href = data.snapshot.website;
+            } else {
+                websiteEl.textContent = "--";
+                websiteEl.href = "#";
+            }
+        }
+
+        // Market data
+        setText("companyMarketPrice", data.market?.price);
+        setText("companyPreviousClose", data.market?.previous_close);
+        setText("companyOpen", data.market?.open);
+        setText("companyVolume", data.market?.volume);
+        setText("companyDayRange", data.market?.day_range);
+        setText("company52WeekRange", data.market?.week_52_range);
+        setText("companyMarketCap", data.market?.market_cap);
+
+        // Valuation
+        setText("companyForwardPE", data.valuation?.forward_pe);
+        setText("companyPriceBook", data.valuation?.price_to_book);
+        setText("companyPriceSales", data.valuation?.price_to_sales);
+        setText("companyEnterpriseValue", data.valuation?.enterprise_value);
+        setText("companyBeta", data.valuation?.beta);
+
+        // Financial health
+        setText("companyRevenue", data.financial_health?.revenue);
+        setText("companyGrossMargin", data.financial_health?.gross_margin);
+        setText("companyOperatingMargin", data.financial_health?.operating_margin);
+        setText("companyProfitMargin", data.financial_health?.profit_margin);
+        setText("companyFreeCashFlow", data.financial_health?.free_cashflow);
+        setText("companyTotalCash", data.financial_health?.total_cash);
+        setText("companyTotalDebt", data.financial_health?.total_debt);
+
+        // Analyst view
+        setText("companyTargetLow", data.analyst?.target_low);
+        setText("companyTargetMean", data.analyst?.target_mean);
+        setText("companyTargetHigh", data.analyst?.target_high);
+        setText("companyAnalystOpinions", data.analyst?.analyst_opinions);
+
+    } catch (error) {
+        console.error("Company info loading failed:", error);
+    }
+}
+
+    if (window.currentSymbol) {
+        loadCompanyInfo(window.currentSymbol);
     }
 
 });

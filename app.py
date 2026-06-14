@@ -175,7 +175,8 @@ def home():
         notifier.success("Analysis complete")
         symbol = request.form.get("symbol")
         session["ticker"] = symbol
-        company_name = COMPANY_MAP.get(symbol, "Unknown Company")
+        company_name = request.form.get("company_name", "").strip()
+        session["company_name"] = company_name
 
         # =========================
         # INSIDER DATA
@@ -332,8 +333,83 @@ def insider_chart(symbol, months):
         "chart": chart
     })
 
+@app.route("/company-info/<symbol>")
+def company_info_api(symbol):
+    try:
+        return jsonify({
+            "success": True,
+            "data": get_company_info(symbol)
+        })
 
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "message": str(e)
+        }), 500
 
+def get_company_info(symbol):
+    ticker = yf.Ticker(symbol)
+
+    info = ticker.get_info()
+    fast = ticker.fast_info
+
+    price = info.get("currentPrice") or info.get("regularMarketPrice") or safe_get(fast, "last_price")
+    previous_close = info.get("previousClose") or safe_get(fast, "previous_close")
+    open_price = info.get("open") or safe_get(fast, "open")
+
+    day_low = info.get("dayLow") or safe_get(fast, "day_low")
+    day_high = info.get("dayHigh") or safe_get(fast, "day_high")
+
+    year_low = info.get("fiftyTwoWeekLow") or safe_get(fast, "year_low")
+    year_high = info.get("fiftyTwoWeekHigh") or safe_get(fast, "year_high")
+
+    volume = info.get("volume") or safe_get(fast, "last_volume")
+    market_cap = info.get("marketCap") or safe_get(fast, "market_cap")
+
+    data = {
+        "snapshot": {
+            "name": info.get("longName") or info.get("shortName") or symbol.upper(),
+            "sector": info.get("sector") or "N/A",
+            "website": info.get("website") or ""
+        },
+
+        "market": {
+            "price": format_large_number(price),
+            "previous_close": format_large_number(previous_close),
+            "open": format_large_number(open_price),
+            "day_range": f"{format_number(day_low)} - {format_number(day_high)}",
+            "week_52_range": info.get("fiftyTwoWeekRange") or f"{format_number(year_low)} - {format_number(year_high)}",
+            "volume": format_integer(volume),
+            "market_cap": format_large_number(market_cap)
+        },
+
+        "valuation": {
+            "forward_pe": format_number(info.get("forwardPE")),
+            "price_to_book": format_number(info.get("priceToBook")),
+            "price_to_sales": format_number(info.get("priceToSalesTrailing12Months")),
+            "enterprise_value": format_large_number(info.get("enterpriseValue")),
+            "beta": format_number(info.get("beta"))
+        },
+
+        "financial_health": {
+            "revenue": format_large_number(info.get("totalRevenue")),
+            "gross_margin": format_percent(info.get("grossMargins")),
+            "operating_margin": format_percent(info.get("operatingMargins")),
+            "profit_margin": format_percent(info.get("profitMargins")),
+            "free_cashflow": format_large_number(info.get("freeCashflow")),
+            "total_cash": format_large_number(info.get("totalCash")),
+            "total_debt": format_large_number(info.get("totalDebt"))
+        },
+
+        "analyst": {
+            "target_low": format_large_number(info.get("targetLowPrice")),
+            "target_mean": format_large_number(info.get("targetMeanPrice")),
+            "target_high": format_large_number(info.get("targetHighPrice")),
+            "analyst_opinions": info.get("numberOfAnalystOpinions") or "N/A"
+        }
+    }
+
+    return data
 
 @app.route("/insider", methods=["GET"])
 def insider_dashboard():
@@ -609,6 +685,75 @@ def make_json_safe(value):
         return None
 
     return value
+
+def format_large_number(value):
+    if value is None:
+        return "N/A"
+
+    try:
+        value = float(value)
+
+        if abs(value) >= 1_000_000_000_000:
+            return f"${value / 1_000_000_000_000:.2f}T"
+
+        if abs(value) >= 1_000_000_000:
+            return f"${value / 1_000_000_000:.2f}B"
+
+        if abs(value) >= 1_000_000:
+            return f"${value / 1_000_000:.2f}M"
+
+        if abs(value) >= 1_000:
+            return f"${value / 1_000:.2f}K"
+
+        return f"${value:.2f}"
+
+    except Exception:
+        return "N/A"
+
+def format_number(value):
+    if value is None:
+        return "N/A"
+
+    try:
+        return f"{float(value):,.2f}"
+    except Exception:
+        return "N/A"
+
+
+def format_integer(value):
+    if value is None:
+        return "N/A"
+
+    try:
+        return f"{int(value):,}"
+    except Exception:
+        return "N/A"
+
+
+def format_percent(value):
+    if value is None:
+        return "N/A"
+
+    try:
+        return f"{float(value) * 100:.2f}%"
+    except Exception:
+        return "N/A"
+
+def safe_get(source, key, default=None):
+    try:
+        if source is None:
+            return default
+
+        if isinstance(source, dict):
+            return source.get(key, default)
+
+        return source.get(key, default)
+
+    except Exception:
+        try:
+            return getattr(source, key, default)
+        except Exception:
+            return default
 
 if __name__ == "__main__":
     with app.app_context():

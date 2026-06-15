@@ -155,6 +155,8 @@ def home():
                 "sec_link": t.get("sec_link")
             })
 
+        print("ALPHA key loaded:", bool(API_KEY))
+        print("FINNHUB key loaded:", bool(FINNHUB_KEY))
         # =========================
         # INSTITUTIONAL DATA (FIXED)
         # =========================
@@ -259,7 +261,8 @@ def home():
         else:
             image_src = None
 
-
+        print("News response:", news_data)
+        print("Institution response:", institutional_data)
         data = {
             "symbol": symbol,
             "name": company_name,

@@ -9,3 +9,4 @@ services/__pycache__/
 static/.DS_Store
 utils/__pycache__/
 .env
+database/users.db

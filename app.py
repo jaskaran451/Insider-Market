@@ -33,7 +33,7 @@ load_dotenv()
 
 
 app = Flask(__name__)
-
+app.secret_key = os.getenv("secret_key1")
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "dev-secret-key")
 CACHE_FOLDER_insider = "cache/insider"

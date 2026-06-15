@@ -8,7 +8,6 @@ import os
 from datetime import datetime, date
 from typing import Dict
 from utils.cache_utils import load_cache, save_cache
-from trafficmodels import db, User,Traffic
 from collections import defaultdict
 from utils.charts import create_insider_chart
 import base64
@@ -20,12 +19,7 @@ from sec.parser import filing_parser
 from flask import flash
 import pandas as pd
 import numpy as np
-from flask_login import (
-    LoginManager,
-    login_user,
-    logout_user,
-    login_required
-)
+
 from werkzeug.security import (generate_password_hash,check_password_hash)
 from utils.notifier import notifier
 from services.manager_portfolio_service import manager_portfolio_service
@@ -41,10 +35,6 @@ load_dotenv()
 app = Flask(__name__)
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-db_path = os.path.join(BASE_DIR, "database", "users.db")
-app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path}"
-os.makedirs(os.path.join(BASE_DIR, "database"), exist_ok=True)
-db.init_app(app)
 app.secret_key = os.getenv("SECRET_KEY")
 CACHE_FOLDER_insider = "cache/insider"
 os.makedirs(CACHE_FOLDER_insider, exist_ok=True)
@@ -61,43 +51,11 @@ last_updated = 0
 CACHE_INTERVAL = 120  # seconds (2 min)
 CACHE_EXPIRY_HOURS = 24
 
-login_manager = LoginManager()
-login_manager.init_app(app)
-
 # website traffic
 page_views = defaultdict(int)
 daily_visits = 0
 last_reset = time.time()
 
-@app.before_request
-def track():
-    if request.endpoint in ["static"]:
-        return
-
-    # avoid logging analytics endpoint itself
-    if request.path.startswith("/api"):
-        return
-    page = request.path.split("?")[0]
-    visit = Traffic(page=request.path)
-    db.session.add(visit)
-    db.session.commit()
-
-@app.route("/api/analytics")
-def analytics():
-    total = Traffic.query.count()
-    top_pages = db.session.query(
-        Traffic.page,
-        db.func.count(Traffic.id)
-    ).group_by(Traffic.page).all()
-
-    return {
-        "total_visits": total,
-        "top_pages": dict(top_pages)
-    }
-
-@login_manager.user_loader
-def load_user(user_id):
-    return User.query.get(int(user_id))
 
 def fetch_market_data(folder, symbol):
     cache_key = symbol
@@ -593,61 +551,7 @@ def search_symbols():
             "results": []
         }), 400
 
-@app.route("/signup", methods=["GET", "POST"])
-def signup():
-    if request.method == "POST":
 
-        username = request.form.get("username")
-        email = request.form.get("email")
-        password = request.form.get("password")
-
-        existing_user = User.query.filter_by(email=email).first()
-
-        if existing_user:
-            return "Email already exists"
-
-        hashed_password = generate_password_hash(password)
-
-        new_user = User(
-            username=username,
-            email=email,
-            password=hashed_password
-        )
-
-        db.session.add(new_user)
-        db.session.commit()
-
-        return redirect("/login")
-
-    return render_template("signup.html")
-
-
-@app.route("/login", methods=["GET", "POST"])
-def login():
-    if request.method == "POST":
-
-        email = request.form.get("email")
-        password = request.form.get("password")
-
-        user = User.query.filter_by(email=email).first()
-
-        if user and check_password_hash(user.password, password):
-
-            login_user(user)
-
-            return redirect("/")
-
-        return "Invalid credentials"
-
-    return render_template("login.html")
-
-@app.route("/logout")
-@login_required
-def logout():
-
-    logout_user()
-
-    return redirect("/")
 def is_valid_api_response(data):
     if not isinstance(data, dict):
         return False
@@ -759,7 +663,6 @@ def safe_get(source, key, default=None):
             return default
 
 if __name__ == "__main__":
-    with app.app_context():
-        db.create_all()
+
     threading.Thread(target=fetch_quotes, daemon=True).start()
     app.run(debug=True)

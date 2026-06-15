@@ -34,27 +34,26 @@ from services.edgar_insider_api_adapter import edgar_insider_api_adapter
 from services.stock_data_service import build_prediction_response
 import yfinance as yf
 from flask import jsonify
+from dotenv import load_dotenv
+load_dotenv()
 
 
 app = Flask(__name__)
-app.secret_key = "my-secret-key"
+
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 db_path = os.path.join(BASE_DIR, "database", "users.db")
 app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path}"
-app.config["SECRET_KEY"] = "supersecretkey"
 os.makedirs(os.path.join(BASE_DIR, "database"), exist_ok=True)
 db.init_app(app)
-
+app.secret_key = os.getenv("SECRET_KEY")
 CACHE_FOLDER_insider = "cache/insider"
 os.makedirs(CACHE_FOLDER_insider, exist_ok=True)
 
 CACHE_FOLDER_news = "cache/news"
 os.makedirs(CACHE_FOLDER_news, exist_ok=True)
+API_KEY = os.getenv("ALPHA_VANTAGE_API_KEY")
+FINNHUB_KEY = os.getenv("FINNHUB_API_KEY")
 
-# API_KEY = "MWVQMX02ULG4MRQI"
-# API_KEY="XN815F5G472K82LV"
-API_KEY= "XN815F5G472K82LV"
-FINNHUB_KEY = "d85n6lpr01qitd92s09gd85n6lpr01qitd92s0a0"
 
 stock_cache = {ticker: {"price": "--", "change": 0} for ticker in TICKERS}
 

@@ -8,7 +8,6 @@ import os
 from datetime import datetime, date
 from typing import Dict
 from utils.cache_utils import load_cache, save_cache
-from trafficmodels import db, User,Traffic
 from collections import defaultdict
 from utils.charts import create_insider_chart
 import base64
@@ -41,10 +40,6 @@ load_dotenv()
 app = Flask(__name__)
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-db_path = os.path.join(BASE_DIR, "database", "users.db")
-app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path}"
-os.makedirs(os.path.join(BASE_DIR, "database"), exist_ok=True)
-db.init_app(app)
 app.secret_key = os.getenv("SECRET_KEY")
 CACHE_FOLDER_insider = "cache/insider"
 os.makedirs(CACHE_FOLDER_insider, exist_ok=True)

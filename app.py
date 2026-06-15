@@ -293,9 +293,13 @@ def home():
                 ]
             })
         # get logo of company
+        image_bytes=None
         image_bytes = get_logo_of_company(symbol)
-        encoded_string = base64.b64encode(image_bytes).decode('utf-8')
-        image_src = f"data:image/jpeg;base64,{encoded_string}"
+        if image_bytes:
+            encoded_string = base64.b64encode(image_bytes).decode('utf-8')
+            image_src = f"data:image/jpeg;base64,{encoded_string}"
+        else:
+            image_src = None
 
 
         data = {

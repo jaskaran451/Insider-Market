@@ -36,13 +36,16 @@ app = Flask(__name__)
 app.secret_key = os.getenv("secret_key1")
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "dev-secret-key")
-CACHE_FOLDER_insider = "cache/insider"
-os.makedirs(CACHE_FOLDER_insider, exist_ok=True)
 
-CACHE_FOLDER_news = "cache/news"
-os.makedirs(CACHE_FOLDER_news, exist_ok=True)
 API_KEY = os.getenv("ALPHA_VANTAGE_API_KEY")
 FINNHUB_KEY = os.getenv("FINNHUB_API_KEY")
+CACHE_FOLDER_insider = "cache/insider"
+CACHE_FOLDER_institutions = "cache/institutions"
+CACHE_FOLDER_news = "cache/news"
+
+os.makedirs(CACHE_FOLDER_insider, exist_ok=True)
+os.makedirs(CACHE_FOLDER_institutions, exist_ok=True)
+os.makedirs(CACHE_FOLDER_news, exist_ok=True)
 
 
 stock_cache = {ticker: {"price": "--", "change": 0} for ticker in TICKERS}
@@ -57,49 +60,82 @@ daily_visits = 0
 last_reset = time.time()
 
 
-def fetch_market_data(folder, symbol):
+def fetch_market_data(data_type, symbol):
+    symbol = symbol.upper().strip()
     cache_key = symbol
 
-    data = load_cache(folder,cache_key,max_age_seconds=24 * 3600)
-    if folder == "insider":
-        url = f"https://www.alphavantage.co/query?function=INSIDER_TRANSACTIONS&symbol={symbol}&apikey={API_KEY}"
-    elif folder == "institutions":
-        time.sleep(2)
-        url = f"https://www.alphavantage.co/query?function=INSTITUTIONAL_HOLDINGS&symbol={symbol}&apikey={API_KEY}"
-    elif folder == "news":
-        time.sleep(2)
-        url = f"https://www.alphavantage.co/query?function=NEWS_SENTIMENT&tickers={symbol}&limit=50&apikey={API_KEY}"
-    else:
+    folder_map = {
+        "insider": CACHE_FOLDER_insider,
+        "institutions": CACHE_FOLDER_institutions,
+        "news": CACHE_FOLDER_news,
+    }
+
+    folder = folder_map.get(data_type)
+
+    if not folder:
+        print(f"Invalid data_type: {data_type}")
         return {}
 
-    # =========================
-    # Decide if refresh needed
-    # =========================
+    data = load_cache(folder, cache_key, max_age_seconds=24 * 3600)
+
+    if data_type == "insider":
+        url = (
+            f"https://www.alphavantage.co/query"
+            f"?function=INSIDER_TRANSACTIONS"
+            f"&symbol={symbol}"
+            f"&apikey={API_KEY}"
+        )
+
+    elif data_type == "institutions":
+        time.sleep(2)
+        url = (
+            f"https://www.alphavantage.co/query"
+            f"?function=INSTITUTIONAL_HOLDINGS"
+            f"&symbol={symbol}"
+            f"&apikey={API_KEY}"
+        )
+
+    elif data_type == "news":
+        time.sleep(2)
+        url = (
+            f"https://www.alphavantage.co/query"
+            f"?function=NEWS_SENTIMENT"
+            f"&tickers={symbol}"
+            f"&limit=50"
+            f"&apikey={API_KEY}"
+        )
+
     refresh = False
 
     if not data:
         refresh = True
     elif not is_valid_api_response(data):
         refresh = True
+
     if refresh:
         try:
-            response = requests.get(url, timeout=10)
+            response = requests.get(url, timeout=15)
+
+            print(f"{data_type.upper()} STATUS:", response.status_code)
+            print(f"{data_type.upper()} RAW:", response.text[:500])
+
             fresh_data = response.json()
-            # ONLY cache valid data
+
             if is_valid_api_response(fresh_data):
                 save_cache(folder, cache_key, fresh_data)
                 data = fresh_data
             else:
-                print(f"Invalid API response for {folder}: {symbol}")
-                # keep old cache if possible
+                print(f"Invalid API response for {data_type}: {symbol}")
+
                 if not data:
                     data = {}
-        except Exception as e:
-            print(f"API fetch error: {e}")
 
-            # fallback if no cache exists
+        except Exception as e:
+            print(f"API fetch error for {data_type}: {e}")
+
             if not data:
                 data = {}
+
     return data
 
 @app.route("/", methods=["GET", "POST"])
@@ -139,6 +175,7 @@ def home():
         # INSIDER DATA
         # ========================= news_data.get("feed", [])
         insider_data = edgar_insider_api_adapter.get_insider_transactions(symbol)
+
         transactions_raw = insider_data.get("data", [])
 
         transactions = []
@@ -263,6 +300,7 @@ def home():
 
         print("News response:", news_data)
         print("Institution response:", institutional_data)
+
         data = {
             "symbol": symbol,
             "name": company_name,

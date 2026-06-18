@@ -31,7 +31,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     if (filter) {
         filter.addEventListener("change", loadChart);
     }
-    
+
 
     document.getElementById("insiderBtn")
         .addEventListener("click", () => {
@@ -46,6 +46,10 @@ document.addEventListener("DOMContentLoaded", async function () {
     document.getElementById("newsBtn")
         .addEventListener("click", () => {
             showSection("news-section");
+        });
+    document.getElementById("earningBtn")
+        .addEventListener("click", () => {
+            showSection("earning-section");
         });
 
     const panel = document.getElementById("smart-money-panel");
@@ -62,6 +66,14 @@ document.addEventListener("DOMContentLoaded", async function () {
 
         await loadSmartMoney(ticker);
     });
+
+    const earningsBtn = document.getElementById("earningBtn");
+
+    if (earningsBtn) {
+        earningsBtn.addEventListener("click", function () {
+            showSection("earning-section");
+        });
+    }
 
     const closeSmartMoneyBtn = document.getElementById("closeSmartMoneyBtn");
 

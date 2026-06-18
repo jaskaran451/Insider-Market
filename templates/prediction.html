@@ -15,7 +15,6 @@
     <script src="../static/JS/autocomplete.js"></script>
     <script src="../static/JS/footer.js"></script>
 
-
 </head>
 {% include 'nav.html' %}
 <body>
@@ -73,6 +72,26 @@
 </section>
 
 <main class="forecast-main hidden" id="forecastMain">
+
+    <section class="dashboard-card ai-analysis-card" id="aiAnalysisCard">
+    <div class="card-header">
+        <div>
+            <p class="eyebrow">Local AI Analysis</p>
+            <h2>InsiderAI Analyst Summary</h2>
+        </div>
+
+        <button class="ai-analysis-btn" id="analyzeWithAiBtn" type="button">
+            <span class="btn-icon">Analyze with AI</span>
+            <span class="spinner hidden"></span>
+        </button>
+    </div>
+
+    <div class="ai-analysis-body" id="aiAnalysisBody">
+        <p class="ai-analysis-placeholder">
+            Run a forecast first, then click Analyze with AI to generate the analyst summary.
+        </p>
+    </div>
+</section>
 
     <section class="forecast-title-row">
         <div>

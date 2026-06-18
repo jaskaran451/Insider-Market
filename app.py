@@ -4,7 +4,7 @@ from config import COMPANY_MAP
 import time
 import threading
 from config import TICKERS
-import os
+import os,re
 from datetime import datetime, date
 from typing import Dict
 from utils.cache_utils import load_cache, save_cache
@@ -26,6 +26,7 @@ from services.manager_portfolio_service import manager_portfolio_service
 from dataclasses import asdict
 from services.edgar_insider_api_adapter import edgar_insider_api_adapter
 from services.stock_data_service import build_prediction_response
+from services.ollama_analysis import generate_forecast_ai_analysis
 
 import os
 from dotenv import load_dotenv
@@ -53,6 +54,7 @@ app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "dev-secret-key")
 
 API_KEY = os.getenv("ALPHA_VANTAGE_API_KEY")
 FINNHUB_KEY = os.getenv("FINNHUB_API_KEY")
+ROIC_API_KEY = os.getenv("ROIC_API_KEY")
 CACHE_FOLDER_insider = "cache/insider"
 CACHE_FOLDER_institutions = "cache/institutions"
 CACHE_FOLDER_news = "cache/news"
@@ -333,6 +335,11 @@ def home():
             "bullish_count": 0,
             "bearish_count": 0,
             "top_topics": []
+        },
+        "earnings": {
+            "available": False,
+            "message": "Search a company to view earnings transcripts.",
+            "items": []
         }
     }
     if request.method == "POST":
@@ -458,6 +465,8 @@ def home():
                     for t in item.get("ticker_sentiment", [])
                 ]
             })
+
+        earnings_data = fetch_earnings_transcripts(symbol)
         # get logo of company
         image_bytes=None
         image_bytes = get_logo_of_company(symbol)
@@ -476,6 +485,7 @@ def home():
             "news": news,
             "news_summary": summary,
             "logo": image_src,
+            "earnings": earnings_data
         }
 
     return render_template("index.html", data=data, companies=COMPANY_MAP)
@@ -765,6 +775,40 @@ def smart_money_trend_api():
             "message":"Failed to load Smart Money Trend data"
         }),500
 
+@app.route("/api/predict/<symbol>/ai-analysis", methods=["POST"])
+def predict_stock_ai_analysis(symbol):
+    symbol = symbol.upper().strip()
+
+    try:
+        payload = request.get_json(silent=True) or {}
+        forecast_data = payload.get("forecast_data")
+
+        if not forecast_data:
+            forecast_data = build_prediction_response(symbol)
+
+        forecast_data["symbol"] = symbol
+
+        ai_analysis = generate_forecast_ai_analysis(forecast_data)
+
+        return jsonify({
+            "success": True,
+            "symbol": symbol,
+            "ai_analysis": ai_analysis
+        })
+
+    except Exception as error:
+        return jsonify({
+            "success": False,
+            "symbol": symbol,
+            "ai_analysis": {
+                "available": False,
+                "status": "error",
+                "model": None,
+                "summary": None,
+                "message": "AI analysis failed. Please try again later."
+            },
+            "message": str(error)
+        }), 400
 
 @app.route("/prediction")
 def prediction():
@@ -773,6 +817,7 @@ def prediction():
 @app.route("/api/predict/<symbol>")
 def predict_stock(symbol):
     symbol = symbol.upper().strip()
+
     try:
         result = build_prediction_response(symbol)
         return jsonify(result)
@@ -782,8 +827,6 @@ def predict_stock(symbol):
             "error": True,
             "message": str(error)
         }), 400
-
-
 
 @app.route("/search")
 def search_symbols():
@@ -831,6 +874,197 @@ def search_symbols():
             "results": []
         }), 400
 
+def extract_transcript_text(payload):
+    """
+    ROIC response shape may vary.
+    This function safely finds transcript text from common keys.
+    """
+
+    if not payload:
+        return ""
+
+    if isinstance(payload, str):
+        return payload.strip()
+
+    if isinstance(payload, dict):
+        possible_keys = [
+            "transcript",
+            "content",
+            "text",
+            "body",
+            "data"
+        ]
+
+        for key in possible_keys:
+            value = payload.get(key)
+
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+
+            if isinstance(value, dict):
+                nested = extract_transcript_text(value)
+                if nested:
+                    return nested
+
+            if isinstance(value, list):
+                nested_parts = []
+
+                for item in value:
+                    nested_text = extract_transcript_text(item)
+
+                    if nested_text:
+                        nested_parts.append(nested_text)
+
+                if nested_parts:
+                    return "\n\n".join(nested_parts)
+
+    if isinstance(payload, list):
+        parts = []
+
+        for item in payload:
+            text = extract_transcript_text(item)
+
+            if text:
+                parts.append(text)
+
+        return "\n\n".join(parts)
+
+    return ""
+
+
+def clean_transcript_text(text):
+    if not text:
+        return ""
+
+    text = re.sub(r"\r\n", "\n", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    text = re.sub(r"[ \t]{2,}", " ", text)
+
+    return text.strip()
+
+
+def make_transcript_preview(text, max_chars=900):
+    if not text:
+        return "Transcript is not available."
+
+    clean_text = clean_transcript_text(text)
+
+    if len(clean_text) <= max_chars:
+        return clean_text
+
+    return clean_text[:max_chars].rsplit(" ", 1)[0] + "..."
+
+
+def get_previous_quarter(year, quarter):
+    year = int(year)
+    quarter = int(quarter)
+
+    if quarter == 1:
+        return year - 1, 4
+
+    return year, quarter - 1
+
+
+def fetch_roic_json(url):
+    try:
+        response = requests.get(url, timeout=15)
+
+        if response.status_code != 200:
+            print("[ROIC API ERROR]", response.status_code, response.text[:300])
+            return None
+
+        return response.json()
+
+    except Exception as error:
+        print("[ROIC REQUEST ERROR]", error)
+        return None
+
+
+def fetch_earnings_transcripts(symbol):
+    """
+    Fetches latest earnings transcript + previous quarter transcript from ROIC.
+    """
+
+    if not ROIC_API_KEY:
+        return {
+            "available": False,
+            "message": "ROIC API key is missing.",
+            "items": []
+        }
+
+    symbol = symbol.upper().strip()
+
+    latest_url = (
+        f"https://api.roic.ai/v2/company/earnings-calls/latest/{symbol}"
+        f"?apikey={ROIC_API_KEY}"
+    )
+
+    latest_data = fetch_roic_json(latest_url)
+
+    if not latest_data:
+        return {
+            "available": False,
+            "message": "Latest earnings call data is not available.",
+            "items": []
+        }
+
+    latest_year = latest_data.get("year")
+    latest_quarter = latest_data.get("quarter")
+
+    if not latest_year or not latest_quarter:
+        return {
+            "available": False,
+            "message": "Latest earnings call year/quarter not found.",
+            "items": []
+        }
+
+    latest_year = int(latest_year)
+    latest_quarter = int(latest_quarter)
+
+    periods = []
+
+    year = latest_year
+    quarter = latest_quarter
+
+    for _ in range(3):
+        periods.append((year, quarter))
+        year, quarter = get_previous_quarter(year, quarter)
+
+    earnings_items = []
+
+    for year, quarter in periods:
+        transcript_url = (
+            f"https://api.roic.ai/v2/company/earnings-calls/transcript/{symbol}"
+            f"?apikey={ROIC_API_KEY}&year={year}&quarter={quarter}"
+        )
+
+        transcript_data = fetch_roic_json(transcript_url)
+
+        if not transcript_data:
+            continue
+
+        transcript_text = transcript_data.get("content", "")
+
+        if not transcript_text:
+            continue
+
+        transcript_text = clean_transcript_text(transcript_text)
+
+        earnings_items.append({
+            "symbol": transcript_data.get("symbol", symbol),
+            "year": transcript_data.get("year", year),
+            "quarter": transcript_data.get("quarter", quarter),
+            "date": transcript_data.get("date", ""),
+            "title": f"{symbol} Q{quarter} {year} Earnings Call Transcript",
+            "preview": make_transcript_preview(transcript_text),
+            "transcript": transcript_text
+        })
+
+    return {
+        "available": len(earnings_items) > 0,
+        "message": "Earnings transcripts loaded." if earnings_items else "No earnings transcripts found.",
+        "items": earnings_items
+    }
 
 def is_valid_api_response(data):
     if not isinstance(data, dict):

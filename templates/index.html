@@ -89,6 +89,9 @@
                 <button onclick="showSection('news-section')" class="panel" id="newsBtn">
                     News and Sentiments
                 </button>
+                <button onclick="showSection('earning-section')" class="panel" id="earningBtn">
+                    Earnings
+                </button>
 
             </div>
 
@@ -579,6 +582,56 @@
 
             {% endfor %}
         </div>
+
+        <div id="earning-section" class="content-section">
+    {% if data and data.earnings and data.earnings["items"] %}
+        <div class="results-header">
+            <h2>{{ data.name }} ({{ data.symbol }})</h2>
+            <p>Latest earnings call transcripts</p>
+        </div>
+
+        <div class="earnings-grid">
+            {% for call in data.earnings["items"] %}
+                <div class="earnings-card">
+                    <div class="earnings-card-header">
+                        <div>
+                            <p class="earnings-label">Earnings Call</p>
+                            <h3>{{ call.title }}</h3>
+
+                            {% if call.date %}
+                                <p class="earnings-date">{{ call.date }}</p>
+                            {% endif %}
+                        </div>
+
+                        <span class="earnings-period">
+                            Q{{ call.quarter }} {{ call.year }}
+                        </span>
+                    </div>
+
+                    <div class="earnings-preview">
+                        {{ call.preview }}
+                    </div>
+
+                    <details class="earnings-details">
+                        <summary>Read full transcript</summary>
+
+                        <div class="earnings-transcript">
+                            {{ call.transcript }}
+                        </div>
+                    </details>
+                </div>
+            {% endfor %}
+        </div>
+
+    {% elif data and data.symbol %}
+        <div class="empty-state">
+            <h3>No earnings transcripts found</h3>
+            <p>
+                {{ data.earnings.message if data.earnings else "Earnings data is not available." }}
+            </p>
+        </div>
+    {% endif %}
+</div>
     </section>
 
 

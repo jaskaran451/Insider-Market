@@ -1,4 +1,4 @@
-document.addEventListener("DOMContentLoaded", function () {
+document.addEventListener("DOMContentLoaded", async function () {
     // ensure clean dashboard start
     document.querySelectorAll(".content-section").forEach(section => {
         section.classList.remove("active");
@@ -25,57 +25,13 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // optional default view
     showSection("insider-section");
-let tickerDiv = document.getElementById("ticker");
-const filter = document.getElementById("chartFilter");
+
+    const filter = document.getElementById("chartFilter");
 
     if (filter) {
         filter.addEventListener("change", loadChart);
     }
-
-function showSkeleton() {
-    tickerDiv.innerHTML = Array(10).fill(0).map(() => `
-        <div class="ticker-item skeleton">
-            <span>LOADING</span>
-            <span>--</span>
-        </div>
-    `).join("");
-}
-
-showSkeleton();
-
-async function loadTicker() {
-    try {
-        const res = await fetch("/api/stocks");
-        const json = await res.json();
-        const data = json.data;
-        if (!data || data.length === 0) return;
-        tickerDiv.innerHTML = "";
-        data.forEach(item => {
-            const symbol = item.symbol;
-            const price = item.price;
-            const change = item.change;
-            const color = change >= 0 ? "green" : "red";
-            const div = document.createElement("div");
-            div.className = "ticker-item";
-
-            div.innerHTML = `
-                <span>${symbol}</span>
-                <span style="color:${color}">
-                    ${price}
-                </span>
-            `;
-
-            tickerDiv.appendChild(div);
-        });
-
-    } catch (err) {
-        console.log("ticker error", err);
-    }
-}
-
-setTimeout(loadTicker, 500);
-setInterval(loadTicker, 5000);
-loadTicker();
+    
 
     document.getElementById("insiderBtn")
         .addEventListener("click", () => {
@@ -94,8 +50,7 @@ loadTicker();
 
     const panel = document.getElementById("smart-money-panel");
 
-    document.getElementById("smart-money-btn").addEventListener("click", async function (e)
-    {
+    document.getElementById("smart-money-btn").addEventListener("click", async function (e) {
         e.preventDefault();
 
         const ticker = window.currentSymbol;
@@ -106,118 +61,117 @@ loadTicker();
         }
 
         await loadSmartMoney(ticker);
-});
+    });
 
     const closeSmartMoneyBtn = document.getElementById("closeSmartMoneyBtn");
 
-if (closeSmartMoneyBtn) {
-    closeSmartMoneyBtn.addEventListener("click", closeSmartMoney);
-}
+    if (closeSmartMoneyBtn) {
+        closeSmartMoneyBtn.addEventListener("click", closeSmartMoney);
+    }
+
     async function loadSmartMoney(ticker) {
-    try {
-        notify("Loading Smart Money Intelligence...", "info");
+        try {
+            notify("Loading Smart Money Intelligence...", "info");
 
-        const response = await fetch(`/insider?ticker=${ticker}`);
-        const result = await response.json();
+            const response = await fetch(`/insider?ticker=${ticker}`);
+            const result = await response.json();
 
-        if (!result.success) {
-            notify(result.message || "Failed to load Smart Money data", "error");
-            return;
+            if (!result.success) {
+                notify(result.message || "Failed to load Smart Money data", "error");
+                return;
+            }
+
+            window.smartMoneyData = result.data;
+
+            populateSmartMoneyPanel();
+            openSmartMoneyPanel();
+            renderSmartMoneyCharts();
+
+        } catch (error) {
+            console.error("error in loadSmartMoney()", error);
+            notify("Failed to load Smart Money data", "error");
         }
-
-        window.smartMoneyData = result.data;
-
-        populateSmartMoneyPanel();
-        openSmartMoneyPanel();
-        renderSmartMoneyCharts();
-
-    } catch (error) {
-        console.error("error in loadSmartMoney()", error);
-        notify("Failed to load Smart Money data", "error");
     }
-}
 
-function populateSmartMoneyPanel() {
-    const data = window.smartMoneyData || {};
+    function populateSmartMoneyPanel() {
+        const data = window.smartMoneyData || {};
 
-    const score = Number(data.smart_money_score || 0);
+        const score = Number(data.smart_money_score || 0);
 
-    document.getElementById("smScoreStatus").textContent = getSmartMoneyLabel(score);
+        document.getElementById("smScoreStatus").textContent = getSmartMoneyLabel(score);
 
-    document.getElementById("smBuys").textContent = data.total_buys ?? 0;
-    document.getElementById("smSells").textContent = data.total_sells ?? 0;
-    document.getElementById("smTaxes").textContent = data.total_taxes ?? 0;
-    document.getElementById("smGrants").textContent = data.total_grants ?? 0;
-    document.getElementById("smMomentum").textContent = data.insider_momentum ?? 0;
+        document.getElementById("smBuys").textContent = data.total_buys ?? 0;
+        document.getElementById("smSells").textContent = data.total_sells ?? 0;
+        document.getElementById("smTaxes").textContent = data.total_taxes ?? 0;
+        document.getElementById("smGrants").textContent = data.total_grants ?? 0;
+        document.getElementById("smMomentum").textContent = data.insider_momentum ?? 0;
 
-    const signalList = document.getElementById("smSignalList");
-    signalList.innerHTML = "";
+        const signalList = document.getElementById("smSignalList");
+        signalList.innerHTML = "";
 
-    if (data.signals && data.signals.length > 0) {
-        data.signals.forEach(signal => {
-            const chip = document.createElement("div");
+        if (data.signals && data.signals.length > 0) {
+            data.signals.forEach(signal => {
+                const chip = document.createElement("div");
 
-            const signalClass = String(signal.signal || "neutral")
-                .toLowerCase()
-                .replaceAll("_", "-")
-                .replaceAll(" ", "-");
+                const signalClass = String(signal.signal || "neutral")
+                    .toLowerCase()
+                    .replaceAll("_", "-")
+                    .replaceAll(" ", "-");
 
-            chip.className = `signal-chip ${signalClass}`;
-            chip.textContent = `${String(signal.signal || "Signal").replaceAll("_", " ")} (${signal.score ?? 0})`;
+                chip.className = `signal-chip ${signalClass}`;
+                chip.textContent = `${String(signal.signal || "Signal").replaceAll("_", " ")} (${signal.score ?? 0})`;
 
-            signalList.appendChild(chip);
-        });
-    } else {
-        signalList.innerHTML = `<div class="signal-chip neutral">No strong signal detected</div>`;
+                signalList.appendChild(chip);
+            });
+        } else {
+            signalList.innerHTML = `<div class="signal-chip neutral">No strong signal detected</div>`;
+        }
     }
-}
 
-    function getSmartMoneyLabel(score){
-        if(score>=80) return "Strong Accumulation";
-        if(score>=65) return "Bullish";
-        if(score>=45) return "Neutral";
-        if(score>=25) return "Bearish";
+    function getSmartMoneyLabel(score) {
+        if (score >= 80) return "Strong Accumulation";
+        if (score >= 65) return "Bullish";
+        if (score >= 45) return "Neutral";
+        if (score >= 25) return "Bearish";
         return "Heavy Distribution";
     }
 
 
-
-
     function openSmartMoneyPanel() {
-    const panel = document.getElementById("smart-money-panel");
+        const panel = document.getElementById("smart-money-panel");
 
-    document.querySelectorAll(".content-section").forEach(section => {
-        section.classList.remove("active");
-    });
-
-    panel.classList.remove("hidden");
-
-    setTimeout(() => {
-        panel.scrollIntoView({
-            behavior: "smooth",
-            block: "start"
+        document.querySelectorAll(".content-section").forEach(section => {
+            section.classList.remove("active");
         });
-    }, 100);
-}
 
-    function closeSmartMoney() {
-    const panel = document.getElementById("smart-money-panel");
+        panel.classList.remove("hidden");
 
-    panel.classList.add("hidden");
-
-    showSection("insider-section");
-
-    const resultsSection = document.getElementById("resultsSection");
-
-    if (resultsSection) {
         setTimeout(() => {
-            resultsSection.scrollIntoView({
+            panel.scrollIntoView({
                 behavior: "smooth",
                 block: "start"
             });
         }, 100);
     }
-}
+
+    function closeSmartMoney() {
+        const panel = document.getElementById("smart-money-panel");
+
+        panel.classList.add("hidden");
+
+        showSection("insider-section");
+
+        const resultsSection = document.getElementById("resultsSection");
+
+        if (resultsSection) {
+            setTimeout(() => {
+                resultsSection.scrollIntoView({
+                    behavior: "smooth",
+                    block: "start"
+                });
+            }, 100);
+        }
+    }
 
     function renderSmartMoneyCharts() {
         renderGauge();
@@ -226,86 +180,88 @@ function populateSmartMoneyPanel() {
         renderOwnership();
         renderTimeline();
         renderLeaderboard();
-}
+    }
+
     window.smartMoneyGaugeChart = window.smartMoneyGaugeChart || null;
     window.activityDonutChart = window.activityDonutChart || null;
+
     function renderGauge() {
-    const canvas = document.getElementById("smartMoneyGauge");
+        const canvas = document.getElementById("smartMoneyGauge");
 
-    if (!canvas) return;
+        if (!canvas) return;
 
-    if (window.smartMoneyGaugeChart) {
-        window.smartMoneyGaugeChart.destroy();
-        window.smartMoneyGaugeChart = null;
-    }
+        if (window.smartMoneyGaugeChart) {
+            window.smartMoneyGaugeChart.destroy();
+            window.smartMoneyGaugeChart = null;
+        }
 
-    const score = Number(window.smartMoneyData.smart_money_score || 0);
-    const remaining = Math.max(0, 100 - score);
+        const score = Number(window.smartMoneyData.smart_money_score || 0);
+        const remaining = Math.max(0, 100 - score);
 
-    window.smartMoneyGaugeChart = new Chart(canvas, {
-        type: "doughnut",
-        data: {
-            datasets: [{
-                data: [score, remaining],
-                backgroundColor: [
-                    score > 65 ? "#22c55e" : score > 40 ? "#facc15" : "#ef4444",
-                    "#e5e7eb"
-                ],
-                borderWidth: 0
+        window.smartMoneyGaugeChart = new Chart(canvas, {
+            type: "doughnut",
+            data: {
+                datasets: [{
+                    data: [score, remaining],
+                    backgroundColor: [
+                        score > 65 ? "#22c55e" : score > 40 ? "#facc15" : "#ef4444",
+                        "#e5e7eb"
+                    ],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: "72%",
+                plugins: {
+                    tooltip: {enabled: false},
+                    legend: {display: false}
+                }
+            },
+            plugins: [{
+                id: "smartMoneyCenterText",
+                beforeDraw(chart) {
+                    const {width, height} = chart;
+                    const ctx = chart.ctx;
+
+                    ctx.save();
+                    ctx.textAlign = "center";
+                    ctx.textBaseline = "middle";
+
+                    ctx.font = "900 42px Arial";
+                    ctx.fillStyle = "#102033";
+                    ctx.fillText(`${score}`, width / 2, height / 2 - 12);
+
+                    ctx.font = "700 15px Arial";
+                    ctx.fillStyle = "#64748b";
+                    ctx.fillText("Smart Money", width / 2, height / 2 + 26);
+
+                    ctx.restore();
+                }
             }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            cutout: "72%",
-            plugins: {
-                tooltip: { enabled: false },
-                legend: { display: false }
-            }
-        },
-        plugins: [{
-            id: "smartMoneyCenterText",
-            beforeDraw(chart) {
-                const { width, height } = chart;
-                const ctx = chart.ctx;
-
-                ctx.save();
-                ctx.textAlign = "center";
-                ctx.textBaseline = "middle";
-
-                ctx.font = "900 42px Arial";
-                ctx.fillStyle = "#102033";
-                ctx.fillText(`${score}`, width / 2, height / 2 - 12);
-
-                ctx.font = "700 15px Arial";
-                ctx.fillStyle = "#64748b";
-                ctx.fillText("Smart Money", width / 2, height / 2 + 26);
-
-                ctx.restore();
-            }
-        }]
-    });
-}
-
-function renderLeaderboard() {
-    const container = document.getElementById("leaderboardContainer");
-
-    if (!container) return;
-
-    container.innerHTML = "";
-
-    const transactions = window.smartMoneyData.recent_transactions || [];
-
-    if (!transactions.length) {
-        container.innerHTML = `<div class="empty-state">No insider activity available.</div>`;
-        return;
+        });
     }
 
-    transactions.slice(0, 10).forEach(t => {
-        const row = document.createElement("div");
-        row.className = "leaderboard-row";
+    function renderLeaderboard() {
+        const container = document.getElementById("leaderboardContainer");
 
-        row.innerHTML = `
+        if (!container) return;
+
+        container.innerHTML = "";
+
+        const transactions = window.smartMoneyData.recent_transactions || [];
+
+        if (!transactions.length) {
+            container.innerHTML = `<div class="empty-state">No insider activity available.</div>`;
+            return;
+        }
+
+        transactions.slice(0, 10).forEach(t => {
+            const row = document.createElement("div");
+            row.className = "leaderboard-row";
+
+            row.innerHTML = `
             <div>
                 <strong>${t.insider || "Unknown Insider"}</strong>
                 <span>${t.title || t.type || "Transaction"}</span>
@@ -316,160 +272,161 @@ function renderLeaderboard() {
             </div>
         `;
 
-        container.appendChild(row);
-    });
-}
-
-    function renderDonut() {
-    const canvas = document.getElementById("activityDonut");
-
-    if (!canvas) return;
-
-    if (window.activityDonutChart) {
-        window.activityDonutChart.destroy();
-        window.activityDonutChart = null;
+            container.appendChild(row);
+        });
     }
 
-    const data = window.smartMoneyData || {};
+    function renderDonut() {
+        const canvas = document.getElementById("activityDonut");
 
-    const buys = Number(data.total_buys || 0);
-    const sells = Number(data.total_sells || 0);
-    const taxes = Number(data.total_taxes || 0);
-    const grants = Number(data.total_grants || 0);
+        if (!canvas) return;
 
-    window.activityDonutChart = new Chart(canvas, {
-        type: "doughnut",
-        data: {
-            labels: ["Buys", "Sells", "Taxes", "Grants"],
-            datasets: [{
-                data: [buys, sells, taxes, grants],
-                backgroundColor: [
-                    "#22c55e",
-                    "#ef4444",
-                    "#f59e0b",
-                    "#3b82f6"
-                ],
-                borderWidth: 0
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            cutout: "68%",
-            plugins: {
-                legend: {
-                    position: "bottom",
-                    labels: {
-                        usePointStyle: true,
-                        boxWidth: 10,
-                        font: {
-                            size: 13,
-                            weight: "700"
+        if (window.activityDonutChart) {
+            window.activityDonutChart.destroy();
+            window.activityDonutChart = null;
+        }
+
+        const data = window.smartMoneyData || {};
+
+        const buys = Number(data.total_buys || 0);
+        const sells = Number(data.total_sells || 0);
+        const taxes = Number(data.total_taxes || 0);
+        const grants = Number(data.total_grants || 0);
+
+        window.activityDonutChart = new Chart(canvas, {
+            type: "doughnut",
+            data: {
+                labels: ["Buys", "Sells", "Taxes", "Grants"],
+                datasets: [{
+                    data: [buys, sells, taxes, grants],
+                    backgroundColor: [
+                        "#22c55e",
+                        "#ef4444",
+                        "#f59e0b",
+                        "#3b82f6"
+                    ],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: "68%",
+                plugins: {
+                    legend: {
+                        position: "bottom",
+                        labels: {
+                            usePointStyle: true,
+                            boxWidth: 10,
+                            font: {
+                                size: 13,
+                                weight: "700"
+                            }
                         }
                     }
                 }
             }
+        });
+    }
+
+    window.signalRadarChart = window.signalRadarChart || null;
+
+    function renderRadar() {
+        const canvas = document.getElementById("signalRadar");
+
+        if (!canvas) {
+            return;
         }
-    });
-}
 
-    window.signalRadarChart=window.signalRadarChart || null;
-    function renderRadar(){
-    const canvas=document.getElementById("signalRadar");
+        if (window.signalRadarChart) {
+            window.signalRadarChart.destroy();
+            window.signalRadarChart = null;
+        }
 
-    if(!canvas){
-        return;
-    }
+        const signals = window.smartMoneyData.signals || [];
+        const labels = signals.map(s => s.signal.replaceAll("_", " "));
+        const values = signals.map(s => s.score);
 
-    if(window.signalRadarChart){
-        window.signalRadarChart.destroy();
-        window.signalRadarChart=null;
-    }
-
-    const signals=window.smartMoneyData.signals || [];
-    const labels=signals.map(s=>s.signal.replaceAll("_"," "));
-    const values=signals.map(s=>s.score);
-
-    window.signalRadarChart=new Chart(canvas,{
-        type:"bar",
-        data:{
-            labels:labels,
-            datasets:[{
-                label:"Signal Strength",
-                data:values,
-                backgroundColor:signals.map(s=>{
-                    const name=s.signal.toLowerCase();
-                    if(name.includes("bearish") || name.includes("distribution")) return "#ef4444";
-                    if(name.includes("bullish") || name.includes("accumulation")) return "#22c55e";
-                    return "#60a5fa";
-                }),
-                borderRadius:10,
-                barThickness:28
-            }]
-        },
-        options:{
-            indexAxis:"y",
-            responsive:true,
-            maintainAspectRatio:false,
-            resizeDelay:100,
-            plugins:{
-                legend:{display:false},
-                tooltip:{enabled:true}
+        window.signalRadarChart = new Chart(canvas, {
+            type: "bar",
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: "Signal Strength",
+                    data: values,
+                    backgroundColor: signals.map(s => {
+                        const name = s.signal.toLowerCase();
+                        if (name.includes("bearish") || name.includes("distribution")) return "#ef4444";
+                        if (name.includes("bullish") || name.includes("accumulation")) return "#22c55e";
+                        return "#60a5fa";
+                    }),
+                    borderRadius: 10,
+                    barThickness: 28
+                }]
             },
-            scales:{
-                x:{
-                    beginAtZero:true,
-                    max:100,
-                    grid:{color:"rgba(15,23,42,.08)"},
-                    ticks:{color:"#64748b"}
+            options: {
+                indexAxis: "y",
+                responsive: true,
+                maintainAspectRatio: false,
+                resizeDelay: 100,
+                plugins: {
+                    legend: {display: false},
+                    tooltip: {enabled: true}
                 },
-                y:{
-                    grid:{display:false},
-                    ticks:{
-                        color:"#111827",
-                        font:{weight:"700"}
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        max: 100,
+                        grid: {color: "rgba(15,23,42,.08)"},
+                        ticks: {color: "#64748b"}
+                    },
+                    y: {
+                        grid: {display: false},
+                        ticks: {
+                            color: "#111827",
+                            font: {weight: "700"}
+                        }
                     }
                 }
             }
-        }
-    });
-}
+        });
+    }
 
 
     function renderOwnership() {
-    const container = document.getElementById("ownershipBars");
+        const container = document.getElementById("ownershipBars");
 
-    if (!container) return;
+        if (!container) return;
 
-    container.innerHTML = "";
+        container.innerHTML = "";
 
-    const transactions = window.smartMoneyData.recent_transactions || [];
+        const transactions = window.smartMoneyData.recent_transactions || [];
 
-    if (!transactions.length) {
-        container.innerHTML = `<div class="empty-state">No ownership data available.</div>`;
-        return;
-    }
+        if (!transactions.length) {
+            container.innerHTML = `<div class="empty-state">No ownership data available.</div>`;
+            return;
+        }
 
-    const grouped = {};
+        const grouped = {};
 
-    transactions.forEach(t => {
-        const name = t.insider || "Unknown";
-        grouped[name] = (grouped[name] || 0) + Number(t.shares || 0);
-    });
+        transactions.forEach(t => {
+            const name = t.insider || "Unknown";
+            grouped[name] = (grouped[name] || 0) + Number(t.shares || 0);
+        });
 
-    const values = Object.values(grouped);
-    const max = Math.max(...values);
+        const values = Object.values(grouped);
+        const max = Math.max(...values);
 
-    if (!max || max <= 0) {
-        container.innerHTML = `<div class="empty-state">No ownership data available.</div>`;
-        return;
-    }
+        if (!max || max <= 0) {
+            container.innerHTML = `<div class="empty-state">No ownership data available.</div>`;
+            return;
+        }
 
-    Object.entries(grouped).forEach(([name, value]) => {
-        const bar = document.createElement("div");
-        bar.className = "ownership-row";
+        Object.entries(grouped).forEach(([name, value]) => {
+            const bar = document.createElement("div");
+            bar.className = "ownership-row";
 
-        bar.innerHTML = `
+            bar.innerHTML = `
             <div class="label">${name}</div>
             <div class="bar">
                 <div class="fill" style="width:${(value / max) * 100}%"></div>
@@ -477,9 +434,9 @@ function renderLeaderboard() {
             <div class="value">${Number(value).toLocaleString()}</div>
         `;
 
-        container.appendChild(bar);
-    });
-}
+            container.appendChild(bar);
+        });
+    }
 
 
     function renderTimeline() {
@@ -498,8 +455,8 @@ function renderLeaderboard() {
 
             const color =
                 t.type === "BUY" ? "green" :
-                t.type === "SELL" ? "red" :
-                t.type === "Tax" ? "orange" : "blue";
+                    t.type === "SELL" ? "red" :
+                        t.type === "Tax" ? "orange" : "blue";
 
             div.innerHTML = `
                 <div class="dot ${color}"></div>
@@ -531,83 +488,83 @@ function renderLeaderboard() {
     }
 
     function setText(id, value) {
-    const el = document.getElementById(id);
+        const el = document.getElementById(id);
 
-    if (!el) {
-        console.error("Missing company info element:", id);
-        return;
-    }
-
-    el.textContent = value || "--";
-}
-
-async function loadCompanyInfo(symbol) {
-    try {
-        console.log("Loading company info for:", symbol);
-
-        const response = await fetch(`/company-info/${symbol}`);
-        const result = await response.json();
-
-        console.log("Company info result:", result);
-
-        if (!result.success) {
-            console.error(result.message || "Company info failed");
+        if (!el) {
+            console.error("Missing company info element:", id);
             return;
         }
 
-        const data = result.data || {};
-
-        // Snapshot
-        setText("companyInfoName", data.snapshot?.name);
-        setText("companyInfoSector", data.snapshot?.sector);
-
-        const websiteEl = document.getElementById("companyInfoWebsite");
-
-        if (websiteEl) {
-            if (data.snapshot?.website) {
-                websiteEl.textContent = data.snapshot.website.replace(/^https?:\/\//, "");
-                websiteEl.href = data.snapshot.website;
-            } else {
-                websiteEl.textContent = "--";
-                websiteEl.href = "#";
-            }
-        }
-
-        // Market data
-        setText("companyMarketPrice", data.market?.price);
-        setText("companyPreviousClose", data.market?.previous_close);
-        setText("companyOpen", data.market?.open);
-        setText("companyVolume", data.market?.volume);
-        setText("companyDayRange", data.market?.day_range);
-        setText("company52WeekRange", data.market?.week_52_range);
-        setText("companyMarketCap", data.market?.market_cap);
-
-        // Valuation
-        setText("companyForwardPE", data.valuation?.forward_pe);
-        setText("companyPriceBook", data.valuation?.price_to_book);
-        setText("companyPriceSales", data.valuation?.price_to_sales);
-        setText("companyEnterpriseValue", data.valuation?.enterprise_value);
-        setText("companyBeta", data.valuation?.beta);
-
-        // Financial health
-        setText("companyRevenue", data.financial_health?.revenue);
-        setText("companyGrossMargin", data.financial_health?.gross_margin);
-        setText("companyOperatingMargin", data.financial_health?.operating_margin);
-        setText("companyProfitMargin", data.financial_health?.profit_margin);
-        setText("companyFreeCashFlow", data.financial_health?.free_cashflow);
-        setText("companyTotalCash", data.financial_health?.total_cash);
-        setText("companyTotalDebt", data.financial_health?.total_debt);
-
-        // Analyst view
-        setText("companyTargetLow", data.analyst?.target_low);
-        setText("companyTargetMean", data.analyst?.target_mean);
-        setText("companyTargetHigh", data.analyst?.target_high);
-        setText("companyAnalystOpinions", data.analyst?.analyst_opinions);
-
-    } catch (error) {
-        console.error("Company info loading failed:", error);
+        el.textContent = value || "--";
     }
-}
+
+    async function loadCompanyInfo(symbol) {
+        try {
+            console.log("Loading company info for:", symbol);
+
+            const response = await fetch(`/company-info/${symbol}`);
+            const result = await response.json();
+
+            console.log("Company info result:", result);
+
+            if (!result.success) {
+                console.error(result.message || "Company info failed");
+                return;
+            }
+
+            const data = result.data || {};
+
+            // Snapshot
+            setText("companyInfoName", data.snapshot?.name);
+            setText("companyInfoSector", data.snapshot?.sector);
+
+            const websiteEl = document.getElementById("companyInfoWebsite");
+
+            if (websiteEl) {
+                if (data.snapshot?.website) {
+                    websiteEl.textContent = data.snapshot.website.replace(/^https?:\/\//, "");
+                    websiteEl.href = data.snapshot.website;
+                } else {
+                    websiteEl.textContent = "--";
+                    websiteEl.href = "#";
+                }
+            }
+
+            // Market data
+            setText("companyMarketPrice", data.market?.price);
+            setText("companyPreviousClose", data.market?.previous_close);
+            setText("companyOpen", data.market?.open);
+            setText("companyVolume", data.market?.volume);
+            setText("companyDayRange", data.market?.day_range);
+            setText("company52WeekRange", data.market?.week_52_range);
+            setText("companyMarketCap", data.market?.market_cap);
+
+            // Valuation
+            setText("companyForwardPE", data.valuation?.forward_pe);
+            setText("companyPriceBook", data.valuation?.price_to_book);
+            setText("companyPriceSales", data.valuation?.price_to_sales);
+            setText("companyEnterpriseValue", data.valuation?.enterprise_value);
+            setText("companyBeta", data.valuation?.beta);
+
+            // Financial health
+            setText("companyRevenue", data.financial_health?.revenue);
+            setText("companyGrossMargin", data.financial_health?.gross_margin);
+            setText("companyOperatingMargin", data.financial_health?.operating_margin);
+            setText("companyProfitMargin", data.financial_health?.profit_margin);
+            setText("companyFreeCashFlow", data.financial_health?.free_cashflow);
+            setText("companyTotalCash", data.financial_health?.total_cash);
+            setText("companyTotalDebt", data.financial_health?.total_debt);
+
+            // Analyst view
+            setText("companyTargetLow", data.analyst?.target_low);
+            setText("companyTargetMean", data.analyst?.target_mean);
+            setText("companyTargetHigh", data.analyst?.target_high);
+            setText("companyAnalystOpinions", data.analyst?.analyst_opinions);
+
+        } catch (error) {
+            console.error("Company info loading failed:", error);
+        }
+    }
 
     if (window.currentSymbol) {
         loadCompanyInfo(window.currentSymbol);

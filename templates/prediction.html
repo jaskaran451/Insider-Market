@@ -8,10 +8,12 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="../static/css/nav.css" rel="stylesheet">
     <link href="../static/css/style.css" rel="stylesheet">
+    <link href="../static/css/footer.css" rel="stylesheet">
     <link href="../static/css/autocomplete.css" rel="stylesheet">
     <link rel="stylesheet" href="../static/css/prediction.css">
     <script src="../static/JS/notification.js"></script>
     <script src="../static/JS/autocomplete.js"></script>
+    <script src="../static/JS/footer.js"></script>
 
 
 </head>
@@ -35,9 +37,10 @@
                 autocomplete="off"
             >
 
-            <button type="submit">
-                →
-            </button>
+            <button type="submit" id="predictionSearchButton">
+    <span class="btn-icon">→</span>
+    <span class="spinner hidden"></span>
+</button>
         </form>
         <script>
             document.addEventListener("DOMContentLoaded", function () {
@@ -120,7 +123,11 @@
         <small>Volatility-adjusted risk</small>
         </div>
 
-        <section class="dashboard-card">
+
+
+    </section>
+
+    <section class="dashboard-card signal-breakdown-card">
     <div class="card-heading">
         <div>
             <h3>InsiderAI Signal Breakdown</h3>
@@ -136,8 +143,6 @@
         <div><span>Consensus</span><strong id="signalConsensus">0%</strong></div>
     </div>
 </section>
-
-    </section>
 
     <section class="dashboard-card chart-card">
         <div class="card-heading">
@@ -379,6 +384,7 @@
     </section>
 
 </main>
+{% include 'footer.html' %}
 
 <script src="../static/JS/prediction.js"></script>
 </body>

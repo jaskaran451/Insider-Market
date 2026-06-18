@@ -719,4 +719,28 @@ a {
         grid-template-columns: 1fr;
     }
 }
+.signal-breakdown-card {
+    width: 100%;
+}
+
+.signal-breakdown-grid {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(160px, 1fr));
+    gap: 20px;
+}
+
+.signal-breakdown-grid div {
+    min-width: 0;
+}
+@media (max-width: 1200px) {
+    .signal-breakdown-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 700px) {
+    .signal-breakdown-grid {
+        grid-template-columns: 1fr;
+    }
+}
 

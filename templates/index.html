@@ -7,6 +7,7 @@
     <link href="../static/css/style.css" rel="stylesheet">
     <link href="../static/css/nav.css" rel="stylesheet">
     <link href="../static/css/autocomplete.css" rel="stylesheet">
+    <link href="../static/css/footer.css" rel="stylesheet">
     <!-- Lucide Icons -->
     <script>
         window.currentSymbol = "{{ data.symbol }}";
@@ -16,6 +17,7 @@
     <script src="https://cdn.plot.ly/plotly-2.30.0.min.js"></script>
     <script src="../static/JS/notification.js"></script>
     <script src="../static/JS/autocomplete.js"></script>
+    <script src="../static/JS/footer.js"></script>
 
 
 </head>
@@ -578,17 +580,7 @@
 
 
 </div>
-<div class="ticker-wrapper">
-    <div class="ticker" id="ticker"></div>
-    <div class="modal hidden" id="modal">
-        <div class="modal-content">
-            <span class="close" onclick="closeModal()">×</span>
-            <h2 id="modal-title"></h2>
-            <canvas id="chart"></canvas>
-
-        </div>
-    </div>
-</div>
+{% include 'footer.html' %}
 <!-- COMPANY INFO SIDE DRAWER -->
 
 <div class="company-info-drawer" id="companyInfoDrawer">

@@ -48,6 +48,39 @@
 (function () {
     "use strict";
 
+    window.setInlineStatus = function (target, message, type = "info") {
+        const element =
+            typeof target === "string"
+                ? document.getElementById(target)
+                : target;
+
+        if (!element) return;
+
+        element.textContent = message;
+
+        element.classList.remove("loading", "success", "error", "warning", "info");
+        element.classList.add(type);
+    };
+
+    window.resetInlineStatus = function (target) {
+        const element =
+            typeof target === "string"
+                ? document.getElementById(target)
+                : target;
+
+        if (!element) return;
+
+        const defaultMessage =
+            element.getAttribute("data-default-message") ||
+            "Enter a search term to continue.";
+
+        window.setInlineStatus(element, defaultMessage, "info");
+    };
+})();
+
+(function () {
+    "use strict";
+
     window.createStatusPipeline = function (target, steps, options = {}) {
         const element =
             typeof target === "string"
@@ -111,5 +144,44 @@
                 applyStep(message, "error");
             }
         };
+    };
+})();
+(function () {
+    "use strict";
+
+    window.setButtonLoading = function (button, isLoading, options = {}) {
+        if (!button) return;
+
+        const icon = button.querySelector(".btn-icon");
+        const spinner = button.querySelector(".spinner");
+        const loadingText = options.loadingText || "";
+
+        if (isLoading) {
+            if (!button.dataset.defaultHtml) {
+                button.dataset.defaultHtml = button.innerHTML;
+            }
+
+            button.disabled = true;
+            button.classList.add("button-loading");
+
+            if (icon) icon.classList.add("hidden");
+            if (spinner) spinner.classList.remove("hidden");
+
+            if (loadingText && !icon && !spinner) {
+                button.textContent = loadingText;
+            }
+
+        } else {
+            button.disabled = false;
+            button.classList.remove("button-loading");
+
+            if (button.dataset.defaultHtml && !icon && !spinner) {
+                button.innerHTML = button.dataset.defaultHtml;
+                return;
+            }
+
+            if (icon) icon.classList.remove("hidden");
+            if (spinner) spinner.classList.add("hidden");
+        }
     };
 })();

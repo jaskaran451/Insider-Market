@@ -36,6 +36,7 @@ document.addEventListener("DOMContentLoaded",function(){
 });
 
 async function loadSmartMoneyTrend(query){
+    const button = document.getElementById("trendSearchButton");
     const pipeline = createStatusPipeline("trendStatus", [
         "Validating search query...",
         "Fetching latest 13F filing data for " + query + "...",
@@ -77,6 +78,8 @@ async function loadSmartMoneyTrend(query){
         pipeline.error(
             "Smart Money Trend analysis failed for " + query + ". Please check the symbol/name and try again."
         );
+    } finally {
+        setButtonLoading(button, false);
     }
 }
 

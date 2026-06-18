@@ -393,61 +393,6 @@
     color: black;
 }
 
-.ticker-wrapper {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 9999;
-    width: 100%;
-    background: #293863;
-    box-shadow: 0 -2px 8px rgba(0,0,0,.04),
-        0 -12px 28px rgba(36,58,115,.12);
-    border-top: 1px solid rgba(255,255,255,.06);
-}
-
-.ticker {
-    display: flex;
-    gap: 40px;
-    padding: 12px;
-    white-space: nowrap;
-    animation: scroll 18s linear infinite;
-}
-
-.ticker-item {
-    display: flex;
-    gap: 10px;
-    font-weight: 500;
-    color: white;
-}
-
-.skeleton {
-    opacity: 0.4;
-    animation: pulse 1.2s infinite;
-}
-
-@keyframes pulse {
-    0% {
-        opacity: 0.3;
-    }
-    50% {
-        opacity: 0.6;
-    }
-    100% {
-        opacity: 0.3;
-    }
-}
-
-/* smooth infinite illusion */
-@keyframes scroll {
-    0% {
-        transform: translateX(100%);
-    }
-    100% {
-        transform: translateX(-100%);
-    }
-}
-
 
 /* MODAL */
 .modal {

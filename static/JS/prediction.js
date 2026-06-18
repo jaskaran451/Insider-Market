@@ -610,6 +610,8 @@ async function fetchPredictionFromApi(symbol) {
 }
 
 async function loadPredictionForecast(symbol) {
+        const button = document.getElementById("predictionSearchButton");
+        setButtonLoading(button, true);
     const cleanSymbol = symbol.toUpperCase().trim();
 
     const pipeline = createStatusPipeline("predictionStatus", [
@@ -643,6 +645,8 @@ async function loadPredictionForecast(symbol) {
         pipeline.error(
             "Forecast failed for " + cleanSymbol + ". Please check the ticker and try again."
         );
+    } finally {
+        setButtonLoading(button, false);
     }
 }
 

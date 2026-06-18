@@ -48,10 +48,12 @@ os.makedirs(CACHE_FOLDER_institutions, exist_ok=True)
 os.makedirs(CACHE_FOLDER_news, exist_ok=True)
 
 
-stock_cache = {ticker: {"price": "--", "change": 0} for ticker in TICKERS}
-
+stock_cache = {ticker: {"price": "--", "change": 0, "percent": 0} for ticker in TICKERS}
 last_updated = 0
-CACHE_INTERVAL = 120  # seconds (2 min)
+CACHE_INTERVAL = 300
+
+stock_cache_lock = threading.Lock()
+stock_refreshing = False
 CACHE_EXPIRY_HOURS = 24
 
 # website traffic
@@ -192,8 +194,6 @@ def home():
                 "sec_link": t.get("sec_link")
             })
 
-        print("ALPHA key loaded:", bool(API_KEY))
-        print("FINNHUB key loaded:", bool(FINNHUB_KEY))
         # =========================
         # INSTITUTIONAL DATA (FIXED)
         # =========================
@@ -297,9 +297,6 @@ def home():
             image_src = f"data:image/jpeg;base64,{encoded_string}"
         else:
             image_src = None
-
-        print("News response:", news_data)
-        print("Institution response:", institutional_data)
 
         data = {
             "symbol": symbol,
@@ -456,50 +453,123 @@ def insider_dashboard():
         "data": summary_dict
     })
 
+
+@app.route("/api/ticker-list")
+def ticker_list():
+    return jsonify(TICKERS)
+
 @app.route("/api/stocks")
 def get_stocks():
+    global stock_refreshing
+
+    now = time.time()
+    cache_is_fresh = stock_cache and now - last_updated < CACHE_INTERVAL
+
+    # If cache is fresh, return immediately
+    if cache_is_fresh:
+        quotes = stock_cache
+
+    else:
+        # If no refresh is running, start one in background
+        with stock_cache_lock:
+            if not stock_refreshing:
+                stock_refreshing = True
+                threading.Thread(
+                    target=refresh_quotes_background,
+                    daemon=True
+                ).start()
+
+        # Return current cache immediately while refresh happens
+        quotes = stock_cache
+
     ordered_data = []
     PRIORITY = ["AAPL", "MSFT", "NVDA", "TSLA"]
-    for ticker in PRIORITY + [t for t in TICKERS if t not in PRIORITY]:
-        if ticker in stock_cache:
-            ordered_data.append({
-                "symbol": ticker,
-                **stock_cache[ticker]
-            })
-        else:
-            ordered_data.append({
-                "symbol": ticker,
-                "price": "--",
-                "change": 0,
-                "percent": 0
-            })
 
-    return {
+    for ticker in PRIORITY + [t for t in TICKERS if t not in PRIORITY]:
+        item = quotes.get(ticker, {
+            "price": "--",
+            "change": 0,
+            "percent": 0
+        })
+
+        ordered_data.append({
+            "symbol": ticker,
+            **item
+        })
+
+    return jsonify({
         "data": ordered_data,
-        "updated": last_updated
-    }
+        "updated": last_updated,
+        "refreshing": stock_refreshing
+    })
+
+def refresh_quotes_background():
+    global stock_cache, last_updated, stock_refreshing
+
+    try:
+        updated_cache = fetch_quotes()
+
+        with stock_cache_lock:
+            stock_cache = updated_cache
+            last_updated = time.time()
+
+    except Exception as error:
+        print("[BACKGROUND QUOTE REFRESH ERROR]", error)
+
+    finally:
+        with stock_cache_lock:
+            stock_refreshing = False
 
 def fetch_quotes():
+    MAX_QUOTES_PER_REFRESH = 10
     global stock_cache, last_updated
-    time.sleep(2)
-    while True:
-        for ticker in TICKERS:
-            try:
-                url = f"https://finnhub.io/api/v1/quote?symbol={ticker}&token={FINNHUB_KEY}"
-                res = requests.get(url)
-                data = res.json()
-                stock_cache[ticker] = {
-                    "price": data.get("c"),
-                    "change": data.get("d"),
-                    "percent": data.get("dp")
+
+    now = time.time()
+
+    # Return cache if still fresh
+    if stock_cache and now - last_updated < CACHE_INTERVAL:
+        return stock_cache
+
+    updated_cache = stock_cache.copy() if stock_cache else {
+        ticker: {"price": "--", "change": 0} for ticker in TICKERS
+    }
+
+    for ticker in TICKERS:
+        try:
+            url = f"https://finnhub.io/api/v1/quote?symbol={ticker}&token={FINNHUB_KEY}"
+
+            response = requests.get(url, timeout=8)
+            response.raise_for_status()
+
+            data = response.json()
+
+            price = data.get("c")
+            previous_close = data.get("pc")
+
+            if price and previous_close:
+                change = ((price - previous_close) / previous_close) * 100
+
+                updated_cache[ticker] = {
+                    "price": round(price, 2),
+                    "change": round(change, 2)
                 }
 
-                last_updated = time.time()
-                time.sleep(0.8)
-            except Exception as e:
-                print("Error:", ticker, e)
+        except requests.exceptions.Timeout:
+            print(f"Finnhub timeout for {ticker}. Keeping old cached value.")
 
-        time.sleep(CACHE_INTERVAL)
+        except requests.exceptions.RequestException as e:
+            print(f"Finnhub request error for {ticker}: {e}. Keeping old cached value.")
+
+        except Exception as e:
+            print(f"Unexpected quote error for {ticker}: {e}. Keeping old cached value.")
+
+        # Small delay helps avoid hammering Finnhub
+        time.sleep(0.15)
+
+    stock_cache = updated_cache
+    last_updated = now
+
+    return stock_cache
 
 @app.route("/smart-money-trend",methods=["GET"])
 def smart_money_trend_page():
@@ -705,5 +775,4 @@ def safe_get(source, key, default=None):
 
 if __name__ == "__main__":
 
-    threading.Thread(target=fetch_quotes, daemon=True).start()
     app.run(debug=True)

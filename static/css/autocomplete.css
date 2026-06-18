@@ -28,7 +28,7 @@
     min-width: 76px;
     height: 42px;
     border-radius: 14px;
-    background: #111827;
+    background: #334236;
     color: #ffffff;
     display: flex;
     align-items: center;
@@ -45,7 +45,7 @@
 }
 
 .company-suggestion-info strong {
-    color: #111827;
+    color: #334236;
     font-size: 15px;
     font-weight: 850;
 }

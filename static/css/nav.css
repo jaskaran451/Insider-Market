@@ -17,7 +17,7 @@
 .logo{
     font-size:28px;
     font-weight:900;
-    color:#111827;
+    color:#334236;
     text-decoration:none;
     letter-spacing:-.8px;
 }
@@ -44,13 +44,13 @@
 }
 
 .nav-links a:hover{
-    color:#111827;
+    color:#334236;
     background:rgba(255,255,255,.75);
 }
 
 .nav-links a.active{
     color:#fff;
-    background:#111827;
+    background:#334236;
     box-shadow:0 10px 24px rgba(15,23,42,.18);
 }
 
@@ -72,17 +72,17 @@
 
 .auth-links a:hover{
     background:rgba(15,23,42,.06);
-    color:#111827;
+    color:#334236;
 }
 
 .auth-links .signup{
-    background:#111827;
+    background:#334236;
     color:#fff;
     box-shadow:0 10px 24px rgba(15,23,42,.16);
 }
 
 .auth-links .signup:hover{
-    background:#020617;
+    background:#334236;
     color:#fff;
 }
 
@@ -113,5 +113,188 @@
 
     to {
         transform: rotate(360deg);
+    }
+}
+.logo {
+    color: #334236;
+    text-decoration: none;
+}
+
+.navbar {
+    position: relative;
+    z-index: 50;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    padding: 18px 52px;
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(18px);
+    border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.nav-auth {
+    justify-self: end;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.nav-login-btn,
+.nav-user-btn,
+.nav-icon-btn {
+    height: 46px;
+    padding: 0 18px;
+    border-radius: 999px;
+    background: #334236;
+    color: #ffffff;
+    border: 1px solid rgba(15, 23, 42, 0.12);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    text-decoration: none;
+    font-size: 15px;
+    font-weight: 800;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16);
+    transition: 0.22s ease;
+}
+
+.nav-icon-btn {
+    width: 46px;
+    padding: 0;
+}
+
+.nav-login-btn:hover,
+.nav-user-btn:hover,
+.nav-icon-btn:hover {
+    transform: translateY(-2px);
+    background: #334236;
+    box-shadow: 0 16px 34px rgba(15, 23, 42, 0.22);
+}
+
+@media (max-width: 850px) {
+    .navbar {
+        grid-template-columns: 1fr auto;
+        padding: 16px 22px;
+        gap: 16px;
+    }
+
+    .nav-tabs {
+        order: 3;
+        grid-column: 1 / -1;
+        justify-self: center;
+    }
+
+    .nav-login-btn span,
+    .nav-user-btn span {
+        display: none;
+    }
+
+    .nav-login-btn,
+    .nav-user-btn {
+        width: 46px;
+        padding: 0;
+    }
+}
+
+/* ================================
+   NAVBAR AUTH BUTTONS
+================================ */
+
+.navbar {
+    position: relative;
+    z-index: 100;
+}
+
+.nav-auth {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+/* Reset default link styles */
+.nav-auth a {
+    text-decoration: none;
+}
+
+.nav-login-pill,
+.nav-user-pill,
+.nav-logout-pill {
+    height: 46px;
+    border-radius: 999px;
+    background: #334236;
+    color: #ffffff;
+    border: 1px solid rgba(17, 24, 39, 0.12);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    font-size: 15px;
+    font-weight: 800;
+    line-height: 1;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.14);
+    transition: 0.22s ease;
+}
+
+.nav-login-pill,
+.nav-user-pill {
+    padding: 0 18px;
+}
+
+.nav-logout-pill {
+    width: 46px;
+    padding: 0;
+}
+
+.nav-login-pill i,
+.nav-user-pill i,
+.nav-logout-pill i {
+    font-size: 16px;
+    color: #ffffff;
+}
+
+.nav-login-pill span,
+.nav-user-pill span {
+    color: #ffffff;
+}
+
+.nav-login-pill:hover,
+.nav-user-pill:hover,
+.nav-logout-pill:hover {
+    transform: translateY(-2px);
+    background: #334236;
+    color: #ffffff;
+    box-shadow: 0 16px 34px rgba(15, 23, 42, 0.2);
+}
+
+.nav-login-pill:visited,
+.nav-user-pill:visited,
+.nav-logout-pill:visited {
+    color: #ffffff;
+}
+
+@media (max-width: 850px) {
+    .navbar {
+        height: auto;
+        min-height: 82px;
+        padding: 16px 22px;
+        flex-wrap: wrap;
+    }
+
+    .nav-auth {
+        margin-left: auto;
+    }
+
+    .nav-user-pill span,
+    .nav-login-pill span {
+        display: none;
+    }
+
+    .nav-user-pill,
+    .nav-login-pill {
+        width: 46px;
+        padding: 0;
     }
 }

@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="account-section">
+    <div class="account-card">
+        <h1>My Account</h1>
+
+        <div class="account-row">
+            <span>Name</span>
+            <strong>{{ current_user.full_name }}</strong>
+        </div>
+
+        <div class="account-row">
+            <span>Email</span>
+            <strong>{{ current_user.email }}</strong>
+        </div>
+
+        <a href="{{ url_for'logout') }}" class="logout-btn">
+            Log out
+        </a>
+    </div>
+</section>
+{% endblock %}

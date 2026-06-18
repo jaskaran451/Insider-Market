@@ -64,3 +64,5 @@ Unidecode==1.4.0
 websockets==15.0.1
 Werkzeug==3.1.8
 yfinance==1.2.0
+flask-login
+flask-bcrypt

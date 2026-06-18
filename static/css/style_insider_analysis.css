@@ -1,6 +1,6 @@
 body {
     font-family: Arial;
-    background: #0f1115;
+    background: #334236;
     color: white;
 }
 
@@ -32,7 +32,7 @@ button {
 }
 
 .card {
-    background: #161b22;
+    background: #334236;
     padding: 15px;
     flex: 1;
     border-radius: 8px;
@@ -50,11 +50,11 @@ table {
 
 th, td {
     padding: 10px;
-    border-bottom: 1px solid #333;
+    border-bottom: 1px solid #334236;
 }
 
 .signal {
-    background: #161b22;
+    background: #334236;
     padding: 10px;
     margin-bottom: 10px;
     border-radius: 6px;

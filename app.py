@@ -26,6 +26,20 @@ from services.manager_portfolio_service import manager_portfolio_service
 from dataclasses import asdict
 from services.edgar_insider_api_adapter import edgar_insider_api_adapter
 from services.stock_data_service import build_prediction_response
+
+import os
+from dotenv import load_dotenv
+from flask import Flask, render_template, request, redirect, url_for, flash
+from flask_login import (
+    LoginManager,
+    UserMixin,
+    login_user,
+    logout_user,
+    login_required,
+    current_user
+)
+from flask_bcrypt import Bcrypt
+from database.db import get_db_connection
 import yfinance as yf
 from flask import jsonify
 from dotenv import load_dotenv
@@ -33,7 +47,7 @@ load_dotenv()
 
 
 app = Flask(__name__)
-app.secret_key = os.getenv("secret_key1")
+# app.secret_key = os.getenv("secret_key1")
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "dev-secret-key")
 
@@ -61,6 +75,161 @@ page_views = defaultdict(int)
 daily_visits = 0
 last_reset = time.time()
 
+load_dotenv()
+
+app.secret_key = os.getenv("SECRET_KEY", "dev-secret-change-this")
+
+bcrypt = Bcrypt(app)
+
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = "login"
+login_manager.login_message = "Please log in to continue."
+login_manager.login_message_category = "warning"
+class User(UserMixin):
+    def __init__(self, id, full_name, email):
+        self.id = str(id)
+        self.full_name = full_name
+        self.email = email
+
+
+@login_manager.user_loader
+def load_user(user_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "SELECT id, full_name, email FROM users WHERE id = ?",
+        user_id
+    )
+
+    row = cursor.fetchone()
+    conn.close()
+
+    if row:
+        return User(row.id, row.full_name, row.email)
+
+    return None
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if current_user.is_authenticated:
+        return redirect(url_for("home"))
+
+    if request.method == "POST":
+        email = request.form.get("email", "").strip().lower()
+        password = request.form.get("password", "")
+
+        if not email or not password:
+            flash("Please enter your email and password.", "error")
+            return redirect(url_for("login"))
+
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+
+            cursor.execute(
+                "SELECT id, full_name, email, password_hash FROM users WHERE email = ?",
+                email
+            )
+
+            row = cursor.fetchone()
+            conn.close()
+
+        except Exception as e:
+            print("Login database error:", e)
+            flash("Database connection failed. Please try again later.", "error")
+            return redirect(url_for("login"))
+
+        if row and bcrypt.check_password_hash(row.password_hash, password):
+            user = User(row.id, row.full_name, row.email)
+            login_user(user)
+
+            flash("Logged in successfully.", "success")
+            return redirect(url_for("home"))
+
+        flash("Invalid email or password.", "error")
+        return redirect(url_for("login"))
+
+    return render_template("login.html", auth_mode="login")
+
+
+@app.route("/signup", methods=["GET", "POST"])
+def signup():
+    if current_user.is_authenticated:
+        return redirect(url_for("home"))
+
+    if request.method == "POST":
+        full_name = request.form.get("full_name", "").strip()
+        email = request.form.get("email", "").strip().lower()
+        password = request.form.get("password", "")
+        confirm_password = request.form.get("confirm_password", "")
+
+        if not full_name or not email or not password or not confirm_password:
+            flash("Please fill in all fields.", "error")
+            return redirect(url_for("signup"))
+
+        if password != confirm_password:
+            flash("Passwords do not match.", "error")
+            return redirect(url_for("signup"))
+
+        if len(password) < 8:
+            flash("Password must be at least 8 characters.", "error")
+            return redirect(url_for("signup"))
+
+        password_hash = bcrypt.generate_password_hash(password).decode("utf-8")
+
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+
+            cursor.execute(
+                "SELECT id FROM users WHERE email = ?",
+                email
+            )
+            existing_user = cursor.fetchone()
+
+            if existing_user:
+                conn.close()
+                flash("An account with this email already exists.", "error")
+                return redirect(url_for("signup"))
+
+            cursor.execute(
+                """
+                INSERT INTO users (full_name, email, password_hash)
+                VALUES (?, ?, ?)
+                """,
+                full_name,
+                email,
+                password_hash
+            )
+
+            conn.commit()
+            conn.close()
+
+            flash("Account created successfully. Please log in.", "success")
+            return redirect(url_for("login"))
+
+        except Exception as e:
+            print("Signup database error:", e)
+            flash("Something went wrong while creating your account.", "error")
+            return redirect(url_for("signup"))
+
+    return render_template("login.html", auth_mode="signup")
+
+
+@app.route("/logout")
+@login_required
+def logout():
+    logout_user()
+    flash("Logged out successfully.", "success")
+    return redirect(url_for("home"))
+
+
+@app.route("/account")
+@login_required
+def account():
+    return render_template("account.html")
 
 def fetch_market_data(data_type, symbol):
     symbol = symbol.upper().strip()

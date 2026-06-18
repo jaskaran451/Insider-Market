@@ -4,21 +4,26 @@
 
     <div class="nav-links">
         <a href="/" class="nav-item {% if request.path == '/' %}active{% endif %}">Dashboard</a>
-        <a href="/smart-money-trend" class="nav-item">Smart Money</a>
-        <a href="/prediction" class="nav-item">AI Stock Forecast Lab</a>
+        <a href="/smart-money-trend" class="nav-item  {% if request.path == '/smart-money-trend' %}active{% endif %}">Smart Money</a>
+        <a href="/prediction" class="nav-item {% if request.path == '/prediction' %}active{% endif %}">AI Stock Forecast Lab</a>
     </div>
-<!--    <div class="auth-links">-->
-<!--        <div class="profile-menu">-->
-<!--            👤-->
-<!--            <a href="/logout">-->
-<!--                Logout-->
-<!--            </a>-->
-<!--        </div>-->
 
-<!--        <a href="/login">Login</a>-->
-<!--        <a href="/signup">Sign Up</a>-->
+    <div class="nav-auth">
+    {% if current_user.is_authenticated %}
+        <a href="{{ url_for('account') }}" class="nav-user-pill">
+            <i class="fa-solid fa-user"></i>
+            <span>{{ current_user.full_name.split()[0] }}</span>
+        </a>
 
-
-<!--    </div>-->
+        <a href="{{ url_for('logout') }}" class="nav-logout-pill" title="Logout">
+            <i class="fa-solid fa-right-from-bracket"></i>
+        </a>
+    {% else %}
+        <a href="{{ url_for('login') }}" class="nav-login-pill">
+            <i class="fa-solid fa-user"></i>
+            <span>Login</span>
+        </a>
+    {% endif %}
+</div>
 
 </nav>

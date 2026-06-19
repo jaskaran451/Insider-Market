@@ -1,4 +1,4 @@
-from flask import Flask, redirect, session
+from flask import Flask, redirect, session, Response
 import requests
 from config import COMPANY_MAP
 import time
@@ -26,7 +26,11 @@ from services.manager_portfolio_service import manager_portfolio_service
 from dataclasses import asdict
 from services.edgar_insider_api_adapter import edgar_insider_api_adapter
 from services.stock_data_service import build_prediction_response
-from services.ollama_analysis import generate_forecast_ai_analysis
+from services.ollama_analysis import (
+    generate_forecast_ai_analysis,
+    generate_dashboard_ai_analysis,
+stream_dashboard_ai_analysis
+)
 
 import os
 from dotenv import load_dotenv
@@ -58,6 +62,7 @@ ROIC_API_KEY = os.getenv("ROIC_API_KEY")
 CACHE_FOLDER_insider = "cache/insider"
 CACHE_FOLDER_institutions = "cache/institutions"
 CACHE_FOLDER_news = "cache/news"
+dashboard_ai_data_cache = {}
 
 os.makedirs(CACHE_FOLDER_insider, exist_ok=True)
 os.makedirs(CACHE_FOLDER_institutions, exist_ok=True)
@@ -487,6 +492,14 @@ def home():
             "logo": image_src,
             "earnings": earnings_data
         }
+        dashboard_ai_data_cache[symbol] = {
+            "symbol": data.get("symbol"),
+            "name": data.get("name"),
+            "transactions": data.get("transactions", []),
+            "institutional": data.get("institutional", {}),
+            "news": data.get("news", []),
+            "earnings": data.get("earnings", {})
+        }
 
     return render_template("index.html", data=data, companies=COMPANY_MAP)
 
@@ -809,6 +822,74 @@ def predict_stock_ai_analysis(symbol):
             },
             "message": str(error)
         }), 400
+
+@app.route("/api/company-dashboard/<symbol>/ai-analysis", methods=["POST"])
+def company_dashboard_ai_analysis(symbol):
+    symbol = symbol.upper().strip()
+
+    try:
+        dashboard_data = dashboard_ai_data_cache.get(symbol)
+
+        if not dashboard_data:
+            return jsonify({
+                "success": False,
+                "symbol": symbol,
+                "ai_analysis": {
+                    "available": False,
+                    "status": "missing_data",
+                    "model": None,
+                    "summary": None,
+                    "message": "Dashboard data was not found. Please search the company again, then run AI analysis."
+                }
+            }), 404
+
+        ai_analysis = generate_dashboard_ai_analysis(dashboard_data)
+
+        return jsonify({
+            "success": True,
+            "symbol": symbol,
+            "ai_analysis": ai_analysis
+        })
+
+    except Exception as error:
+        print("[COMPANY DASHBOARD AI ERROR]", error)
+
+        return jsonify({
+            "success": False,
+            "symbol": symbol,
+            "ai_analysis": {
+                "available": False,
+                "status": "error",
+                "model": None,
+                "summary": None,
+                "message": "Company AI analysis failed. Please try again later."
+            },
+            "message": str(error)
+        }), 400
+
+@app.route("/api/company-dashboard/<symbol>/ai-analysis-stream", methods=["POST"])
+def company_dashboard_ai_analysis_stream(symbol):
+    symbol = symbol.upper().strip()
+
+    dashboard_data = dashboard_ai_data_cache.get(symbol)
+
+    if not dashboard_data:
+        def missing_data_stream():
+            yield "Dashboard data was not found. Please search the company again, then run AI analysis."
+
+        return Response(
+            missing_data_stream(),
+            mimetype="text/plain"
+        )
+
+    def generate():
+        for chunk in stream_dashboard_ai_analysis(dashboard_data):
+            yield chunk
+
+    return Response(
+        generate(),
+        mimetype="text/plain"
+    )
 
 @app.route("/prediction")
 def prediction():

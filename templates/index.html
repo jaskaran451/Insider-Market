@@ -77,23 +77,7 @@
                 });
                 </script>
 
-            <!-- QUICK ACTIONS -->
-            <div class="panel-wrapper">
-                <button onclick="showSection('insider-section')" class="panel active" id="insiderBtn">
-                    Insider Activity
-                </button>
 
-                <button onclick="showSection('largebuys-section')" class="panel" id="largeBuysBtn">
-                    Institutional Holdings
-                </button>
-                <button onclick="showSection('news-section')" class="panel" id="newsBtn">
-                    News and Sentiments
-                </button>
-                <button onclick="showSection('earning-section')" class="panel" id="earningBtn">
-                    Earnings
-                </button>
-
-            </div>
 
             <!-- CHIPS -->
             <div class="prompt-chips">
@@ -114,6 +98,48 @@
         </div>
 
     </section>
+
+                <!-- QUICK ACTIONS -->
+            <div class="panel-wrapper">
+                <button onclick="showSection('insider-section')" class="panel active" id="insiderBtn">
+                    Insider Activity
+                </button>
+
+                <button onclick="showSection('largebuys-section')" class="panel" id="largeBuysBtn">
+                    Institutional Holdings
+                </button>
+                <button onclick="showSection('news-section')" class="panel" id="newsBtn">
+                    News and Sentiments
+                </button>
+                <button onclick="showSection('earning-section')" class="panel" id="earningBtn">
+                    Earnings
+                </button>
+
+            </div>
+
+
+    <section class="dashboard-ai-card" id="dashboardAiCard">
+    <div class="dashboard-ai-header">
+        <div>
+            <p class="earnings-label">AI Company Intelligence</p>
+            <h2>InsiderAI Company Analyst Summary</h2>
+            <p>
+                Reads insider activity, institutional holdings, news, and earnings transcripts to identify business signals and risks.
+            </p>
+        </div>
+
+        <button class="dashboard-ai-btn" id="analyzeCompanyWithAiBtn" type="button">
+            <span class="btn-icon">Analyze with AI</span>
+            <span class="spinner hidden"></span>
+        </button>
+    </div>
+
+    <div class="dashboard-ai-body" id="dashboardAiBody">
+        <p class="dashboard-ai-placeholder">
+            Search a company first, then click Analyze with AI to generate the company intelligence summary.
+        </p>
+    </div>
+</section>
 
     <!-- RESULTS -->
     <section class="results-section" id="resultsSection">
@@ -832,7 +858,9 @@
 
 </div>
 
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 <script>
     window.addEventListener("DOMContentLoaded", function () {
 
@@ -844,6 +872,7 @@
 
     });
 </script>
+
 
 
 </body>

@@ -125,6 +125,115 @@ def _ollama_request(prompt):
 
     return result.get("response", "").strip()
 
+def stream_dashboard_ai_analysis(company_data):
+    """
+    Streams Ollama response chunks for Dashboard 1 AI analysis.
+    Used by Flask Response/event-stream.
+    """
+
+    if not AI_SUMMARY_ENABLED:
+        yield "AI Analyst Summary is disabled on this server."
+        return
+
+    symbol = company_data.get("symbol", "UNKNOWN")
+    name = company_data.get("name", symbol)
+
+    cleaned_data = _clean_data_for_ai(company_data)
+
+    instruction = """
+You are InsiderAI's Company Intelligence Analyst.
+
+Analyze:
+- Insider transactions
+- Institutional holdings
+- News and sentiment
+- Earnings call transcripts
+
+Your goal:
+Identify the company's current situation, future pipeline, management priorities,
+growth areas, early business signals, and risk factors.
+
+Rules:
+- Do not give buy, sell, or hold advice.
+- Do not guarantee future performance.
+- Do not invent facts.
+- Use only the provided data.
+- Be detailed, clear, and professional.
+- Focus strongly on news and earnings transcript clues.
+- Explain what the company is developing, what management is emphasizing,
+  and what investors should monitor next.
+
+Return in this structure:
+
+1. Executive Summary
+2. Insider Activity Reading
+3. Institutional Ownership Reading
+4. News And Sentiment Reading
+5. Earnings Call / Pipeline Reading
+6. Future Development Signals
+7. Bullish Evidence
+8. Bearish / Risk Evidence
+9. Conflicting Signals
+10. What To Monitor Next
+11. Final Interpretation
+"""
+
+    prompt = f"""
+{instruction}
+
+Company:
+{name} ({symbol})
+
+Dashboard Data:
+{json.dumps(cleaned_data, indent=2, default=str)}
+"""
+
+    try:
+        response = requests.post(
+            OLLAMA_URL,
+            json={
+                "model": OLLAMA_MODEL,
+                "prompt": prompt,
+                "stream": True,
+                "options": {
+                    "temperature": 0.2,
+                    "num_predict": 1200
+                }
+            },
+            stream=True,
+            timeout=OLLAMA_TIMEOUT
+        )
+
+        response.raise_for_status()
+
+        for line in response.iter_lines():
+            if not line:
+                continue
+
+            try:
+                payload = json.loads(line.decode("utf-8"))
+                chunk = payload.get("response", "")
+
+                if chunk:
+                    yield chunk
+
+                if payload.get("done"):
+                    break
+
+            except Exception as error:
+                print("[OLLAMA STREAM PARSE ERROR]", error)
+                continue
+
+    except requests.exceptions.ConnectionError:
+        yield "AI Analyst Summary is not available because Ollama is not running on this machine."
+
+    except requests.exceptions.Timeout:
+        yield "AI Analyst Summary timed out. The model may be too slow for this server."
+
+    except Exception as error:
+        print("[OLLAMA STREAM ERROR]", error)
+        yield "AI Analyst Summary is unavailable right now."
+
 
 def generate_ai_analysis(page_type, symbol_or_query, data, custom_instruction=None):
     """
@@ -289,3 +398,51 @@ Use this format:
         data=forecast_data,
         custom_instruction=instruction
     )
+
+def generate_dashboard_ai_analysis(company_data):
+    symbol = company_data.get("symbol", "UNKNOWN")
+    name = company_data.get("name", symbol)
+
+    instruction = """
+You are InsiderAI's Company Intelligence Analyst.
+
+You must analyze the complete company dashboard data:
+- Insider transactions
+- Institutional holdings
+- News and sentiment
+- Earnings call transcripts
+
+Your goal:
+Identify what the data suggests about the company's current situation, future pipeline,
+management priorities, growth areas, risk factors, and possible early business signals.
+
+Rules:
+- Do not invent facts.
+- Use only the provided data.
+- Focus on what the company is developing, what management is emphasizing,
+  what risks are mentioned, and whether insider/institutional activity supports or conflicts with the story.
+
+
+Return the answer in this exact structure:
+
+1. Executive Summary
+2. Insider Activity Reading
+3. Institutional Ownership Reading
+4. News And Sentiment Reading
+5. Earnings Call / Pipeline Reading
+6. Future Development Signals
+7. Bullish Evidence
+8. Bearish / Risk Evidence
+9. Conflicting Signals
+10. What To Monitor Next
+11. Final Interpretation
+
+"""
+
+    return generate_ai_analysis(
+        page_type="company_dashboard",
+        symbol_or_query=f"{name}_{symbol}",
+        data=company_data,
+        custom_instruction=instruction
+    )
+

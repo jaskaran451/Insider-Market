@@ -24,7 +24,7 @@ document.addEventListener("DOMContentLoaded", async function () {
 
 
     // optional default view
-    showSection("insider-section");
+    showSection("insider-section", false);
 
     const filter = document.getElementById("chartFilter");
 
@@ -582,16 +582,246 @@ document.addEventListener("DOMContentLoaded", async function () {
         loadCompanyInfo(window.currentSymbol);
     }
 
+    function getDashboardDataForAI() {
+    const jsonScript = document.getElementById("dashboardDataJson");
+
+    if (!jsonScript) {
+        return null;
+    }
+
+    try {
+        return JSON.parse(jsonScript.textContent);
+    } catch (error) {
+        console.error("Dashboard AI JSON parse error:", error);
+        return null;
+    }
+}
+
+
+function cleanDashboardDataForAI(data) {
+    if (!data) return null;
+
+    const cleaned = {
+        symbol: data.symbol,
+        name: data.name,
+        transactions: data.transactions || [],
+        institutional: data.institutional || {},
+        news: data.news || [],
+        earnings: data.earnings || {}
+    };
+
+    // Keep news readable but not too huge
+    if (Array.isArray(cleaned.news)) {
+        cleaned.news = cleaned.news.slice(0, 12);
+    }
+
+    // Keep insider transactions reasonable
+    if (Array.isArray(cleaned.transactions)) {
+        cleaned.transactions = cleaned.transactions.slice(0, 20);
+    }
+
+    // Keep earnings transcripts smaller for browser payload
+    if (cleaned.earnings && Array.isArray(cleaned.earnings.items)) {
+        cleaned.earnings.items = cleaned.earnings.items.slice(0, 3).map(function (item) {
+            return {
+                symbol: item.symbol,
+                year: item.year,
+                quarter: item.quarter,
+                date: item.date,
+                title: item.title,
+                preview: item.preview,
+                transcript: item.transcript
+                    ? item.transcript.slice(0, 12000)
+                    : ""
+            };
+        });
+    }
+
+    return cleaned;
+}
+
+
+function renderDashboardAIAnalysis(aiAnalysis) {
+    const body = document.getElementById("dashboardAiBody");
+
+    if (!body) return;
+
+    if (!aiAnalysis) {
+        body.innerHTML = `
+            <div class="dashboard-ai-unavailable">
+                AI company analysis was not returned.
+            </div>
+        `;
+        return;
+    }
+
+    if (!aiAnalysis.available) {
+        body.innerHTML = `
+            <div class="dashboard-ai-unavailable">
+                ${aiAnalysis.message || "AI company analysis is not available on this machine."}
+            </div>
+        `;
+        return;
+    }
+
+    body.innerHTML = `
+        <div class="dashboard-ai-success">
+            ${escapeHTML(aiAnalysis.summary || "AI summary is empty.")}
+        </div>
+    `;
+}
+
+
+async function analyzeCompanyDashboardWithAI() {
+    const body = document.getElementById("dashboardAiBody");
+    const button = document.getElementById("analyzeCompanyWithAiBtn");
+
+    const symbol = window.currentSymbol;
+
+    if (!symbol) {
+        if (body) {
+            body.innerHTML = `
+                <div class="dashboard-ai-unavailable">
+                    Search a company first before using AI company analysis.
+                </div>
+            `;
+        }
+        return;
+    }
+
+    if (body) {
+        body.innerHTML = `
+    <div class="dashboard-ai-success streaming" id="dashboardAiStreamText"></div>
+`;
+    }
+
+    const output = document.getElementById("dashboardAiStreamText");
+    const aiBody = document.getElementById("dashboardAiBody");
+
+if (aiBody) {
+    aiBody.dataset.userScrolled = "false";
+
+    aiBody.addEventListener("scroll", function () {
+        const distanceFromBottom =
+            aiBody.scrollHeight - aiBody.scrollTop - aiBody.clientHeight;
+
+        if (distanceFromBottom > 80) {
+            aiBody.dataset.userScrolled = "true";
+        } else {
+            aiBody.dataset.userScrolled = "false";
+        }
+    });
+}
+
+    if (typeof setButtonLoading === "function") {
+        setButtonLoading(button, true);
+    } else if (button) {
+        button.disabled = true;
+    }
+
+    try {
+        const response = await fetch(`/api/company-dashboard/${encodeURIComponent(symbol)}/ai-analysis-stream`, {
+            method: "POST"
+        });
+
+        if (!response.ok || !response.body) {
+            throw new Error("AI stream failed.");
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+
+        let fullText = "";
+
+        while (true) {
+            const result = await reader.read();
+
+            if (result.done) {
+                break;
+            }
+
+            const chunk = decoder.decode(result.value, {
+                stream: true
+            });
+
+            fullText += chunk;
+            await sleep(25);
+
+            if (output) {
+                output.textContent = fullText;
+
+                const aiBody = document.getElementById("dashboardAiBody");
+
+                if (aiBody && aiBody.dataset.userScrolled !== "true") {
+                    aiBody.scrollTop = aiBody.scrollHeight;
+                }
+            }
+        }
+        if (output) {
+    output.classList.remove("streaming");
+}
+
+        if (!fullText.trim() && output) {
+            output.textContent = "AI analysis returned an empty response.";
+        }
+
+    } catch (error) {
+        console.error(error);
+
+        if (body) {
+            body.innerHTML = `
+                <div class="dashboard-ai-unavailable">
+                    AI company analysis failed. Make sure Ollama is running, then try again.
+                </div>
+            `;
+        }
+
+    } finally {
+        if (typeof setButtonLoading === "function") {
+            setButtonLoading(button, false);
+        } else if (button) {
+            button.disabled = false;
+        }
+    }
+}
+
+    const analyzeCompanyWithAiBtn = document.getElementById("analyzeCompanyWithAiBtn");
+
+    if (analyzeCompanyWithAiBtn) {
+        analyzeCompanyWithAiBtn.addEventListener("click", analyzeCompanyDashboardWithAI);
+    }
+
+    if (window.currentSymbol && window.currentSymbol.trim() !== "") {
+    setTimeout(function () {
+        smoothScrollToResults();
+    }, 350);
+}
+
+
+
 });
 
-function showSection(sectionId) {
-
-   document.querySelectorAll(".content-section").forEach(section => {
+function showSection(sectionId, shouldScroll = true) {
+    document.querySelectorAll(".content-section").forEach(function (section) {
         section.classList.remove("active");
     });
-    document.getElementById(sectionId).classList.remove("hidden");
-    document.getElementById(sectionId).classList.add("active");
+
+    const targetSection = document.getElementById(sectionId);
+
+    if (!targetSection) {
+        console.error("Section not found:", sectionId);
+        return;
+    }
+
+    targetSection.classList.add("active");
+
+    if (shouldScroll) {
+        setTimeout(function () {
+            smoothScrollToResults();
+        }, 80);
+    }
 }
+
 let chartVisible = false;
 
 async function toggleChart() {
@@ -644,5 +874,27 @@ async function loadChart() {
     } catch (error) {
         console.error("Chart loading failed:", error);
     }
+}
+function escapeHTML(value) {
+    return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+}
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function smoothScrollToResults() {
+    const resultsSection = document.getElementById("resultsSection");
+
+    if (!resultsSection) return;
+
+    resultsSection.scrollIntoView({
+        behavior: "smooth",
+        block: "start"
+    });
 }
 

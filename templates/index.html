@@ -12,6 +12,7 @@
     rel="stylesheet"
     href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
     <!-- Lucide Icons -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script>
     <script>
         window.currentSymbol = "{{ data.symbol }}";
     </script>
@@ -117,14 +118,13 @@
 
             </div>
 
-
-    <section class="dashboard-ai-card" id="dashboardAiCard">
+    <section class="dashboard-ai-card ai-card-compact" id="dashboardAiCard">
     <div class="dashboard-ai-header">
         <div>
             <p class="earnings-label">AI Company Intelligence</p>
             <h2>InsiderAI Company Analyst Summary</h2>
-            <p>
-                Reads insider activity, institutional holdings, news, and earnings transcripts to identify business signals and risks.
+            <p class="dashboard-ai-subtitle">
+                Reads insider activity, institutional holdings, news, and earnings transcripts.
             </p>
         </div>
 
@@ -136,11 +136,10 @@
 
     <div class="dashboard-ai-body" id="dashboardAiBody">
         <p class="dashboard-ai-placeholder">
-            Search a company first, then click Analyze with AI to generate the company intelligence summary.
+            Click Analyze with AI to generate the company intelligence summary.
         </p>
     </div>
 </section>
-
     <!-- RESULTS -->
     <section class="results-section" id="resultsSection">
         <div id="insider-section" class="content-section active">

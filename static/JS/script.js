@@ -1,4 +1,5 @@
 document.addEventListener("DOMContentLoaded", async function () {
+
     // ensure clean dashboard start
     document.querySelectorAll(".content-section").forEach(section => {
         section.classList.remove("active");
@@ -8,7 +9,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     const btn = document.getElementById("submitBtn");
     const icon = document.getElementById("btnIcon");
     const spinner = document.getElementById("spinner");
-
+    let dashboardAiLottie = null;
     if (form && btn && icon && spinner) {
         form.addEventListener("submit", function () {
             icon.classList.add("hidden");
@@ -33,24 +34,41 @@ document.addEventListener("DOMContentLoaded", async function () {
     }
 
 
-    document.getElementById("insiderBtn")
-        .addEventListener("click", () => {
-            showSection("insider-section");
-        });
+   function setActivePanel(activeBtnId) {
+    document.querySelectorAll(".panel").forEach((btn) => {
+        btn.classList.remove("active");
+    });
 
-    document.getElementById("largeBuysBtn")
-        .addEventListener("click", () => {
-            showSection("largebuys-section");
-        });
+    const activeBtn = document.getElementById(activeBtnId);
 
-    document.getElementById("newsBtn")
-        .addEventListener("click", () => {
-            showSection("news-section");
-        });
-    document.getElementById("earningBtn")
-        .addEventListener("click", () => {
-            showSection("earning-section");
-        });
+    if (activeBtn) {
+        activeBtn.classList.add("active");
+    }
+}
+
+document.getElementById("insiderBtn")
+    .addEventListener("click", () => {
+        showSection("insider-section");
+        setActivePanel("insiderBtn");
+    });
+
+document.getElementById("largeBuysBtn")
+    .addEventListener("click", () => {
+        showSection("largebuys-section");
+        setActivePanel("largeBuysBtn");
+    });
+
+document.getElementById("newsBtn")
+    .addEventListener("click", () => {
+        showSection("news-section");
+        setActivePanel("newsBtn");
+    });
+
+document.getElementById("earningBtn")
+    .addEventListener("click", () => {
+        showSection("earning-section");
+        setActivePanel("earningBtn");
+    });
 
     const panel = document.getElementById("smart-money-panel");
 
@@ -670,6 +688,87 @@ function renderDashboardAIAnalysis(aiAnalysis) {
         </div>
     `;
 }
+const analyzeCompanyWithAiBtn = document.getElementById("analyzeCompanyWithAiBtn");
+
+if (analyzeCompanyWithAiBtn) {
+    analyzeCompanyWithAiBtn.addEventListener("click", analyzeCompanyDashboardWithAI);
+}
+
+function expandDashboardAICard() {
+    const card = document.getElementById("dashboardAiCard");
+
+    if (!card) return;
+
+    card.classList.remove("ai-card-compact");
+    card.classList.add("ai-card-expanded");
+
+    setTimeout(function () {
+        card.scrollIntoView({
+            behavior: "smooth",
+            block: "start"
+        });
+    }, 180);
+}
+
+function showDashboardAILottieThinking() {
+    const body = document.getElementById("dashboardAiBody");
+
+    if (!body) return;
+
+    body.innerHTML = `
+    <div class="ai-lottie-panel">
+        <div class="ai-lottie-bg" id="dashboardAiLottie"></div>
+
+        <div class="ai-lottie-overlay"></div>
+
+        <div class="ai-lottie-content">
+            <p class="ai-lottie-title">Analyzing company intelligence...</p>
+
+            <p class="ai-lottie-subtitle">
+                Ollama is reading insider activity, institutional holdings, news themes,
+                and earnings transcript commentary to identify business signals and risks.
+            </p>
+
+        </div>
+    </div>
+`;
+
+    const container = document.getElementById("dashboardAiLottie");
+
+    if (!container || !window.lottie) {
+        return;
+    }
+
+    if (dashboardAiLottie) {
+        dashboardAiLottie.destroy();
+        dashboardAiLottie = null;
+    }
+
+    dashboardAiLottie = lottie.loadAnimation({
+        container: container,
+        renderer: "svg",
+        loop: true,
+        autoplay: true,
+        path: "/static/animations/ai-thinking.json"
+    });
+}
+
+function showDashboardAIStreamBox() {
+    const body = document.getElementById("dashboardAiBody");
+
+    if (!body) return null;
+
+    if (dashboardAiLottie) {
+        dashboardAiLottie.destroy();
+        dashboardAiLottie = null;
+    }
+
+    body.innerHTML = `
+        <div class="dashboard-ai-success streaming" id="dashboardAiStreamText"></div>
+    `;
+
+    return document.getElementById("dashboardAiStreamText");
+}
 
 
 async function analyzeCompanyDashboardWithAI() {
@@ -680,6 +779,8 @@ async function analyzeCompanyDashboardWithAI() {
 
     if (!symbol) {
         if (body) {
+            expandDashboardAICard();
+
             body.innerHTML = `
                 <div class="dashboard-ai-unavailable">
                     Search a company first before using AI company analysis.
@@ -689,29 +790,8 @@ async function analyzeCompanyDashboardWithAI() {
         return;
     }
 
-    if (body) {
-        body.innerHTML = `
-    <div class="dashboard-ai-success streaming" id="dashboardAiStreamText"></div>
-`;
-    }
-
-    const output = document.getElementById("dashboardAiStreamText");
-    const aiBody = document.getElementById("dashboardAiBody");
-
-if (aiBody) {
-    aiBody.dataset.userScrolled = "false";
-
-    aiBody.addEventListener("scroll", function () {
-        const distanceFromBottom =
-            aiBody.scrollHeight - aiBody.scrollTop - aiBody.clientHeight;
-
-        if (distanceFromBottom > 80) {
-            aiBody.dataset.userScrolled = "true";
-        } else {
-            aiBody.dataset.userScrolled = "false";
-        }
-    });
-}
+    expandDashboardAICard();
+    showDashboardAILottieThinking();
 
     if (typeof setButtonLoading === "function") {
         setButtonLoading(button, true);
@@ -726,6 +806,20 @@ if (aiBody) {
 
         if (!response.ok || !response.body) {
             throw new Error("AI stream failed.");
+        }
+
+        const output = showDashboardAIStreamBox();
+        const aiBody = document.getElementById("dashboardAiBody");
+
+        if (aiBody) {
+            aiBody.dataset.userScrolled = "false";
+
+            aiBody.addEventListener("scroll", function () {
+                const distanceFromBottom =
+                    aiBody.scrollHeight - aiBody.scrollTop - aiBody.clientHeight;
+
+                aiBody.dataset.userScrolled = distanceFromBottom > 80 ? "true" : "false";
+            });
         }
 
         const reader = response.body.getReader();
@@ -745,21 +839,21 @@ if (aiBody) {
             });
 
             fullText += chunk;
-            await sleep(25);
+
+            await sleep(35);
 
             if (output) {
                 output.textContent = fullText;
-
-                const aiBody = document.getElementById("dashboardAiBody");
 
                 if (aiBody && aiBody.dataset.userScrolled !== "true") {
                     aiBody.scrollTop = aiBody.scrollHeight;
                 }
             }
         }
+
         if (output) {
-    output.classList.remove("streaming");
-}
+            output.classList.remove("streaming");
+        }
 
         if (!fullText.trim() && output) {
             output.textContent = "AI analysis returned an empty response.";
@@ -767,6 +861,11 @@ if (aiBody) {
 
     } catch (error) {
         console.error(error);
+
+        if (dashboardAiLottie) {
+            dashboardAiLottie.destroy();
+            dashboardAiLottie = null;
+        }
 
         if (body) {
             body.innerHTML = `
@@ -785,16 +884,17 @@ if (aiBody) {
     }
 }
 
-    const analyzeCompanyWithAiBtn = document.getElementById("analyzeCompanyWithAiBtn");
-
-    if (analyzeCompanyWithAiBtn) {
-        analyzeCompanyWithAiBtn.addEventListener("click", analyzeCompanyDashboardWithAI);
-    }
 
     if (window.currentSymbol && window.currentSymbol.trim() !== "") {
     setTimeout(function () {
         smoothScrollToResults();
     }, 350);
+}
+
+
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 

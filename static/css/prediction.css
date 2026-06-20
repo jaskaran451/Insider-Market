@@ -848,4 +848,13 @@ a {
     content: "● ";
     animation: inlinePulse 1s ease-in-out infinite;
 }
+html {
+    scroll-behavior: smooth;
+}
+
+#resultsSection,
+#trendResults,
+#forecastMain {
+    scroll-margin-top: 110px;
+}
 

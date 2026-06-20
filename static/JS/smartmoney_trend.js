@@ -65,7 +65,7 @@ async function loadSmartMoneyTrend(query){
             behavior:"smooth",
             block:"start"
         });
-
+        smoothScrollToElement("trendResults", 300);
         pipeline.success(
             "Smart Money Trend analysis ready for " + (result.manager || query) + ". " +
             "Loaded " + ((result.top_holdings || []).length) + " top holdings and " +
@@ -399,4 +399,16 @@ function formatMoney(value){
 
 function formatNumber(value){
     return Number(value || 0).toLocaleString();
+}
+function smoothScrollToElement(elementId, delay = 250) {
+    setTimeout(function () {
+        const element = document.getElementById(elementId);
+
+        if (!element) return;
+
+        element.scrollIntoView({
+            behavior: "smooth",
+            block: "start"
+        });
+    }, delay);
 }

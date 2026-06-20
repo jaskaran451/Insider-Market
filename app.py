@@ -44,7 +44,7 @@ from flask_login import (
     current_user
 )
 from flask_bcrypt import Bcrypt
-from database.db import get_db_connection
+from database.db import get_db_connection,warm_up_database
 import yfinance as yf
 from flask import jsonify
 from dotenv import load_dotenv
@@ -52,6 +52,12 @@ load_dotenv()
 
 
 app = Flask(__name__)
+def start_db_warmup():
+    warmup_thread = threading.Thread(target=warm_up_database)
+    warmup_thread.daemon = True
+    warmup_thread.start()
+start_db_warmup()
+
 # app.secret_key = os.getenv("secret_key1")
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "dev-secret-key")

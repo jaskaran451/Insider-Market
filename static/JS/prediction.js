@@ -653,6 +653,7 @@ async function loadPredictionForecast(symbol) {
 
         renderDashboard(dashboardData);
         resetAIAnalysisSection();
+        smoothScrollToElement("forecastMain", 300);
 
         pipeline.success(
             "Forecast ready for " + cleanSymbol + ". " +
@@ -872,6 +873,18 @@ function escapeHTML(value) {
         .replaceAll(">", "&gt;")
         .replaceAll('"', "&quot;")
         .replaceAll("'", "&#039;");
+}
+function smoothScrollToElement(elementId, delay = 250) {
+    setTimeout(function () {
+        const element = document.getElementById(elementId);
+
+        if (!element) return;
+
+        element.scrollIntoView({
+            behavior: "smooth",
+            block: "start"
+        });
+    }, delay);
 }
 
 

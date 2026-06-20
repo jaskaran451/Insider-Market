@@ -365,5 +365,14 @@
         opacity: 1;
     }
 }
+html {
+    scroll-behavior: smooth;
+}
+
+#resultsSection,
+#trendResults,
+#forecastMain {
+    scroll-margin-top: 110px;
+}
 
 

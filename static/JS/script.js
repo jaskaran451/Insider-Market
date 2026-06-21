@@ -1,15 +1,63 @@
-document.addEventListener("DOMContentLoaded", async function () {
+document.addEventListener("DOMContentLoaded", function () {
 
-    // ensure clean dashboard start
+    "use strict";
+
+    /* =========================================================
+       1. GLOBAL STATE
+       ========================================================= */
+
+    let dashboardAiLottie = null;
+
+    window.smartMoneyGaugeChart = window.smartMoneyGaugeChart || null;
+    window.activityDonutChart = window.activityDonutChart || null;
+    window.signalRadarChart = window.signalRadarChart || null;
+
+
+    /* =========================================================
+       2. BASIC HELPERS
+       ========================================================= */
+
+    function getEl(id) {
+        return document.getElementById(id);
+    }
+
+    function safeSetText(id, value) {
+        const el = getEl(id);
+
+        if (!el) return;
+
+        el.textContent = value || "--";
+    }
+
+    function sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    function escapeHTML(value) {
+        return String(value)
+            .replaceAll("&", "&amp;")
+            .replaceAll("<", "&lt;")
+            .replaceAll(">", "&gt;")
+            .replaceAll('"', "&quot;")
+            .replaceAll("'", "&#039;");
+    }
+
+
+    /* =========================================================
+       3. INITIAL PAGE SETUP
+       ========================================================= */
+
     document.querySelectorAll(".content-section").forEach(section => {
         section.classList.remove("active");
     });
 
+    showSection("insider-section", false);
+
     const form = document.querySelector("form");
-    const btn = document.getElementById("submitBtn");
-    const icon = document.getElementById("btnIcon");
-    const spinner = document.getElementById("spinner");
-    let dashboardAiLottie = null;
+    const btn = getEl("submitBtn");
+    const icon = getEl("btnIcon");
+    const spinner = getEl("spinner");
+
     if (form && btn && icon && spinner) {
         form.addEventListener("submit", function () {
             icon.classList.add("hidden");
@@ -23,77 +71,84 @@ document.addEventListener("DOMContentLoaded", async function () {
         });
     }
 
-
-    // optional default view
-    showSection("insider-section", false);
-
-    const filter = document.getElementById("chartFilter");
+    const filter = getEl("chartFilter");
 
     if (filter) {
         filter.addEventListener("change", loadChart);
     }
 
 
-   function setActivePanel(activeBtnId) {
-    document.querySelectorAll(".panel").forEach((btn) => {
-        btn.classList.remove("active");
-    });
+    /* =========================================================
+       4. RESULT TAB BUTTONS
+       ========================================================= */
 
-    const activeBtn = document.getElementById(activeBtnId);
+    function setActivePanel(activeBtnId) {
+        document.querySelectorAll(".panel").forEach(function (btn) {
+            btn.classList.remove("active");
+        });
 
-    if (activeBtn) {
-        activeBtn.classList.add("active");
-    }
-}
+        const activeBtn = getEl(activeBtnId);
 
-document.getElementById("insiderBtn")
-    .addEventListener("click", () => {
-        showSection("insider-section");
-        setActivePanel("insiderBtn");
-    });
-
-document.getElementById("largeBuysBtn")
-    .addEventListener("click", () => {
-        showSection("largebuys-section");
-        setActivePanel("largeBuysBtn");
-    });
-
-document.getElementById("newsBtn")
-    .addEventListener("click", () => {
-        showSection("news-section");
-        setActivePanel("newsBtn");
-    });
-
-document.getElementById("earningBtn")
-    .addEventListener("click", () => {
-        showSection("earning-section");
-        setActivePanel("earningBtn");
-    });
-
-    const panel = document.getElementById("smart-money-panel");
-
-    document.getElementById("smart-money-btn").addEventListener("click", async function (e) {
-        e.preventDefault();
-
-        const ticker = window.currentSymbol;
-
-        if (!ticker) {
-            notify("Search a stock first", "warning");
-            return;
+        if (activeBtn) {
+            activeBtn.classList.add("active");
         }
+    }
 
-        await loadSmartMoney(ticker);
-    });
+    const insiderBtn = getEl("insiderBtn");
+    const largeBuysBtn = getEl("largeBuysBtn");
+    const newsBtn = getEl("newsBtn");
+    const earningBtn = getEl("earningBtn");
 
-    const earningsBtn = document.getElementById("earningBtn");
-
-    if (earningsBtn) {
-        earningsBtn.addEventListener("click", function () {
-            showSection("earning-section");
+    if (insiderBtn) {
+        insiderBtn.addEventListener("click", function () {
+            showSection("insider-section");
+            setActivePanel("insiderBtn");
         });
     }
 
-    const closeSmartMoneyBtn = document.getElementById("closeSmartMoneyBtn");
+    if (largeBuysBtn) {
+        largeBuysBtn.addEventListener("click", function () {
+            showSection("largebuys-section");
+            setActivePanel("largeBuysBtn");
+        });
+    }
+
+    if (newsBtn) {
+        newsBtn.addEventListener("click", function () {
+            showSection("news-section");
+            setActivePanel("newsBtn");
+        });
+    }
+
+    if (earningBtn) {
+        earningBtn.addEventListener("click", function () {
+            showSection("earning-section");
+            setActivePanel("earningBtn");
+        });
+    }
+
+
+    /* =========================================================
+       5. SMART MONEY PANEL
+       ========================================================= */
+
+    const smartMoneyBtn = getEl("smart-money-btn");
+    const closeSmartMoneyBtn = getEl("closeSmartMoneyBtn");
+
+    if (smartMoneyBtn) {
+        smartMoneyBtn.addEventListener("click", async function (event) {
+            event.preventDefault();
+
+            const ticker = window.currentSymbol;
+
+            if (!ticker) {
+                notify("Search a stock first", "warning");
+                return;
+            }
+
+            await loadSmartMoney(ticker);
+        });
+    }
 
     if (closeSmartMoneyBtn) {
         closeSmartMoneyBtn.addEventListener("click", closeSmartMoney);
@@ -125,22 +180,23 @@ document.getElementById("earningBtn")
 
     function populateSmartMoneyPanel() {
         const data = window.smartMoneyData || {};
-
         const score = Number(data.smart_money_score || 0);
 
-        document.getElementById("smScoreStatus").textContent = getSmartMoneyLabel(score);
+        safeSetText("smScoreStatus", getSmartMoneyLabel(score));
+        safeSetText("smBuys", data.total_buys ?? 0);
+        safeSetText("smSells", data.total_sells ?? 0);
+        safeSetText("smTaxes", data.total_taxes ?? 0);
+        safeSetText("smGrants", data.total_grants ?? 0);
+        safeSetText("smMomentum", data.insider_momentum ?? 0);
 
-        document.getElementById("smBuys").textContent = data.total_buys ?? 0;
-        document.getElementById("smSells").textContent = data.total_sells ?? 0;
-        document.getElementById("smTaxes").textContent = data.total_taxes ?? 0;
-        document.getElementById("smGrants").textContent = data.total_grants ?? 0;
-        document.getElementById("smMomentum").textContent = data.insider_momentum ?? 0;
+        const signalList = getEl("smSignalList");
 
-        const signalList = document.getElementById("smSignalList");
+        if (!signalList) return;
+
         signalList.innerHTML = "";
 
         if (data.signals && data.signals.length > 0) {
-            data.signals.forEach(signal => {
+            data.signals.forEach(function (signal) {
                 const chip = document.createElement("div");
 
                 const signalClass = String(signal.signal || "neutral")
@@ -163,20 +219,22 @@ document.getElementById("earningBtn")
         if (score >= 65) return "Bullish";
         if (score >= 45) return "Neutral";
         if (score >= 25) return "Bearish";
+
         return "Heavy Distribution";
     }
 
-
     function openSmartMoneyPanel() {
-        const panel = document.getElementById("smart-money-panel");
+        const panel = getEl("smart-money-panel");
 
-        document.querySelectorAll(".content-section").forEach(section => {
+        if (!panel) return;
+
+        document.querySelectorAll(".content-section").forEach(function (section) {
             section.classList.remove("active");
         });
 
         panel.classList.remove("hidden");
 
-        setTimeout(() => {
+        setTimeout(function () {
             panel.scrollIntoView({
                 behavior: "smooth",
                 block: "start"
@@ -185,16 +243,18 @@ document.getElementById("earningBtn")
     }
 
     function closeSmartMoney() {
-        const panel = document.getElementById("smart-money-panel");
+        const panel = getEl("smart-money-panel");
 
-        panel.classList.add("hidden");
+        if (panel) {
+            panel.classList.add("hidden");
+        }
 
         showSection("insider-section");
 
-        const resultsSection = document.getElementById("resultsSection");
+        const resultsSection = getEl("resultsSection");
 
         if (resultsSection) {
-            setTimeout(() => {
+            setTimeout(function () {
                 resultsSection.scrollIntoView({
                     behavior: "smooth",
                     block: "start"
@@ -211,21 +271,21 @@ document.getElementById("earningBtn")
         renderTimeline();
         renderLeaderboard();
     }
-
-    window.smartMoneyGaugeChart = window.smartMoneyGaugeChart || null;
-    window.activityDonutChart = window.activityDonutChart || null;
+        /* =========================================================
+       6. SMART MONEY CHARTS
+       ========================================================= */
 
     function renderGauge() {
-        const canvas = document.getElementById("smartMoneyGauge");
+        const canvas = getEl("smartMoneyGauge");
 
-        if (!canvas) return;
+        if (!canvas || !window.Chart) return;
 
         if (window.smartMoneyGaugeChart) {
             window.smartMoneyGaugeChart.destroy();
             window.smartMoneyGaugeChart = null;
         }
 
-        const score = Number(window.smartMoneyData.smart_money_score || 0);
+        const score = Number(window.smartMoneyData?.smart_money_score || 0);
         const remaining = Math.max(0, 100 - score);
 
         window.smartMoneyGaugeChart = new Chart(canvas, {
@@ -245,14 +305,14 @@ document.getElementById("earningBtn")
                 maintainAspectRatio: false,
                 cutout: "72%",
                 plugins: {
-                    tooltip: {enabled: false},
-                    legend: {display: false}
+                    tooltip: { enabled: false },
+                    legend: { display: false }
                 }
             },
             plugins: [{
                 id: "smartMoneyCenterText",
                 beforeDraw(chart) {
-                    const {width, height} = chart;
+                    const { width, height } = chart;
                     const ctx = chart.ctx;
 
                     ctx.save();
@@ -273,43 +333,10 @@ document.getElementById("earningBtn")
         });
     }
 
-    function renderLeaderboard() {
-        const container = document.getElementById("leaderboardContainer");
-
-        if (!container) return;
-
-        container.innerHTML = "";
-
-        const transactions = window.smartMoneyData.recent_transactions || [];
-
-        if (!transactions.length) {
-            container.innerHTML = `<div class="empty-state">No insider activity available.</div>`;
-            return;
-        }
-
-        transactions.slice(0, 10).forEach(t => {
-            const row = document.createElement("div");
-            row.className = "leaderboard-row";
-
-            row.innerHTML = `
-            <div>
-                <strong>${t.insider || "Unknown Insider"}</strong>
-                <span>${t.title || t.type || "Transaction"}</span>
-            </div>
-            <div>
-                <strong>${Number(t.shares || 0).toLocaleString()}</strong>
-                <span>Shares</span>
-            </div>
-        `;
-
-            container.appendChild(row);
-        });
-    }
-
     function renderDonut() {
-        const canvas = document.getElementById("activityDonut");
+        const canvas = getEl("activityDonut");
 
-        if (!canvas) return;
+        if (!canvas || !window.Chart) return;
 
         if (window.activityDonutChart) {
             window.activityDonutChart.destroy();
@@ -318,17 +345,17 @@ document.getElementById("earningBtn")
 
         const data = window.smartMoneyData || {};
 
-        const buys = Number(data.total_buys || 0);
-        const sells = Number(data.total_sells || 0);
-        const taxes = Number(data.total_taxes || 0);
-        const grants = Number(data.total_grants || 0);
-
         window.activityDonutChart = new Chart(canvas, {
             type: "doughnut",
             data: {
                 labels: ["Buys", "Sells", "Taxes", "Grants"],
                 datasets: [{
-                    data: [buys, sells, taxes, grants],
+                    data: [
+                        Number(data.total_buys || 0),
+                        Number(data.total_sells || 0),
+                        Number(data.total_taxes || 0),
+                        Number(data.total_grants || 0)
+                    ],
                     backgroundColor: [
                         "#22c55e",
                         "#ef4444",
@@ -359,23 +386,23 @@ document.getElementById("earningBtn")
         });
     }
 
-    window.signalRadarChart = window.signalRadarChart || null;
-
     function renderRadar() {
-        const canvas = document.getElementById("signalRadar");
+        const canvas = getEl("signalRadar");
 
-        if (!canvas) {
-            return;
-        }
+        if (!canvas || !window.Chart) return;
 
         if (window.signalRadarChart) {
             window.signalRadarChart.destroy();
             window.signalRadarChart = null;
         }
 
-        const signals = window.smartMoneyData.signals || [];
-        const labels = signals.map(s => s.signal.replaceAll("_", " "));
-        const values = signals.map(s => s.score);
+        const signals = window.smartMoneyData?.signals || [];
+        const labels = signals.map(function (signal) {
+            return String(signal.signal || "Signal").replaceAll("_", " ");
+        });
+        const values = signals.map(function (signal) {
+            return Number(signal.score || 0);
+        });
 
         window.signalRadarChart = new Chart(canvas, {
             type: "bar",
@@ -384,10 +411,12 @@ document.getElementById("earningBtn")
                 datasets: [{
                     label: "Signal Strength",
                     data: values,
-                    backgroundColor: signals.map(s => {
-                        const name = s.signal.toLowerCase();
+                    backgroundColor: signals.map(function (signal) {
+                        const name = String(signal.signal || "").toLowerCase();
+
                         if (name.includes("bearish") || name.includes("distribution")) return "#ef4444";
                         if (name.includes("bullish") || name.includes("accumulation")) return "#22c55e";
+
                         return "#60a5fa";
                     }),
                     borderRadius: 10,
@@ -400,21 +429,21 @@ document.getElementById("earningBtn")
                 maintainAspectRatio: false,
                 resizeDelay: 100,
                 plugins: {
-                    legend: {display: false},
-                    tooltip: {enabled: true}
+                    legend: { display: false },
+                    tooltip: { enabled: true }
                 },
                 scales: {
                     x: {
                         beginAtZero: true,
                         max: 100,
-                        grid: {color: "rgba(15,23,42,.08)"},
-                        ticks: {color: "#64748b"}
+                        grid: { color: "rgba(15,23,42,.08)" },
+                        ticks: { color: "#64748b" }
                     },
                     y: {
-                        grid: {display: false},
+                        grid: { display: false },
                         ticks: {
                             color: "#111827",
-                            font: {weight: "700"}
+                            font: { weight: "700" }
                         }
                     }
                 }
@@ -422,15 +451,40 @@ document.getElementById("earningBtn")
         });
     }
 
-
-    function renderOwnership() {
-        const container = document.getElementById("ownershipBars");
+    function renderLeaderboard() {
+        const container = getEl("leaderboardContainer");
 
         if (!container) return;
 
-        container.innerHTML = "";
+        const transactions = window.smartMoneyData?.recent_transactions || [];
 
-        const transactions = window.smartMoneyData.recent_transactions || [];
+        if (!transactions.length) {
+            container.innerHTML = `<div class="empty-state">No insider activity available.</div>`;
+            return;
+        }
+
+        container.innerHTML = transactions.slice(0, 10).map(function (transaction) {
+            return `
+                <div class="leaderboard-row">
+                    <div>
+                        <strong>${escapeHTML(transaction.insider || "Unknown Insider")}</strong>
+                        <span>${escapeHTML(transaction.title || transaction.type || "Transaction")}</span>
+                    </div>
+                    <div>
+                        <strong>${Number(transaction.shares || 0).toLocaleString()}</strong>
+                        <span>Shares</span>
+                    </div>
+                </div>
+            `;
+        }).join("");
+    }
+
+    function renderOwnership() {
+        const container = getEl("ownershipBars");
+
+        if (!container) return;
+
+        const transactions = window.smartMoneyData?.recent_transactions || [];
 
         if (!transactions.length) {
             container.innerHTML = `<div class="empty-state">No ownership data available.</div>`;
@@ -439,9 +493,9 @@ document.getElementById("earningBtn")
 
         const grouped = {};
 
-        transactions.forEach(t => {
-            const name = t.insider || "Unknown";
-            grouped[name] = (grouped[name] || 0) + Number(t.shares || 0);
+        transactions.forEach(function (transaction) {
+            const name = transaction.insider || "Unknown";
+            grouped[name] = (grouped[name] || 0) + Number(transaction.shares || 0);
         });
 
         const values = Object.values(grouped);
@@ -452,80 +506,73 @@ document.getElementById("earningBtn")
             return;
         }
 
-        Object.entries(grouped).forEach(([name, value]) => {
-            const bar = document.createElement("div");
-            bar.className = "ownership-row";
-
-            bar.innerHTML = `
-            <div class="label">${name}</div>
-            <div class="bar">
-                <div class="fill" style="width:${(value / max) * 100}%"></div>
-            </div>
-            <div class="value">${Number(value).toLocaleString()}</div>
-        `;
-
-            container.appendChild(bar);
-        });
-    }
-
-
-    function renderTimeline() {
-
-        const container = document.getElementById("timelineContainer");
-        container.innerHTML = "";
-
-        const sorted = smartMoneyData.recent_transactions
-            .slice()
-            .sort((a, b) => new Date(b.date) - new Date(a.date));
-
-        sorted.forEach(t => {
-
-            const div = document.createElement("div");
-            div.className = "timeline-item";
-
-            const color =
-                t.type === "BUY" ? "green" :
-                    t.type === "SELL" ? "red" :
-                        t.type === "Tax" ? "orange" : "blue";
-
-            div.innerHTML = `
-                <div class="dot ${color}"></div>
-                <div class="content">
-                    <div>${t.date}</div>
-                    <div><b>${t.insider}</b> → ${t.type}</div>
-                    <div>${t.shares} shares</div>
+        container.innerHTML = Object.entries(grouped).map(function ([name, value]) {
+            return `
+                <div class="ownership-row">
+                    <div class="label">${escapeHTML(name)}</div>
+                    <div class="bar">
+                        <div class="fill" style="width:${(value / max) * 100}%"></div>
+                    </div>
+                    <div class="value">${Number(value).toLocaleString()}</div>
                 </div>
             `;
-
-            container.appendChild(div);
-        });
+        }).join("");
     }
 
-    const companyInfoDrawer = document.getElementById("companyInfoDrawer");
-    const companyInfoToggle = document.getElementById("companyInfoToggle");
-    const companyInfoClose = document.getElementById("companyInfoClose");
+    function renderTimeline() {
+        const container = getEl("timelineContainer");
+
+        if (!container) return;
+
+        const transactions = window.smartMoneyData?.recent_transactions || [];
+
+        if (!transactions.length) {
+            container.innerHTML = `<div class="empty-state">No timeline data available.</div>`;
+            return;
+        }
+
+        const sorted = transactions
+            .slice()
+            .sort(function (a, b) {
+                return new Date(b.date) - new Date(a.date);
+            });
+
+        container.innerHTML = sorted.map(function (transaction) {
+            const color =
+                transaction.type === "BUY" ? "green" :
+                transaction.type === "SELL" ? "red" :
+                transaction.type === "Tax" ? "orange" : "blue";
+
+            return `
+                <div class="timeline-item">
+                    <div class="dot ${color}"></div>
+                    <div class="content">
+                        <div>${escapeHTML(transaction.date || "--")}</div>
+                        <div><b>${escapeHTML(transaction.insider || "Unknown")}</b> → ${escapeHTML(transaction.type || "Transaction")}</div>
+                        <div>${Number(transaction.shares || 0).toLocaleString()} shares</div>
+                    </div>
+                </div>
+            `;
+        }).join("");
+    }
+        /* =========================================================
+       7. COMPANY INFO DRAWER
+       ========================================================= */
+
+    const companyInfoDrawer = getEl("companyInfoDrawer");
+    const companyInfoToggle = getEl("companyInfoToggle");
+    const companyInfoClose = getEl("companyInfoClose");
 
     if (companyInfoToggle && companyInfoDrawer) {
-        companyInfoToggle.addEventListener("click", () => {
+        companyInfoToggle.addEventListener("click", function () {
             companyInfoDrawer.classList.toggle("open");
         });
     }
 
     if (companyInfoClose && companyInfoDrawer) {
-        companyInfoClose.addEventListener("click", () => {
+        companyInfoClose.addEventListener("click", function () {
             companyInfoDrawer.classList.remove("open");
         });
-    }
-
-    function setText(id, value) {
-        const el = document.getElementById(id);
-
-        if (!el) {
-            console.error("Missing company info element:", id);
-            return;
-        }
-
-        el.textContent = value || "--";
     }
 
     async function loadCompanyInfo(symbol) {
@@ -535,8 +582,6 @@ document.getElementById("earningBtn")
             const response = await fetch(`/company-info/${symbol}`);
             const result = await response.json();
 
-            console.log("Company info result:", result);
-
             if (!result.success) {
                 console.error(result.message || "Company info failed");
                 return;
@@ -544,11 +589,10 @@ document.getElementById("earningBtn")
 
             const data = result.data || {};
 
-            // Snapshot
-            setText("companyInfoName", data.snapshot?.name);
-            setText("companyInfoSector", data.snapshot?.sector);
+            safeSetText("companyInfoName", data.snapshot?.name);
+            safeSetText("companyInfoSector", data.snapshot?.sector);
 
-            const websiteEl = document.getElementById("companyInfoWebsite");
+            const websiteEl = getEl("companyInfoWebsite");
 
             if (websiteEl) {
                 if (data.snapshot?.website) {
@@ -560,36 +604,32 @@ document.getElementById("earningBtn")
                 }
             }
 
-            // Market data
-            setText("companyMarketPrice", data.market?.price);
-            setText("companyPreviousClose", data.market?.previous_close);
-            setText("companyOpen", data.market?.open);
-            setText("companyVolume", data.market?.volume);
-            setText("companyDayRange", data.market?.day_range);
-            setText("company52WeekRange", data.market?.week_52_range);
-            setText("companyMarketCap", data.market?.market_cap);
+            safeSetText("companyMarketPrice", data.market?.price);
+            safeSetText("companyPreviousClose", data.market?.previous_close);
+            safeSetText("companyOpen", data.market?.open);
+            safeSetText("companyVolume", data.market?.volume);
+            safeSetText("companyDayRange", data.market?.day_range);
+            safeSetText("company52WeekRange", data.market?.week_52_range);
+            safeSetText("companyMarketCap", data.market?.market_cap);
 
-            // Valuation
-            setText("companyForwardPE", data.valuation?.forward_pe);
-            setText("companyPriceBook", data.valuation?.price_to_book);
-            setText("companyPriceSales", data.valuation?.price_to_sales);
-            setText("companyEnterpriseValue", data.valuation?.enterprise_value);
-            setText("companyBeta", data.valuation?.beta);
+            safeSetText("companyForwardPE", data.valuation?.forward_pe);
+            safeSetText("companyPriceBook", data.valuation?.price_to_book);
+            safeSetText("companyPriceSales", data.valuation?.price_to_sales);
+            safeSetText("companyEnterpriseValue", data.valuation?.enterprise_value);
+            safeSetText("companyBeta", data.valuation?.beta);
 
-            // Financial health
-            setText("companyRevenue", data.financial_health?.revenue);
-            setText("companyGrossMargin", data.financial_health?.gross_margin);
-            setText("companyOperatingMargin", data.financial_health?.operating_margin);
-            setText("companyProfitMargin", data.financial_health?.profit_margin);
-            setText("companyFreeCashFlow", data.financial_health?.free_cashflow);
-            setText("companyTotalCash", data.financial_health?.total_cash);
-            setText("companyTotalDebt", data.financial_health?.total_debt);
+            safeSetText("companyRevenue", data.financial_health?.revenue);
+            safeSetText("companyGrossMargin", data.financial_health?.gross_margin);
+            safeSetText("companyOperatingMargin", data.financial_health?.operating_margin);
+            safeSetText("companyProfitMargin", data.financial_health?.profit_margin);
+            safeSetText("companyFreeCashFlow", data.financial_health?.free_cashflow);
+            safeSetText("companyTotalCash", data.financial_health?.total_cash);
+            safeSetText("companyTotalDebt", data.financial_health?.total_debt);
 
-            // Analyst view
-            setText("companyTargetLow", data.analyst?.target_low);
-            setText("companyTargetMean", data.analyst?.target_mean);
-            setText("companyTargetHigh", data.analyst?.target_high);
-            setText("companyAnalystOpinions", data.analyst?.analyst_opinions);
+            safeSetText("companyTargetLow", data.analyst?.target_low);
+            safeSetText("companyTargetMean", data.analyst?.target_mean);
+            safeSetText("companyTargetHigh", data.analyst?.target_high);
+            safeSetText("companyAnalystOpinions", data.analyst?.analyst_opinions);
 
         } catch (error) {
             console.error("Company info loading failed:", error);
@@ -600,306 +640,231 @@ document.getElementById("earningBtn")
         loadCompanyInfo(window.currentSymbol);
     }
 
-    function getDashboardDataForAI() {
-    const jsonScript = document.getElementById("dashboardDataJson");
 
-    if (!jsonScript) {
-        return null;
+    /* =========================================================
+       8. AI COMPANY ANALYSIS STREAMING
+       ========================================================= */
+
+    const analyzeCompanyWithAiBtn = getEl("analyzeCompanyWithAiBtn");
+
+    if (analyzeCompanyWithAiBtn) {
+        analyzeCompanyWithAiBtn.addEventListener("click", analyzeCompanyDashboardWithAI);
     }
 
-    try {
-        return JSON.parse(jsonScript.textContent);
-    } catch (error) {
-        console.error("Dashboard AI JSON parse error:", error);
-        return null;
-    }
-}
+    function expandDashboardAICard() {
+        const card = getEl("dashboardAiCard");
 
+        if (!card) return;
 
-function cleanDashboardDataForAI(data) {
-    if (!data) return null;
+        card.classList.remove("ai-card-compact");
+        card.classList.add("ai-card-expanded");
 
-    const cleaned = {
-        symbol: data.symbol,
-        name: data.name,
-        transactions: data.transactions || [],
-        institutional: data.institutional || {},
-        news: data.news || [],
-        earnings: data.earnings || {}
-    };
-
-    // Keep news readable but not too huge
-    if (Array.isArray(cleaned.news)) {
-        cleaned.news = cleaned.news.slice(0, 12);
+        setTimeout(function () {
+            card.scrollIntoView({
+                behavior: "smooth",
+                block: "start"
+            });
+        }, 180);
     }
 
-    // Keep insider transactions reasonable
-    if (Array.isArray(cleaned.transactions)) {
-        cleaned.transactions = cleaned.transactions.slice(0, 20);
-    }
+    function showDashboardAILottieThinking() {
+        const body = getEl("dashboardAiBody");
 
-    // Keep earnings transcripts smaller for browser payload
-    if (cleaned.earnings && Array.isArray(cleaned.earnings.items)) {
-        cleaned.earnings.items = cleaned.earnings.items.slice(0, 3).map(function (item) {
-            return {
-                symbol: item.symbol,
-                year: item.year,
-                quarter: item.quarter,
-                date: item.date,
-                title: item.title,
-                preview: item.preview,
-                transcript: item.transcript
-                    ? item.transcript.slice(0, 12000)
-                    : ""
-            };
-        });
-    }
+        if (!body) return;
 
-    return cleaned;
-}
-
-
-function renderDashboardAIAnalysis(aiAnalysis) {
-    const body = document.getElementById("dashboardAiBody");
-
-    if (!body) return;
-
-    if (!aiAnalysis) {
         body.innerHTML = `
-            <div class="dashboard-ai-unavailable">
-                AI company analysis was not returned.
-            </div>
-        `;
-        return;
-    }
+            <div class="ai-lottie-panel">
+                <div class="ai-lottie-bg" id="dashboardAiLottie"></div>
+                <div class="ai-lottie-overlay"></div>
 
-    if (!aiAnalysis.available) {
-        body.innerHTML = `
-            <div class="dashboard-ai-unavailable">
-                ${aiAnalysis.message || "AI company analysis is not available on this machine."}
-            </div>
-        `;
-        return;
-    }
+                <div class="ai-lottie-content">
+                    <p class="ai-lottie-title">Analyzing company intelligence...</p>
 
-    body.innerHTML = `
-        <div class="dashboard-ai-success">
-            ${escapeHTML(aiAnalysis.summary || "AI summary is empty.")}
-        </div>
-    `;
-}
-const analyzeCompanyWithAiBtn = document.getElementById("analyzeCompanyWithAiBtn");
-
-if (analyzeCompanyWithAiBtn) {
-    analyzeCompanyWithAiBtn.addEventListener("click", analyzeCompanyDashboardWithAI);
-}
-
-function expandDashboardAICard() {
-    const card = document.getElementById("dashboardAiCard");
-
-    if (!card) return;
-
-    card.classList.remove("ai-card-compact");
-    card.classList.add("ai-card-expanded");
-
-    setTimeout(function () {
-        card.scrollIntoView({
-            behavior: "smooth",
-            block: "start"
-        });
-    }, 180);
-}
-
-function showDashboardAILottieThinking() {
-    const body = document.getElementById("dashboardAiBody");
-
-    if (!body) return;
-
-    body.innerHTML = `
-    <div class="ai-lottie-panel">
-        <div class="ai-lottie-bg" id="dashboardAiLottie"></div>
-
-        <div class="ai-lottie-overlay"></div>
-
-        <div class="ai-lottie-content">
-            <p class="ai-lottie-title">Analyzing company intelligence...</p>
-
-            <p class="ai-lottie-subtitle">
-                Ollama is reading insider activity, institutional holdings, news themes,
-                and earnings transcript commentary to identify business signals and risks.
-            </p>
-
-        </div>
-    </div>
-`;
-
-    const container = document.getElementById("dashboardAiLottie");
-
-    if (!container || !window.lottie) {
-        return;
-    }
-
-    if (dashboardAiLottie) {
-        dashboardAiLottie.destroy();
-        dashboardAiLottie = null;
-    }
-
-    dashboardAiLottie = lottie.loadAnimation({
-        container: container,
-        renderer: "svg",
-        loop: true,
-        autoplay: true,
-        path: "/static/animations/ai-thinking.json"
-    });
-}
-
-function showDashboardAIStreamBox() {
-    const body = document.getElementById("dashboardAiBody");
-
-    if (!body) return null;
-
-    if (dashboardAiLottie) {
-        dashboardAiLottie.destroy();
-        dashboardAiLottie = null;
-    }
-
-    body.innerHTML = `
-        <div class="dashboard-ai-success streaming" id="dashboardAiStreamText"></div>
-    `;
-
-    return document.getElementById("dashboardAiStreamText");
-}
-
-
-async function analyzeCompanyDashboardWithAI() {
-    const body = document.getElementById("dashboardAiBody");
-    const button = document.getElementById("analyzeCompanyWithAiBtn");
-
-    const symbol = window.currentSymbol;
-
-    if (!symbol) {
-        if (body) {
-            expandDashboardAICard();
-
-            body.innerHTML = `
-                <div class="dashboard-ai-unavailable">
-                    Search a company first before using AI company analysis.
+                    <p class="ai-lottie-subtitle">
+                        Ollama is reading insider activity, institutional holdings, news themes,
+                        and earnings transcript commentary to identify business signals and risks.
+                    </p>
                 </div>
-            `;
+            </div>
+        `;
+
+        const container = getEl("dashboardAiLottie");
+
+        if (!container || !window.lottie) {
+            return;
         }
-        return;
-    }
-
-    expandDashboardAICard();
-    showDashboardAILottieThinking();
-
-    if (typeof setButtonLoading === "function") {
-        setButtonLoading(button, true);
-    } else if (button) {
-        button.disabled = true;
-    }
-
-    try {
-        const response = await fetch(`/api/company-dashboard/${encodeURIComponent(symbol)}/ai-analysis-stream`, {
-            method: "POST"
-        });
-
-        if (!response.ok || !response.body) {
-            throw new Error("AI stream failed.");
-        }
-
-        const output = showDashboardAIStreamBox();
-        const aiBody = document.getElementById("dashboardAiBody");
-
-        if (aiBody) {
-            aiBody.dataset.userScrolled = "false";
-
-            aiBody.addEventListener("scroll", function () {
-                const distanceFromBottom =
-                    aiBody.scrollHeight - aiBody.scrollTop - aiBody.clientHeight;
-
-                aiBody.dataset.userScrolled = distanceFromBottom > 80 ? "true" : "false";
-            });
-        }
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder("utf-8");
-
-        let fullText = "";
-
-        while (true) {
-            const result = await reader.read();
-
-            if (result.done) {
-                break;
-            }
-
-            const chunk = decoder.decode(result.value, {
-                stream: true
-            });
-
-            fullText += chunk;
-
-            await sleep(35);
-
-            if (output) {
-                output.textContent = fullText;
-
-                if (aiBody && aiBody.dataset.userScrolled !== "true") {
-                    aiBody.scrollTop = aiBody.scrollHeight;
-                }
-            }
-        }
-
-        if (output) {
-            output.classList.remove("streaming");
-        }
-
-        if (!fullText.trim() && output) {
-            output.textContent = "AI analysis returned an empty response.";
-        }
-
-    } catch (error) {
-        console.error(error);
 
         if (dashboardAiLottie) {
             dashboardAiLottie.destroy();
             dashboardAiLottie = null;
         }
 
-        if (body) {
-            body.innerHTML = `
-                <div class="dashboard-ai-unavailable">
-                    AI company analysis failed. Make sure Ollama is running, then try again.
-                </div>
-            `;
-        }
+        try {
+            dashboardAiLottie = lottie.loadAnimation({
+                container: container,
+                renderer: "svg",
+                loop: true,
+                autoplay: true,
+                path: "/static/animations/ai-thinking.json"
+            });
 
-    } finally {
-        if (typeof setButtonLoading === "function") {
-            setButtonLoading(button, false);
-        } else if (button) {
-            button.disabled = false;
+            dashboardAiLottie.addEventListener("data_failed", function () {
+                console.error("Dashboard Lottie failed to load. Check /static/animations/ai-thinking.json");
+            });
+
+        } catch (error) {
+            console.error("Dashboard Lottie init failed:", error);
         }
     }
-}
 
+    function showDashboardAIStreamBox() {
+        const body = getEl("dashboardAiBody");
+
+        if (!body) return null;
+
+        if (dashboardAiLottie) {
+            dashboardAiLottie.destroy();
+            dashboardAiLottie = null;
+        }
+
+        body.innerHTML = `
+            <div class="dashboard-ai-success streaming" id="dashboardAiStreamText"></div>
+        `;
+
+        return getEl("dashboardAiStreamText");
+    }
+
+    async function analyzeCompanyDashboardWithAI() {
+        const body = getEl("dashboardAiBody");
+        const button = getEl("analyzeCompanyWithAiBtn");
+        const symbol = window.currentSymbol;
+
+        if (!symbol) {
+            expandDashboardAICard();
+
+            if (body) {
+                body.innerHTML = `
+                    <div class="dashboard-ai-unavailable">
+                        Search a company first before using AI company analysis.
+                    </div>
+                `;
+            }
+
+            return;
+        }
+
+        expandDashboardAICard();
+        showDashboardAILottieThinking();
+
+        if (typeof setButtonLoading === "function") {
+            setButtonLoading(button, true);
+        } else if (button) {
+            button.disabled = true;
+        }
+
+        try {
+            const response = await fetch(`/api/company-dashboard/${encodeURIComponent(symbol)}/ai-analysis-stream`, {
+                method: "POST"
+            });
+
+            if (!response.ok || !response.body) {
+                throw new Error("AI stream failed.");
+            }
+
+            const output = showDashboardAIStreamBox();
+            const aiBody = getEl("dashboardAiBody");
+
+            if (aiBody) {
+                aiBody.dataset.userScrolled = "false";
+
+                aiBody.addEventListener("scroll", function () {
+                    const distanceFromBottom =
+                        aiBody.scrollHeight - aiBody.scrollTop - aiBody.clientHeight;
+
+                    aiBody.dataset.userScrolled = distanceFromBottom > 80 ? "true" : "false";
+                });
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder("utf-8");
+
+            let fullText = "";
+
+            while (true) {
+                const result = await reader.read();
+
+                if (result.done) {
+                    break;
+                }
+
+                const chunk = decoder.decode(result.value, {
+                    stream: true
+                });
+
+                fullText += chunk;
+
+                await sleep(35);
+
+                if (output) {
+                    output.textContent = fullText;
+
+                    if (aiBody && aiBody.dataset.userScrolled !== "true") {
+                        aiBody.scrollTop = aiBody.scrollHeight;
+                    }
+                }
+            }
+
+            if (output) {
+                output.classList.remove("streaming");
+            }
+
+            if (!fullText.trim() && output) {
+                output.textContent = "AI analysis returned an empty response.";
+            }
+
+        } catch (error) {
+            console.error("Dashboard AI frontend error:", error);
+
+            if (dashboardAiLottie) {
+                dashboardAiLottie.destroy();
+                dashboardAiLottie = null;
+            }
+
+            if (body) {
+                body.innerHTML = `
+                    <div class="dashboard-ai-unavailable">
+                        AI company analysis failed: ${escapeHTML(error.message || "Unknown error")}
+                    </div>
+                `;
+            }
+
+        } finally {
+            if (typeof setButtonLoading === "function") {
+                setButtonLoading(button, false);
+            } else if (button) {
+                button.disabled = false;
+            }
+        }
+    }
+
+
+    /* =========================================================
+       9. AUTO SCROLL AFTER SEARCH
+       ========================================================= */
 
     if (window.currentSymbol && window.currentSymbol.trim() !== "") {
-    setTimeout(function () {
-        smoothScrollToResults();
-    }, 350);
-}
-
-
-
-function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-
+        setTimeout(function () {
+            smoothScrollToResults();
+        }, 350);
+    }
 
 });
+
+/* =========================================================
+   GLOBAL FUNCTIONS
+   These stay outside DOMContentLoaded because HTML buttons
+   may call them directly with onclick.
+   ========================================================= */
 
 function showSection(sectionId, shouldScroll = true) {
     document.querySelectorAll(".content-section").forEach(function (section) {
@@ -925,66 +890,52 @@ function showSection(sectionId, shouldScroll = true) {
 let chartVisible = false;
 
 async function toggleChart() {
-
     const wrapper = document.getElementById("chartWrapper");
+
+    if (!wrapper) return;
 
     chartVisible = !chartVisible;
 
     if (chartVisible) {
-
         wrapper.classList.remove("hidden");
-
         await loadChart();
-
     } else {
-
         wrapper.classList.add("hidden");
     }
 }
+
 async function loadChart() {
-
     const dropdown = document.getElementById("chartFilter");
-    const months = dropdown.value;
 
-    // IMPORTANT: symbol must come from a stable global variable
+    if (!dropdown) return;
+
+    const months = dropdown.value;
     const symbol = window.currentSymbol;
 
     if (!symbol) {
         console.error("Symbol is missing");
         return;
     }
-    const url = `/chart/${symbol}/${months}`;
 
     try {
-        const response = await fetch(url);
+        const response = await fetch(`/chart/${symbol}/${months}`);
         const data = await response.json();
 
         const chartContainer = document.getElementById("chartContainer");
 
         if (data.chart) {
             Plotly.react(
-            "chartContainer",
-            data.chart.data,
-            data.chart.layout
+                "chartContainer",
+                data.chart.data,
+                data.chart.layout
             );
-        } else {
+        } else if (chartContainer) {
             chartContainer.innerHTML = "<p>No chart data available</p>";
         }
 
     } catch (error) {
         console.error("Chart loading failed:", error);
     }
-}
-function escapeHTML(value) {
-    return String(value)
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#039;");
-}
-function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 function smoothScrollToResults() {
@@ -997,4 +948,3 @@ function smoothScrollToResults() {
         block: "start"
     });
 }
-

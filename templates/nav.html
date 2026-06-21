@@ -10,14 +10,24 @@
 
     <div class="nav-auth">
     {% if current_user.is_authenticated %}
-        <a href="{{ url_for('account') }}" class="nav-user-pill">
-            <i class="fa-solid fa-user"></i>
-            <span>{{ current_user.full_name.split()[0] }}</span>
-        </a>
+        <div class="nav-user-menu">
+            <button class="nav-user-trigger" type="button">
+                <span>{{ current_user.initials }}</span>
+                <i class="fa-solid fa-chevron-down"></i>
+            </button>
 
-        <a href="{{ url_for('logout') }}" class="nav-logout-pill" title="Logout">
-            <i class="fa-solid fa-right-from-bracket"></i>
-        </a>
+            <div class="nav-user-dropdown">
+                <a href="#" class="dropdown-item disabled">
+                    <i class="fa-solid fa-gear"></i>
+                    <span>Settings</span>
+                </a>
+
+                <a href="{{ url_for('logout') }}" class="dropdown-item logout">
+                    <i class="fa-solid fa-right-from-bracket"></i>
+                    <span>Logout</span>
+                </a>
+            </div>
+        </div>
     {% else %}
         <a href="{{ url_for('login') }}" class="nav-login-pill">
             <i class="fa-solid fa-user"></i>

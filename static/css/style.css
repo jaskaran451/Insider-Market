@@ -2121,7 +2121,6 @@ html {
 
 /* soft readable overlay */
 .ai-lottie-overlay {
-    position: absolute;
     inset: 0;
     z-index: 2;
     background:
@@ -2185,6 +2184,34 @@ html {
     .ai-lottie-steps {
         margin-top: 32px;
     }
+}
+/* Safe brighter AI Lottie background */
+.ai-lottie-bg {
+    opacity: 1 !important;
+    filter: none !important;
+}
+
+.ai-lottie-bg svg {
+    width: 100% !important;
+    height: 100% !important;
+    transform: scale(1.35);
+    opacity: 1 !important;
+}
+
+/* Lighter overlay so the animation is more visible */
+.ai-lottie-overlay {
+    background:
+        radial-gradient(
+            circle at center,
+            rgba(255, 255, 255, 0.08),
+            rgba(255, 255, 255, 0.34) 58%,
+            rgba(255, 255, 255, 0.52) 100%
+        ),
+        linear-gradient(
+            180deg,
+            rgba(255, 255, 255, 0.06),
+            rgba(255, 255, 255, 0.28)
+        ) !important;
 }
 /* =====================================================
    FIXED INSIDER / INSTITUTIONAL / NEWS / EARNINGS RIBBON

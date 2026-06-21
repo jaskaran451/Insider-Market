@@ -28,6 +28,7 @@ def train_one_epoch(model, dataloader, criterion, optimizer, device, is_training
             optimizer.zero_grad()
 
         prediction = model(x)
+        y = y.view(-1, 1)
         loss = criterion(prediction.contiguous(), y.contiguous())
 
         if is_training:
@@ -75,7 +76,7 @@ def predict_with_lstm(price_rows):
     window_size = 60
     train_split_size = 0.75
     batch_size = 64
-    num_epochs = 50
+    num_epochs = 20
     learning_rate = 0.003
     device = "cpu"
 

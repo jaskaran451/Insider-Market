@@ -1,4 +1,4 @@
-from flask import Flask, redirect, session, Response
+from flask import Response
 import requests
 from config import COMPANY_MAP
 import time
@@ -27,14 +27,14 @@ from dataclasses import asdict
 from services.edgar_insider_api_adapter import edgar_insider_api_adapter
 from services.stock_data_service import build_prediction_response
 from services.ollama_analysis import (
-    generate_forecast_ai_analysis,
-    generate_dashboard_ai_analysis,
-stream_dashboard_ai_analysis
+stream_dashboard_ai_analysis,
+stream_forecast_ai_analysis
 )
-
+import json
+import queue
 import os
 from dotenv import load_dotenv
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for, flash,session
 from flask_login import (
     LoginManager,
     UserMixin,
@@ -44,7 +44,7 @@ from flask_login import (
     current_user
 )
 from flask_bcrypt import Bcrypt
-from database.db import get_db_connection,warm_up_database
+from database.db import get_db_connection
 import yfinance as yf
 from flask import jsonify
 from dotenv import load_dotenv
@@ -52,11 +52,6 @@ load_dotenv()
 
 
 app = Flask(__name__)
-def start_db_warmup():
-    warmup_thread = threading.Thread(target=warm_up_database)
-    warmup_thread.daemon = True
-    warmup_thread.start()
-start_db_warmup()
 
 # app.secret_key = os.getenv("secret_key1")
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -99,28 +94,33 @@ login_manager.init_app(app)
 login_manager.login_view = "login"
 login_manager.login_message = "Please log in to continue."
 login_manager.login_message_category = "warning"
+
 class User(UserMixin):
     def __init__(self, id, full_name, email):
         self.id = str(id)
         self.full_name = full_name
         self.email = email
+        self.initials = self.get_initials(full_name)
 
+    @staticmethod
+    def get_initials(full_name):
+        parts = full_name.strip().split()
 
+        if len(parts) >= 2:
+            return (parts[0][0] + parts[-1][0]).upper()
+
+        if len(parts) == 1:
+            return parts[0][:2].upper()
+
+        return "U"
 @login_manager.user_loader
 def load_user(user_id):
-    conn = get_db_connection()
-    cursor = conn.cursor()
+    session_user_id = session.get("user_id")
+    full_name = session.get("user_full_name")
+    email = session.get("user_email")
 
-    cursor.execute(
-        "SELECT id, full_name, email FROM users WHERE id = ?",
-        user_id
-    )
-
-    row = cursor.fetchone()
-    conn.close()
-
-    if row:
-        return User(row.id, row.full_name, row.email)
+    if session_user_id == str(user_id) and full_name and email:
+        return User(session_user_id, full_name, email)
 
     return None
 
@@ -156,6 +156,11 @@ def login():
 
         if row and bcrypt.check_password_hash(row.password_hash, password):
             user = User(row.id, row.full_name, row.email)
+
+            session["user_id"] = str(row.id)
+            session["user_full_name"] = row.full_name
+            session["user_email"] = row.email
+
             login_user(user)
 
             flash("Logged in successfully.", "success")
@@ -235,9 +240,9 @@ def signup():
 @login_required
 def logout():
     logout_user()
+    session.clear()
     flash("Logged out successfully.", "success")
     return redirect(url_for("home"))
-
 
 @app.route("/account")
 @login_required
@@ -719,7 +724,6 @@ def refresh_quotes_background():
             stock_refreshing = False
 
 def fetch_quotes():
-    MAX_QUOTES_PER_REFRESH = 10
     global stock_cache, last_updated
 
     now = time.time()
@@ -794,85 +798,6 @@ def smart_money_trend_api():
             "message":"Failed to load Smart Money Trend data"
         }),500
 
-@app.route("/api/predict/<symbol>/ai-analysis", methods=["POST"])
-def predict_stock_ai_analysis(symbol):
-    symbol = symbol.upper().strip()
-
-    try:
-        payload = request.get_json(silent=True) or {}
-        forecast_data = payload.get("forecast_data")
-
-        if not forecast_data:
-            forecast_data = build_prediction_response(symbol)
-
-        forecast_data["symbol"] = symbol
-
-        ai_analysis = generate_forecast_ai_analysis(forecast_data)
-
-        return jsonify({
-            "success": True,
-            "symbol": symbol,
-            "ai_analysis": ai_analysis
-        })
-
-    except Exception as error:
-        return jsonify({
-            "success": False,
-            "symbol": symbol,
-            "ai_analysis": {
-                "available": False,
-                "status": "error",
-                "model": None,
-                "summary": None,
-                "message": "AI analysis failed. Please try again later."
-            },
-            "message": str(error)
-        }), 400
-
-@app.route("/api/company-dashboard/<symbol>/ai-analysis", methods=["POST"])
-def company_dashboard_ai_analysis(symbol):
-    symbol = symbol.upper().strip()
-
-    try:
-        dashboard_data = dashboard_ai_data_cache.get(symbol)
-
-        if not dashboard_data:
-            return jsonify({
-                "success": False,
-                "symbol": symbol,
-                "ai_analysis": {
-                    "available": False,
-                    "status": "missing_data",
-                    "model": None,
-                    "summary": None,
-                    "message": "Dashboard data was not found. Please search the company again, then run AI analysis."
-                }
-            }), 404
-
-        ai_analysis = generate_dashboard_ai_analysis(dashboard_data)
-
-        return jsonify({
-            "success": True,
-            "symbol": symbol,
-            "ai_analysis": ai_analysis
-        })
-
-    except Exception as error:
-        print("[COMPANY DASHBOARD AI ERROR]", error)
-
-        return jsonify({
-            "success": False,
-            "symbol": symbol,
-            "ai_analysis": {
-                "available": False,
-                "status": "error",
-                "model": None,
-                "summary": None,
-                "message": "Company AI analysis failed. Please try again later."
-            },
-            "message": str(error)
-        }), 400
-
 @app.route("/api/company-dashboard/<symbol>/ai-analysis-stream", methods=["POST"])
 def company_dashboard_ai_analysis_stream(symbol):
     symbol = symbol.upper().strip()
@@ -896,6 +821,86 @@ def company_dashboard_ai_analysis_stream(symbol):
         generate(),
         mimetype="text/plain"
     )
+
+@app.route("/api/predict/<symbol>/ai-analysis-stream", methods=["POST"])
+def predict_stock_ai_analysis_stream(symbol):
+    symbol = symbol.upper().strip()
+
+    try:
+        payload = request.get_json(silent=True) or {}
+        forecast_data = payload.get("forecast_data")
+
+        if not forecast_data:
+            forecast_data = build_prediction_response(symbol)
+
+        forecast_data["symbol"] = symbol
+
+        def generate():
+            for chunk in stream_forecast_ai_analysis(forecast_data):
+                yield chunk
+
+        return Response(generate(), mimetype="text/plain")
+
+    except Exception as error:
+        print("[FORECAST AI STREAM ERROR]", error)
+
+        def error_stream():
+            yield "Forecast AI analysis failed. Please try again later."
+
+        return Response(error_stream(), mimetype="text/plain")
+
+@app.route("/api/predict/<symbol>/stream")
+def predict_stock_stream(symbol):
+    symbol = symbol.upper().strip()
+
+    event_queue = queue.Queue()
+
+    def status_callback(message, stage="running", extra=None):
+        event_queue.put({
+            "type": "status",
+            "stage": stage,
+            "message": message,
+            "extra": extra or {}
+        })
+
+    def worker():
+        try:
+            status_callback(f"Request received for {symbol}.", "start")
+            result = build_prediction_response(
+                symbol,
+                status_callback=status_callback
+            )
+
+            event_queue.put({
+                "type": "result",
+                "data": result
+            })
+
+        except Exception as error:
+            print("[PREDICTION STREAM ERROR]", error)
+
+            event_queue.put({
+                "type": "error",
+                "message": str(error)
+            })
+
+        finally:
+            event_queue.put({
+                "type": "done"
+            })
+
+    threading.Thread(target=worker, daemon=True).start()
+
+    def generate():
+        while True:
+            event = event_queue.get()
+
+            yield json.dumps(event, default=str) + "\n"
+
+            if event.get("type") in ["done", "error"]:
+                break
+
+    return Response(generate(), mimetype="application/x-ndjson")
 
 @app.route("/prediction")
 def prediction():
@@ -960,63 +965,6 @@ def search_symbols():
             "message": str(error),
             "results": []
         }), 400
-
-def extract_transcript_text(payload):
-    """
-    ROIC response shape may vary.
-    This function safely finds transcript text from common keys.
-    """
-
-    if not payload:
-        return ""
-
-    if isinstance(payload, str):
-        return payload.strip()
-
-    if isinstance(payload, dict):
-        possible_keys = [
-            "transcript",
-            "content",
-            "text",
-            "body",
-            "data"
-        ]
-
-        for key in possible_keys:
-            value = payload.get(key)
-
-            if isinstance(value, str) and value.strip():
-                return value.strip()
-
-            if isinstance(value, dict):
-                nested = extract_transcript_text(value)
-                if nested:
-                    return nested
-
-            if isinstance(value, list):
-                nested_parts = []
-
-                for item in value:
-                    nested_text = extract_transcript_text(item)
-
-                    if nested_text:
-                        nested_parts.append(nested_text)
-
-                if nested_parts:
-                    return "\n\n".join(nested_parts)
-
-    if isinstance(payload, list):
-        parts = []
-
-        for item in payload:
-            text = extract_transcript_text(item)
-
-            if text:
-                parts.append(text)
-
-        return "\n\n".join(parts)
-
-    return ""
 
 
 def clean_transcript_text(text):

@@ -105,26 +105,6 @@ def _clean_data_for_ai(data, max_items=15):
     return data
 
 
-def _ollama_request(prompt):
-    response = requests.post(
-        OLLAMA_URL,
-        json={
-            "model": OLLAMA_MODEL,
-            "prompt": prompt,
-            "stream": False,
-            "options": {
-                "temperature": 0.2,
-                "num_predict": 900
-            }
-        },
-        timeout=OLLAMA_TIMEOUT
-    )
-
-    response.raise_for_status()
-    result = response.json()
-
-    return result.get("response", "").strip()
-
 def stream_dashboard_ai_analysis(company_data):
     """
     Streams Ollama response chunks for Dashboard 1 AI analysis.
@@ -234,135 +214,13 @@ Dashboard Data:
         print("[OLLAMA STREAM ERROR]", error)
         yield "AI Analyst Summary is unavailable right now."
 
-
-def generate_ai_analysis(page_type, symbol_or_query, data, custom_instruction=None):
-    """
-    Generic AI analysis function.
-    It never crashes the app.
-    It always returns a safe dictionary for frontend display.
-    """
-
+def stream_forecast_ai_analysis(forecast_data):
     if not AI_SUMMARY_ENABLED:
-        return {
-            "available": False,
-            "status": "disabled",
-            "model": None,
-            "summary": None,
-            "message": "AI Analyst Summary is disabled on this server."
-        }
+        yield "AI Analyst Summary is disabled on this server."
+        return
 
-    cleaned_data = _clean_data_for_ai(data)
-    cache_key = _make_cache_key(page_type, symbol_or_query, cleaned_data)
-
-    cached = _load_ai_cache(cache_key)
-
-    if cached:
-        return cached
-
-    default_instruction = """
-You are InsiderAI's internal AI analyst.
-
-Your job:
-- Read the provided financial dashboard data.
-- Explain what the data suggests.
-- Do not give buy, sell, or hold advice.
-- Do not make guarantees.
-- Do not invent numbers.
-- Use only the data provided.
-- Be detailed but clear.
-- Mention uncertainty and risk.
-- Write for a retail investor who understands basic stock market terms.
-
-Format your answer with these sections:
-
-1. Executive Summary
-2. Key Findings
-3. Bullish Signals
-4. Bearish / Risk Signals
-5. Confidence Explanation
-6. What To Monitor Next
-7. Final Interpretation
-
-Important:
-- Do not say "I cannot provide financial advice" repeatedly.
-- Do not recommend buying or selling.
-- If data is weak or conflicting, say that clearly.
-"""
-
-    final_instruction = custom_instruction or default_instruction
-
-    prompt = f"""
-{final_instruction}
-
-Dashboard Type:
-{page_type}
-
-Symbol or Query:
-{symbol_or_query}
-
-Dashboard Data:
-{json.dumps(cleaned_data, indent=2, default=str)}
-"""
-
-    try:
-        summary = _ollama_request(prompt)
-
-        if not summary:
-            raise ValueError("Ollama returned empty response.")
-
-        result = {
-            "available": True,
-            "status": "success",
-            "model": OLLAMA_MODEL,
-            "summary": summary,
-            "message": "AI Analyst Summary generated successfully."
-        }
-
-        _save_ai_cache(cache_key, result)
-
-        return result
-
-    except requests.exceptions.ConnectionError:
-        return {
-            "available": False,
-            "status": "offline",
-            "model": OLLAMA_MODEL,
-            "summary": None,
-            "message": "AI Analyst Summary is not available because Ollama is not running on this machine."
-        }
-
-    except requests.exceptions.Timeout:
-        return {
-            "available": False,
-            "status": "timeout",
-            "model": OLLAMA_MODEL,
-            "summary": None,
-            "message": "AI Analyst Summary timed out. The model may be too slow for this server."
-        }
-
-    except requests.exceptions.HTTPError as error:
-        return {
-            "available": False,
-            "status": "model_error",
-            "model": OLLAMA_MODEL,
-            "summary": None,
-            "message": f"AI Analyst Summary is unavailable. Ollama returned an error: {str(error)}"
-        }
-
-    except Exception as error:
-        print("[AI ANALYSIS ERROR]", error)
-
-        return {
-            "available": False,
-            "status": "error",
-            "model": OLLAMA_MODEL,
-            "summary": None,
-            "message": "AI Analyst Summary is unavailable right now."
-        }
-
-
-def generate_forecast_ai_analysis(forecast_data):
     symbol = forecast_data.get("symbol", "UNKNOWN")
+    cleaned_data = _clean_data_for_ai(forecast_data)
 
     instruction = """
 You are InsiderAI's Forecast Analyst.
@@ -372,15 +230,17 @@ The numeric forecast is already created by the app's LSTM/consensus model.
 Your job is to explain the forecast, not create a new prediction.
 
 Rules:
-- Do not give buy/sell/hold advice.
+- Do not give buy, sell, or hold advice.
 - Do not invent prices or percentages.
+- Use only the provided forecast data.
 - Explain the current price, predicted price, expected move, direction, confidence, risk, and signal breakdown.
 - If LSTM, trend, momentum, and volatility conflict, explain that.
 - If confidence is low, explain why.
 - If risk is high, explain what causes it.
+- Explain the forecast range and what the user should monitor next.
 - Write like a professional AI analyst.
 
-Use this format:
+Return in this structure:
 
 1. Executive Summary
 2. Forecast Reading
@@ -388,61 +248,64 @@ Use this format:
 4. Bullish Evidence
 5. Bearish / Risk Evidence
 6. Confidence And Reliability
-7. What To Monitor Next
-8. Final Interpretation
+7. Forecast Range Interpretation
+8. What To Monitor Next
+9. Final Interpretation
 """
 
-    return generate_ai_analysis(
-        page_type="forecast",
-        symbol_or_query=symbol,
-        data=forecast_data,
-        custom_instruction=instruction
-    )
+    prompt = f"""
+{instruction}
 
-def generate_dashboard_ai_analysis(company_data):
-    symbol = company_data.get("symbol", "UNKNOWN")
-    name = company_data.get("name", symbol)
+Symbol:
+{symbol}
 
-    instruction = """
-You are InsiderAI's Company Intelligence Analyst.
-
-You must analyze the complete company dashboard data:
-- Insider transactions
-- Institutional holdings
-- News and sentiment
-- Earnings call transcripts
-
-Your goal:
-Identify what the data suggests about the company's current situation, future pipeline,
-management priorities, growth areas, risk factors, and possible early business signals.
-
-Rules:
-- Do not invent facts.
-- Use only the provided data.
-- Focus on what the company is developing, what management is emphasizing,
-  what risks are mentioned, and whether insider/institutional activity supports or conflicts with the story.
-
-
-Return the answer in this exact structure:
-
-1. Executive Summary
-2. Insider Activity Reading
-3. Institutional Ownership Reading
-4. News And Sentiment Reading
-5. Earnings Call / Pipeline Reading
-6. Future Development Signals
-7. Bullish Evidence
-8. Bearish / Risk Evidence
-9. Conflicting Signals
-10. What To Monitor Next
-11. Final Interpretation
-
+Forecast Data:
+{json.dumps(cleaned_data, indent=2, default=str)}
 """
 
-    return generate_ai_analysis(
-        page_type="company_dashboard",
-        symbol_or_query=f"{name}_{symbol}",
-        data=company_data,
-        custom_instruction=instruction
-    )
+    try:
+        response = requests.post(
+            OLLAMA_URL,
+            json={
+                "model": OLLAMA_MODEL,
+                "prompt": prompt,
+                "stream": True,
+                "options": {
+                    "temperature": 0.2,
+                    "num_predict": 1000
+                }
+            },
+            stream=True,
+            timeout=OLLAMA_TIMEOUT
+        )
+
+        response.raise_for_status()
+
+        for line in response.iter_lines():
+            if not line:
+                continue
+
+            try:
+                payload = json.loads(line.decode("utf-8"))
+                chunk = payload.get("response", "")
+
+                if chunk:
+                    yield chunk
+
+                if payload.get("done"):
+                    break
+
+            except Exception as error:
+                print("[FORECAST OLLAMA STREAM PARSE ERROR]", error)
+                continue
+
+    except requests.exceptions.ConnectionError:
+        yield "AI Analyst Summary is not available because Ollama is not running on this machine."
+
+    except requests.exceptions.Timeout:
+        yield "AI Analyst Summary timed out. The model may be too slow for this server."
+
+    except Exception as error:
+        print("[FORECAST OLLAMA STREAM ERROR]", error)
+        yield "AI Analyst Summary is unavailable right now."
 

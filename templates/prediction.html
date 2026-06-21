@@ -11,6 +11,7 @@
     <link href="../static/css/footer.css" rel="stylesheet">
     <link href="../static/css/autocomplete.css" rel="stylesheet">
     <link rel="stylesheet" href="../static/css/prediction.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script>
     <script src="../static/JS/notification.js"></script>
     <script src="../static/JS/autocomplete.js"></script>
     <script src="../static/JS/footer.js"></script>
@@ -24,10 +25,13 @@
     <div class="hero-content">
         <h1>AI Stock Forecast Lab</h1>
         <p>
-            Predict stock prices using deep neural networks, model confidence,
-            backtesting accuracy, and scenario intelligence.
-        </p>
+    Predict stock prices using AE-GRU neural forecasting, model confidence,
+    backtesting accuracy, and scenario intelligence.
+</p>
 
+       <div class="forecast-hero-grid">
+
+    <div class="forecast-hero-left">
         <form class="forecast-search" id="predictionSearchForm">
             <input
                 type="text"
@@ -37,10 +41,96 @@
             >
 
             <button type="submit" id="predictionSearchButton">
-    <span class="btn-icon">→</span>
-    <span class="spinner hidden"></span>
-</button>
+                <span class="btn-icon">→</span>
+                <span class="spinner hidden"></span>
+            </button>
         </form>
+
+
+    </div>
+
+    <aside class="model-system-panel" id="modelSystemPanel">
+        <div class="model-system-header">
+            <div>
+                <span class="system-eyebrow">System Status</span>
+                <h3>Model Runtime</h3>
+            </div>
+
+            <span class="system-health-badge ready" id="systemHealthBadge">
+                Ready
+            </span>
+        </div>
+
+        <div class="system-status-grid">
+            <div class="system-status-item">
+                <span>Compute</span>
+                <strong id="systemComputeDevice">Detecting...</strong>
+                <small id="systemComputeName">Waiting for forecast</small>
+            </div>
+
+            <div class="system-status-item">
+                <span>Active Model</span>
+                <strong id="systemActiveModel">AE-GRU</strong>
+                <small>Encoder-decoder forecast engine</small>
+            </div>
+
+            <div class="system-status-item wide">
+                <span>Architecture</span>
+                <strong>200→100→80 / 80→100→200</strong>
+                <small>Encoder / decoder GRU stack</small>
+            </div>
+
+            <div class="system-status-item">
+                <span>Training Mode</span>
+                <strong id="systemTrainingMode">Live per ticker</strong>
+                <small>Runs when user searches</small>
+            </div>
+
+            <div class="system-status-item">
+                <span>Lookback</span>
+                <strong id="systemLookback">120 Days</strong>
+                <small>Past trading window</small>
+            </div>
+
+            <div class="system-status-item">
+                <span>Epochs</span>
+                <strong id="systemEpochs">10</strong>
+                <small>Current training depth</small>
+            </div>
+
+            <div class="system-status-item">
+                <span>Train Samples</span>
+                <strong id="systemTrainSamples">--</strong>
+                <small>Model training rows</small>
+            </div>
+
+            <div class="system-status-item">
+                <span>Validation Samples</span>
+                <strong id="systemValidationSamples">--</strong>
+                <small>Backtest rows</small>
+            </div>
+
+            <div class="system-status-item">
+                <span>Final Val Loss</span>
+                <strong id="systemValLoss">--</strong>
+                <small>Last validation loss</small>
+            </div>
+
+            <div class="system-status-item">
+                <span>Runtime</span>
+                <strong id="systemRuntime">--</strong>
+                <small>Forecast duration</small>
+            </div>
+
+            <div class="system-status-item wide">
+                <span>Data Source</span>
+                <strong>Yahoo Finance / yfinance</strong>
+                <small>10-year adjusted close history</small>
+            </div>
+        </div>
+    </aside>
+
+</div>
         <script>
             document.addEventListener("DOMContentLoaded", function () {
                 attachCompanyAutocomplete({
@@ -51,11 +141,6 @@
             });
             </script>
 
-        <div class="hero-tabs">
-            <span>Neural Forecasting</span>
-            <span>Model Confidence</span>
-            <span>Backtesting</span>
-        </div>
 
         <div class="hero-chips">
             <button type="button" data-symbol="AAPL">AAPL</button>
@@ -65,29 +150,32 @@
             <button type="button" data-symbol="IBM">IBM</button>
         </div>
 
-        <small id="predictionStatus">
-            Demo mode: frontend ready. LSTM backend connection comes next.
-        </small>
+        <div id="predictionStatus" class="prediction-ledger-empty">
+    Enter a ticker symbol to run the InsiderAI AE-GRU forecast.
+</div>
     </div>
 </section>
 
 <main class="forecast-main hidden" id="forecastMain">
 
-    <section class="dashboard-card ai-analysis-card" id="aiAnalysisCard">
-    <div class="card-header">
+<section class="forecast-ai-card ai-card-compact" id="forecastAiCard">
+    <div class="forecast-ai-header">
         <div>
             <p class="eyebrow">Local AI Analysis</p>
-            <h2>InsiderAI Analyst Summary</h2>
+            <h2>InsiderAI Forecast Analyst Summary</h2>
+            <p class="forecast-ai-subtitle">
+    Reads the AE-GRU forecast, signal breakdown, confidence, risk, and forecast range.
+</p>
         </div>
 
-        <button class="ai-analysis-btn" id="analyzeWithAiBtn" type="button">
+        <button class="forecast-ai-btn" id="analyzeWithAiBtn" type="button">
             <span class="btn-icon">Analyze with AI</span>
             <span class="spinner hidden"></span>
         </button>
     </div>
 
-    <div class="ai-analysis-body" id="aiAnalysisBody">
-        <p class="ai-analysis-placeholder">
+    <div class="forecast-ai-body" id="aiAnalysisBody">
+        <p class="forecast-ai-placeholder">
             Run a forecast first, then click Analyze with AI to generate the analyst summary.
         </p>
     </div>
@@ -96,12 +184,12 @@
     <section class="forecast-title-row">
         <div>
             <h2 id="forecastCompanyTitle">AAPL Forecast Intelligence</h2>
-            <p>Neural next-day prediction, confidence range, and model diagnostics.</p>
+            <p>AE-GRU next-day prediction, confidence range, and model diagnostics.</p>
         </div>
 
         <div class="style-badge">
             <span>Forecast Mode</span>
-            <strong id="activeModelPill">LSTM Demo</strong>
+            <strong id="activeModelPill">AE-GRU Forecast</strong>
         </div>
     </section>
 
@@ -150,12 +238,12 @@
     <div class="card-heading">
         <div>
             <h3>InsiderAI Signal Breakdown</h3>
-            <p>LSTM, trend, momentum, and volatility contribution.</p>
+            <p>AE-GRU, trend, momentum, and volatility contribution.</p>
         </div>
     </div>
 
     <div class="signal-breakdown-grid">
-        <div><span>LSTM</span><strong id="signalLstm">0%</strong></div>
+        <div><span>AE-GRU</span><strong id="signalLstm">0%</strong></div>
         <div><span>Trend</span><strong id="signalTrend">0%</strong></div>
         <div><span>Momentum</span><strong id="signalMomentum">0%</strong></div>
         <div><span>Volatility Adj.</span><strong id="signalVolatility">0%</strong></div>
@@ -166,7 +254,7 @@
     <section class="dashboard-card chart-card">
         <div class="card-heading">
             <div>
-                <h3>Neural Forecast Chart</h3>
+                <h3>AE-GRU Forecast Chart</h3>
                 <p>Actual price, predicted price, and forecast confidence range.</p>
             </div>
         </div>
@@ -256,7 +344,7 @@
         <div class="dashboard-card">
             <div class="card-heading">
                 <div>
-                    <h3>Model Battle Arena</h3>
+                    <h3>Forecast Component View</h3>
                     <p>Compare neural model outputs side by side.</p>
                 </div>
             </div>
@@ -286,26 +374,36 @@
             </div>
 
             <div class="backtest-grid">
-                <div>
-                    <span>MAE</span>
-                    <strong id="maeValue">$0.00</strong>
-                </div>
+    <div>
+        <span>MAE</span>
+        <strong id="maeValue">$0.00</strong>
+    </div>
 
-                <div>
-                    <span>RMSE</span>
-                    <strong id="rmseValue">$0.00</strong>
-                </div>
+    <div>
+        <span>RMSE</span>
+        <strong id="rmseValue">$0.00</strong>
+    </div>
 
-                <div>
-                    <span>Direction Accuracy</span>
-                    <strong id="directionAccuracyValue">0%</strong>
-                </div>
+    <div>
+        <span>MAPE</span>
+        <strong id="mapeValue">0%</strong>
+    </div>
 
-                <div>
-                    <span>Range Hit Rate</span>
-                    <strong id="rangeHitRateValue">0%</strong>
-                </div>
-            </div>
+    <div>
+        <span>R² Score</span>
+        <strong id="rSquaredValue">0.0000</strong>
+    </div>
+
+    <div>
+        <span>Direction Accuracy</span>
+        <strong id="directionAccuracyValue">0%</strong>
+    </div>
+
+    <div>
+        <span>Range Hit Rate</span>
+        <strong id="rangeHitRateValue">0%</strong>
+    </div>
+</div>
         </div>
 
     </section>
@@ -359,47 +457,6 @@
             </div>
 
         </div>
-    </section>
-
-    <section class="dashboard-card model-setup-card">
-        <h3>Model Setup</h3>
-
-        <div class="setup-grid">
-            <div>
-                <span>Base Model</span>
-                <strong>PyTorch LSTM</strong>
-            </div>
-
-            <div>
-                <span>Lookback</span>
-                <strong>20 Days</strong>
-            </div>
-
-            <div>
-                <span>Target</span>
-                <strong>Next Close</strong>
-            </div>
-
-            <div>
-                <span>Data Source</span>
-                <strong>Alpha Vantage</strong>
-            </div>
-
-            <div>
-                <span>Feature Set</span>
-                <strong>Adjusted Close</strong>
-            </div>
-
-            <div>
-                <span>Status</span>
-                <strong>Frontend Ready</strong>
-            </div>
-        </div>
-
-        <p class="disclaimer">
-            Forecasts are experimental and educational. This dashboard is not financial advice
-            or a buy/sell recommendation.
-        </p>
     </section>
 
 </main>

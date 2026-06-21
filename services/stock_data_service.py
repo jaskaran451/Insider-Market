@@ -1,6 +1,7 @@
 import numpy as np
 import yfinance as yf
 from services.consensus_forecast_service import build_consensus_forecast
+from services.ae_gru_prediction_service import predict_with_ae_gru
 
 def fetch_ohlc_history(symbol, period="2y"):
     """
@@ -104,21 +105,73 @@ def calculate_basic_forecast(price_rows):
         "trend_strength": round(trend_strength, 4)
     }
 
-from services.lstm_prediction_service import predict_with_lstm
-def build_prediction_response(symbol):
+from services.ae_gru_prediction_service import predict_with_ae_gru
+def build_prediction_response(symbol, status_callback=None):
+    """
+    Builds the full prediction response for the Prediction Dashboard.
+
+    Flow:
+    1. Fetch 10-year OHLCV history.
+    2. Run AE-GRU forecast.
+    3. Combine AE-GRU with trend, momentum, and volatility signals.
+    4. Build chart arrays for frontend.
+    5. Return JSON-safe dashboard payload.
+
+    status_callback is optional.
+    If provided, it sends live status messages to the streaming route.
+    """
+
+    def status(message, stage="running", extra=None):
+        if status_callback:
+            status_callback(message, stage, extra or {})
+
+    symbol = symbol.upper().strip()
+
+    status(f"Fetching 10-year OHLC price history for {symbol}...", "fetching")
+
     price_rows = fetch_ohlc_history(symbol, period="10y")
 
-    try:
-        lstm_forecast = predict_with_lstm(price_rows)
-        forecast = build_consensus_forecast(price_rows, lstm_forecast)
+    status(
+        f"Loaded {len(price_rows)} daily candles for {symbol}.",
+        "success",
+        {
+            "rows": len(price_rows)
+        }
+    )
 
-        model_name = "InsiderAI Consensus Forecast"
-        message = "LSTM, trend, momentum, and volatility signals combined."
+    try:
+        status("Starting AE-GRU neural forecast engine...", "model_start")
+
+        ae_gru_forecast = predict_with_ae_gru(
+            price_rows,
+            status_callback=status_callback
+        )
+
+        status("AE-GRU forecast complete.", "model_complete")
+
+        status(
+            "Combining AE-GRU, trend, momentum, and volatility signals...",
+            "consensus"
+        )
+
+        forecast = build_consensus_forecast(price_rows, ae_gru_forecast)
+
+        model_name = "InsiderAI AE-GRU Consensus Forecast"
+        message = "AE-GRU, trend, momentum, and volatility signals combined."
+
+        status("Consensus forecast complete.", "success")
 
     except Exception as error:
+        status(
+            f"AE-GRU unavailable. Using fallback trend forecast. Reason: {str(error)}",
+            "warning"
+        )
+
         forecast = calculate_basic_forecast(price_rows)
         model_name = "Fallback Trend Forecast"
-        message = f"LSTM unavailable, using fallback forecast. Reason: {str(error)}"
+        message = f"AE-GRU unavailable, using fallback forecast. Reason: {str(error)}"
+
+    status("Preparing chart data for dashboard...", "charting")
 
     chart_rows = price_rows[-252:]
 
@@ -133,7 +186,6 @@ def build_prediction_response(symbol):
 
     if validation_predicted:
         values_to_plot = validation_predicted[-len(chart_rows):]
-
         start_index = len(chart_rows) - len(values_to_plot)
 
         for index, value in enumerate(values_to_plot):
@@ -155,8 +207,10 @@ def build_prediction_response(symbol):
     upper_band.append(round(forecast["predicted_price"] * (1 + final_band_width), 2))
     lower_band.append(round(forecast["predicted_price"] * (1 - final_band_width), 2))
 
+    status("Dashboard prediction payload ready.", "done")
+
     return {
-        "symbol": symbol.upper(),
+        "symbol": symbol,
         "model": model_name,
         "message": message,
 
@@ -169,8 +223,12 @@ def build_prediction_response(symbol):
         "volatility": forecast["volatility"],
 
         "mae": forecast.get("mae"),
+        "mse": forecast.get("mse"),
         "rmse": forecast.get("rmse"),
+        "mape": forecast.get("mape"),
+        "r_squared": forecast.get("r_squared"),
         "direction_accuracy": forecast.get("direction_accuracy"),
+
         "train_losses": forecast.get("train_losses"),
         "validation_losses": forecast.get("validation_losses"),
 
@@ -179,6 +237,8 @@ def build_prediction_response(symbol):
         "predicted": predicted_prices,
         "upper_band": upper_band,
         "lower_band": lower_band,
+
         "signal_breakdown": forecast.get("signal_breakdown"),
-        "history_count": len(chart_rows)
+        "history_count": len(chart_rows),
+        "compute_device": forecast.get("compute_device")
     }

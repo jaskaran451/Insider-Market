@@ -40,12 +40,12 @@ def volatility_adjustment(close_prices):
     return adjustment, volatility
 
 
-def build_consensus_forecast(price_rows, lstm_forecast):
+def build_consensus_forecast(price_rows, model_forecast):
     close_prices = [row["adjusted_close"] for row in price_rows]
     latest_price = close_prices[-1]
 
-    lstm_return = (
-        (lstm_forecast["predicted_price"] - latest_price) / latest_price
+    model_return = (
+        (model_forecast["predicted_price"] - latest_price) / latest_price
     )
 
     trend_return = trend_forecast(close_prices)
@@ -53,7 +53,7 @@ def build_consensus_forecast(price_rows, lstm_forecast):
     volatility_return, volatility = volatility_adjustment(close_prices)
 
     consensus_return = (
-        lstm_return * 0.35 +
+        model_return * 0.35 +
         trend_return * 0.25 +
         momentum_return * 0.25 +
         volatility_return * 0.15
@@ -73,7 +73,7 @@ def build_consensus_forecast(price_rows, lstm_forecast):
         direction = "Neutral"
 
     confidence = int(
-        lstm_forecast.get("confidence", 60) * 0.45 +
+        model_forecast.get("confidence", 60) * 0.45 +
         max(40, 90 - volatility * 1000) * 0.35 +
         65 * 0.20
     )
@@ -88,7 +88,7 @@ def build_consensus_forecast(price_rows, lstm_forecast):
         risk = "Low"
 
     return {
-        **lstm_forecast,
+        **model_forecast,
         "model": "InsiderAI Consensus Forecast",
         "current_price": round(latest_price, 2),
         "predicted_price": round(predicted_price, 2),
@@ -98,7 +98,7 @@ def build_consensus_forecast(price_rows, lstm_forecast):
         "risk": risk,
         "volatility": round(volatility, 4),
         "signal_breakdown": {
-            "lstm": round(lstm_return * 100, 2),
+            "ae_gru": round(model_return * 100, 2),
             "trend": round(trend_return * 100, 2),
             "momentum": round(momentum_return * 100, 2),
             "volatility_adjustment": round(volatility_return * 100, 2),

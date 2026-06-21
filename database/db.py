@@ -7,11 +7,10 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
-# Enables pyodbc connection pooling
 pyodbc.pooling = True
 
 
-def get_db_connection(max_retries=3, retry_delay=2):
+def get_db_connection(max_retries=2, retry_delay=1):
     server = os.getenv("AZURE_SQL_SERVER")
     database = os.getenv("AZURE_SQL_DATABASE")
     username = os.getenv("AZURE_SQL_USERNAME")
@@ -28,15 +27,14 @@ def get_db_connection(max_retries=3, retry_delay=2):
         f"PWD={password};"
         "Encrypt=yes;"
         "TrustServerCertificate=no;"
-        "Connection Timeout=60;"
+        "Connection Timeout=30;"
     )
 
     last_error = None
 
     for attempt in range(1, max_retries + 1):
         try:
-            conn = pyodbc.connect(connection_string)
-            return conn
+            return pyodbc.connect(connection_string)
 
         except pyodbc.Error as e:
             last_error = e
@@ -46,16 +44,3 @@ def get_db_connection(max_retries=3, retry_delay=2):
                 time.sleep(retry_delay)
 
     raise last_error
-
-
-def warm_up_database():
-    try:
-        conn = get_db_connection(max_retries=2, retry_delay=2)
-        cursor = conn.cursor()
-        cursor.execute("SELECT 1")
-        cursor.fetchone()
-        conn.close()
-        print("Azure SQL warm-up successful.")
-
-    except Exception as e:
-        print("Azure SQL warm-up failed:", e)

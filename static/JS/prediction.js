@@ -1,9 +1,21 @@
 (function () {
     "use strict";
 
+    /* =========================================================
+       1. GLOBAL STATE
+       ========================================================= */
+
     let forecastChart = null;
     let activeForecastData = null;
     let latestForecastApiData = null;
+    let forecastAiLottie = null;
+
+
+    /* =========================================================
+       2. PRESET FALLBACK STOCK DATA
+       Used only for local/demo fallback forecast generation.
+       Real dashboard data comes from /api/predict/<symbol>.
+       ========================================================= */
 
     const presetStocks = {
         AAPL: {
@@ -50,22 +62,105 @@
         }
     };
 
+
+    /* =========================================================
+       3. BASIC UTILITY HELPERS
+       ========================================================= */
+
     function getEl(id) {
         return document.getElementById(id);
     }
 
+    function setText(id, value) {
+        const element = getEl(id);
+
+        if (element) {
+            element.textContent = value;
+        }
+    }
+
     function formatCurrency(value) {
-        return "$" + Number(value).toFixed(2);
+        return "$" + Number(value || 0).toFixed(2);
     }
 
     function formatPercent(value) {
-        const sign = value > 0 ? "+" : "";
-        return sign + Number(value).toFixed(2) + "%";
+        const numberValue = Number(value || 0);
+        const sign = numberValue > 0 ? "+" : "";
+
+        return sign + numberValue.toFixed(2) + "%";
     }
 
     function clamp(value, min, max) {
         return Math.max(min, Math.min(max, value));
     }
+
+    function sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    function escapeHTML(value) {
+        return String(value)
+            .replaceAll("&", "&amp;")
+            .replaceAll("<", "&lt;")
+            .replaceAll(">", "&gt;")
+            .replaceAll('"', "&quot;")
+            .replaceAll("'", "&#039;");
+    }
+
+    function smoothScrollToElement(elementId, delay = 250) {
+        setTimeout(function () {
+            const element = document.getElementById(elementId);
+
+            if (!element) return;
+
+            element.scrollIntoView({
+                behavior: "smooth",
+                block: "start"
+            });
+        }, delay);
+    }
+
+    function resetPredictionLedger() {
+    const statusBox = getEl("predictionStatus");
+
+    if (!statusBox) return;
+
+    statusBox.className = "prediction-ledger";
+    statusBox.innerHTML = "";
+}
+
+function appendPredictionLedger(message, stage = "running", extra = null) {
+    const statusBox = getEl("predictionStatus");
+
+    if (!statusBox) return;
+
+    const row = document.createElement("div");
+    row.className = `prediction-ledger-row ${stage}`;
+
+    const time = new Date().toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit"
+    });
+
+    row.innerHTML = `
+        <span class="ledger-dot"></span>
+        <div class="ledger-content">
+            <div class="ledger-message">${escapeHTML(message)}</div>
+            <div class="ledger-time">${time}</div>
+        </div>
+    `;
+
+    statusBox.appendChild(row);
+    statusBox.scrollTop = statusBox.scrollHeight;
+}
+
+
+    /* =========================================================
+       4. FORECAST DATA HELPERS
+       These create fallback/demo data and convert backend data
+       into the dashboard format used by the UI.
+       ========================================================= */
 
     function hashSymbol(symbol) {
         return symbol.split("").reduce(function (sum, char) {
@@ -81,30 +176,28 @@
         }
 
         const seed = hashSymbol(cleanSymbol);
-        const basePrice = 35 + (seed % 340);
-        const drift = ((seed % 15) - 6) / 1000;
         const volatility = 0.014 + ((seed % 18) / 1000);
-        const confidence = clamp(58 + (seed % 22), 50, 82);
-        const risk = volatility > 0.027 ? "High" : volatility > 0.018 ? "Medium" : "Low";
 
         return {
-            current: basePrice,
-            drift: drift,
+            current: 35 + (seed % 340),
+            drift: ((seed % 15) - 6) / 1000,
             volatility: volatility,
-            confidence: confidence,
-            risk: risk
+            confidence: clamp(58 + (seed % 22), 50, 82),
+            risk: volatility > 0.027 ? "High" : volatility > 0.018 ? "Medium" : "Low"
         };
     }
 
     function getDirection(changePercent) {
         if (changePercent > 0.65) return "Bullish";
         if (changePercent < -0.65) return "Bearish";
+
         return "Neutral";
     }
 
     function getDirectionClass(direction) {
         if (direction === "Bullish") return "direction-bullish";
         if (direction === "Bearish") return "direction-bearish";
+
         return "direction-neutral";
     }
 
@@ -125,6 +218,7 @@
         }
 
         labels.push("Next Day");
+
         return labels;
     }
 
@@ -212,6 +306,69 @@
             bullishReasons: buildBullishReasons(direction, expectedMove, momentumScore, trendScore),
             bearishReasons: buildBearishReasons(profile.risk, profile.volatility, volatilitySafetyScore)
         };
+    }
+
+    function buildForecastDataFromApi(apiData) {
+        const symbol = apiData.symbol.toUpperCase();
+
+        const profile = {
+            current: apiData.current_price,
+            drift: apiData.expected_move / 100,
+            volatility: apiData.volatility,
+            confidence: apiData.confidence,
+            risk: apiData.risk
+        };
+
+        const data = buildForecastData(symbol);
+
+        data.symbol = symbol;
+        data.labels = apiData.labels || data.labels;
+        data.actual = apiData.actual || data.actual;
+        data.predicted = apiData.predicted || data.predicted;
+        data.upperBand = apiData.upper_band || data.upperBand;
+        data.lowerBand = apiData.lower_band || data.lowerBand;
+
+        data.currentPrice = apiData.current_price;
+        data.predictedPrice = apiData.predicted_price;
+        data.expectedMove = apiData.expected_move;
+        data.direction = apiData.direction;
+        data.confidence = apiData.confidence;
+        data.risk = apiData.risk;
+        data.signalBreakdown = apiData.signal_breakdown || null;
+        data.model = apiData.model;
+        data.mape = apiData.mape;
+data.rSquared = apiData.r_squared;
+
+        data.momentumScore = clamp(Math.round(55 + apiData.expected_move * 5), 30, 95);
+        data.trendScore = clamp(Math.round(apiData.confidence + apiData.expected_move * 2), 35, 95);
+        data.volatilitySafetyScore = clamp(Math.round(100 - apiData.volatility * 1450), 25, 95);
+
+        data.mae = apiData.mae || apiData.current_price * apiData.volatility * 0.75;
+        data.rmse = apiData.rmse || data.mae * 1.35;
+        data.directionAccuracy = apiData.direction_accuracy || clamp(Math.round(apiData.confidence + 4), 45, 88);
+        data.rangeHitRate = clamp(Math.round(apiData.confidence + 8), 50, 90);
+
+        data.models = buildModelComparison(
+            apiData.current_price,
+            apiData.predicted_price,
+            apiData.expected_move,
+            profile
+        );
+
+        data.bullishReasons = buildBullishReasons(
+            apiData.direction,
+            apiData.expected_move,
+            data.momentumScore,
+            data.trendScore
+        );
+
+        data.bearishReasons = buildBearishReasons(
+            apiData.risk,
+            apiData.volatility,
+            data.volatilitySafetyScore
+        );
+
+        return data;
     }
 
     function buildModelComparison(currentPrice, predictedPrice, expectedMove, profile) {
@@ -307,12 +464,260 @@
         return reasons;
     }
 
+    function setSystemText(id, value, fallback = "--") {
+    const element = getEl(id);
+
+    if (!element) return;
+
+    element.textContent =
+        value !== undefined && value !== null && value !== ""
+            ? value
+            : fallback;
+}
+
+function setSystemHealth(status, label) {
+    const badge = getEl("systemHealthBadge");
+
+    if (!badge) return;
+
+    badge.className = `system-health-badge ${status}`;
+    badge.textContent = label;
+}
+
+function resetModelSystemPanel() {
+    setSystemHealth("training", "Training");
+
+    setSystemText("systemComputeDevice", "Detecting...");
+    setSystemText("systemComputeName", "Selecting best available device");
+
+    setSystemText("systemActiveModel", "AE-GRU");
+    setSystemText("systemTrainingMode", "Live per ticker");
+    setSystemText("systemLookback", "120 Days");
+    setSystemText("systemEpochs", "10");
+
+    setSystemText("systemTrainSamples", "--");
+    setSystemText("systemValidationSamples", "--");
+    setSystemText("systemValLoss", "--");
+    setSystemText("systemRuntime", "--");
+}
+
+function updateModelSystemFromStatus(stage, extra) {
+    if (!extra) return;
+
+    if (stage === "system") {
+        setSystemText("systemComputeDevice", extra.device_type || extra.device || "CPU");
+        setSystemText("systemComputeName", extra.device_name || "CPU");
+        setSystemHealth("training", "Training");
+    }
+
+    if (stage === "model_ready") {
+        setSystemText("systemActiveModel", extra.architecture || "AE-GRU");
+
+        if (extra.encoder && extra.decoder) {
+            setSystemText(
+                "systemLookback",
+                "120 Days"
+            );
+        }
+
+        setSystemText("systemEpochs", extra.epochs);
+    }
+
+    if (stage === "success") {
+        if (extra.train_samples !== undefined) {
+            setSystemText("systemTrainSamples", extra.train_samples);
+        }
+
+        if (extra.validation_samples !== undefined) {
+            setSystemText("systemValidationSamples", extra.validation_samples);
+        }
+    }
+
+    if (stage === "training") {
+        if (extra.validation_loss !== undefined) {
+            setSystemText("systemValLoss", extra.validation_loss);
+        }
+
+        if (extra.epoch && extra.total_epochs) {
+            setSystemText("systemEpochs", `${extra.epoch}/${extra.total_epochs}`);
+        }
+
+        setSystemHealth("training", "Training");
+    }
+
+    if (stage === "validation_complete") {
+        if (extra.rmse !== undefined) {
+            setSystemText("systemValLoss", extra.rmse);
+        }
+    }
+
+    if (stage === "prediction_complete") {
+        setSystemHealth("completed", "Completed");
+    }
+
+    if (stage === "warning") {
+        setSystemHealth("warning", "Fallback");
+    }
+}
+
+function updateModelSystemFromResult(apiData, runtimeSeconds) {
+    if (!apiData) return;
+
+    setSystemHealth("completed", "Completed");
+
+    if (apiData.compute_device) {
+        setSystemText(
+            "systemComputeDevice",
+            apiData.compute_device.type || apiData.compute_device.device
+        );
+
+        setSystemText(
+            "systemComputeName",
+            apiData.compute_device.name || apiData.compute_device.device
+        );
+    }
+
+    setSystemText("systemActiveModel", apiData.model || "AE-GRU Consensus");
+    setSystemText("systemRuntime", runtimeSeconds ? `${runtimeSeconds}s` : "--");
+
+    if (apiData.validation_losses && apiData.validation_losses.length > 0) {
+        const lastLoss = apiData.validation_losses[apiData.validation_losses.length - 1];
+        setSystemText("systemValLoss", lastLoss);
+    }
+}
+
+
+    /* =========================================================
+       5. BACKEND API FUNCTIONS
+       ========================================================= */
+
+    async function fetchPredictionFromApi(symbol, onStatus) {
+    const cleanSymbol = symbol.toUpperCase().trim();
+
+    const response = await fetch("/api/predict/" + encodeURIComponent(cleanSymbol) + "/stream");
+
+    if (!response.ok || !response.body) {
+        throw new Error("Prediction stream failed.");
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder("utf-8");
+
+    let buffer = "";
+    let finalData = null;
+
+    while (true) {
+        const result = await reader.read();
+
+        if (result.done) {
+            break;
+        }
+
+        buffer += decoder.decode(result.value, {
+            stream: true
+        });
+
+        const lines = buffer.split("\n");
+        buffer = lines.pop();
+
+        for (const line of lines) {
+            if (!line.trim()) continue;
+
+            const event = JSON.parse(line);
+
+            if (event.type === "status") {
+                onStatus(event.message, event.stage, event.extra);
+            }
+
+            if (event.type === "result") {
+                finalData = event.data;
+            }
+
+            if (event.type === "error") {
+                throw new Error(event.message || "Prediction failed.");
+            }
+        }
+    }
+
+    if (!finalData) {
+        throw new Error("Prediction stream ended without forecast data.");
+    }
+
+    return finalData;
+}
+
+    async function loadPredictionForecast(symbol) {
+    const button = getEl("predictionSearchButton");
+    const cleanSymbol = symbol.toUpperCase().trim();
+
+    if (typeof setButtonLoading === "function") {
+        setButtonLoading(button, true);
+    } else if (button) {
+        button.disabled = true;
+    }
+
+    resetPredictionLedger();
+    resetModelSystemPanel();
+
+const startedAt = performance.now();
+
+    appendPredictionLedger("Validating ticker symbol...", "start");
+    appendPredictionLedger("Opening live model progress stream...", "running");
+
+    try {
+        const apiData = await fetchPredictionFromApi(
+            cleanSymbol,
+            function (message, stage, extra) {
+                appendPredictionLedger(message, stage, extra);
+                updateModelSystemFromStatus(stage, extra);
+            }
+        );
+
+        const dashboardData = buildForecastDataFromApi(apiData);
+
+        latestForecastApiData = apiData;
+
+        const runtimeSeconds = ((performance.now() - startedAt) / 1000).toFixed(1);
+updateModelSystemFromResult(apiData, runtimeSeconds);
+        renderDashboard(dashboardData);
+        resetAIAnalysisSection();
+        smoothScrollToElement("forecastMain", 300);
+
+        appendPredictionLedger(
+            "Forecast ready for " + cleanSymbol + ". Model: " + apiData.model + ". Expected move: " + formatPercent(apiData.expected_move) + ".",
+            "success"
+        );
+
+    } catch (error) {
+        console.error(error);
+        setSystemHealth("error", "Error");
+
+        appendPredictionLedger(
+            "Forecast failed for " + cleanSymbol + ". " + (error.message || "Please try again."),
+            "error"
+        );
+
+    } finally {
+        if (typeof setButtonLoading === "function") {
+            setButtonLoading(button, false);
+        } else if (button) {
+            button.disabled = false;
+        }
+    }
+}
+
+
+    /* =========================================================
+       6. MAIN DASHBOARD RENDER FUNCTIONS
+       ========================================================= */
+
     function renderDashboard(data) {
         const forecastMain = getEl("forecastMain");
 
         if (forecastMain) {
             forecastMain.classList.remove("hidden");
         }
+
         activeForecastData = data;
 
         renderMetricCards(data);
@@ -324,17 +729,9 @@
         updateScenarioForecast();
         renderSignalBreakdown(data);
 
-        getEl("activeModelPill").textContent = data.symbol + " · " + (data.model || "Consensus Forecast");
-        getEl("forecastCompanyTitle").textContent = data.symbol + " Forecast Intelligence";
+        setText("activeModelPill", data.symbol + " · " + (data.model || "Consensus Forecast"));
+        setText("forecastCompanyTitle", data.symbol + " Forecast Intelligence");
     }
-
-    function setText(id, value) {
-    const element = getEl(id);
-
-    if (element) {
-        element.textContent = value;
-    }
-}
 
     function renderMetricCards(data) {
         setText("currentPriceValue", formatCurrency(data.currentPrice));
@@ -381,7 +778,11 @@
     }
 
     function renderModelRows(models) {
-        const rows = models.map(function (model) {
+        const modelRows = getEl("modelRows");
+
+        if (!modelRows || !Array.isArray(models)) return;
+
+        modelRows.innerHTML = models.map(function (model) {
             const directionClass = getDirectionClass(model.direction);
 
             return `
@@ -394,32 +795,49 @@
                 </tr>
             `;
         }).join("");
-
-        getEl("modelRows").innerHTML = rows;
     }
 
     function renderReasons(data) {
-        getEl("bullishReasons").innerHTML = data.bullishReasons.map(function (reason) {
-            return `<li>${reason}</li>`;
-        }).join("");
+        const bullishReasons = getEl("bullishReasons");
+        const bearishReasons = getEl("bearishReasons");
 
-        getEl("bearishReasons").innerHTML = data.bearishReasons.map(function (reason) {
-            return `<li>${reason}</li>`;
-        }).join("");
+        if (bullishReasons) {
+            bullishReasons.innerHTML = data.bullishReasons.map(function (reason) {
+                return `<li>${escapeHTML(reason)}</li>`;
+            }).join("");
+        }
+
+        if (bearishReasons) {
+            bearishReasons.innerHTML = data.bearishReasons.map(function (reason) {
+                return `<li>${escapeHTML(reason)}</li>`;
+            }).join("");
+        }
     }
 
     function renderBacktest(data) {
-        getEl("maeValue").textContent = formatCurrency(data.mae);
-        getEl("rmseValue").textContent = formatCurrency(data.rmse);
-        getEl("directionAccuracyValue").textContent = data.directionAccuracy + "%";
-        getEl("rangeHitRateValue").textContent = data.rangeHitRate + "%";
+        setText("maeValue", formatCurrency(data.mae));
+        setText("rmseValue", formatCurrency(data.rmse));
+        setText("directionAccuracyValue", data.directionAccuracy + "%");
+        setText("rangeHitRateValue", data.rangeHitRate + "%");
+        setText("mapeValue", (data.mape || 0) + "%");
+setText("rSquaredValue", data.rSquared || "0.0000");
+    }
+
+    function renderSignalBreakdown(data) {
+        const breakdown = data.signalBreakdown || {};
+
+        setText("signalLstm", formatPercent(breakdown.ae_gru || breakdown.lstm || 0));
+        setText("signalTrend", formatPercent(breakdown.trend || 0));
+        setText("signalMomentum", formatPercent(breakdown.momentum || 0));
+        setText("signalVolatility", formatPercent(breakdown.volatility_adjustment || 0));
+        setText("signalConsensus", formatPercent(breakdown.consensus || 0));
     }
 
     function renderForecastChart(data) {
         const canvas = getEl("forecastChart");
 
         if (!canvas || !window.Chart) {
-            getEl("predictionStatus").textContent = "Chart.js did not load. Check internet connection or CDN.";
+            setText("predictionStatus", "Chart.js did not load. Check internet connection or CDN.");
             return;
         }
 
@@ -524,27 +942,23 @@
         });
     }
 
-    function renderSignalBreakdown(data) {
-        const breakdown = data.signalBreakdown || {};
-        setText("signalLstm", formatPercent(breakdown.lstm || 0));
-        setText("signalTrend", formatPercent(breakdown.trend || 0));
-        setText("signalMomentum", formatPercent(breakdown.momentum || 0));
-        setText("signalVolatility", formatPercent(breakdown.volatility_adjustment || 0));
-        setText("signalConsensus", formatPercent(breakdown.consensus || 0));
-}
+
+    /* =========================================================
+       7. SCENARIO SLIDER FUNCTIONS
+       ========================================================= */
 
     function updateScenarioForecast() {
         if (!activeForecastData) return;
 
-        const sentiment = Number(getEl("sentimentSlider").value);
-        const volume = Number(getEl("volumeSlider").value);
-        const volatility = Number(getEl("volatilitySlider").value);
-        const macro = Number(getEl("macroSlider").value);
+        const sentiment = Number(getEl("sentimentSlider")?.value || 0);
+        const volume = Number(getEl("volumeSlider")?.value || 0);
+        const volatility = Number(getEl("volatilitySlider")?.value || 0);
+        const macro = Number(getEl("macroSlider")?.value || 0);
 
-        getEl("sentimentValue").textContent = sentiment;
-        getEl("volumeValue").textContent = volume;
-        getEl("volatilityValue").textContent = volatility;
-        getEl("macroValue").textContent = macro;
+        setText("sentimentValue", sentiment);
+        setText("volumeValue", volume);
+        setText("volatilityValue", volatility);
+        setText("macroValue", macro);
 
         const scenarioImpact =
             (sentiment * 0.0009) +
@@ -555,338 +969,322 @@
         const scenarioPrice = activeForecastData.predictedPrice * (1 + scenarioImpact);
         const scenarioMove = ((scenarioPrice - activeForecastData.predictedPrice) / activeForecastData.predictedPrice) * 100;
 
-        getEl("scenarioForecastValue").textContent = formatCurrency(scenarioPrice);
-        getEl("scenarioMoveValue").textContent = formatPercent(scenarioMove) + " vs base prediction";
+        setText("scenarioForecastValue", formatCurrency(scenarioPrice));
+        setText("scenarioMoveValue", formatPercent(scenarioMove) + " vs base prediction");
     }
 
-    function bindEvents() {
-        const form = getEl("predictionSearchForm");
-        const input = getEl("predictionSymbolInput");
 
-        form.addEventListener("submit", function (event) {
-        event.preventDefault();
+    /* =========================================================
+       8. AI / OLLAMA STREAMING FUNCTIONS
+       ========================================================= */
 
-        const symbol = input.value.trim().toUpperCase();
+    function resetAIAnalysisSection() {
+        const card = getEl("forecastAiCard");
+        const body = getEl("aiAnalysisBody");
+        const button = getEl("analyzeWithAiBtn");
 
-        if (!symbol) {
-            setInlineStatus(
-            "predictionStatus",
-            "Enter a ticker symbol to run the InsiderAI forecast.",
-            "warning"
-        );
-        return;
-    }
-
-    loadPredictionForecast(symbol);
-});
-
-        const analyzeWithAiBtn = document.getElementById("analyzeWithAiBtn");
-
-        if (analyzeWithAiBtn) {
-            analyzeWithAiBtn.addEventListener("click", analyzeForecastWithAI);
+        if (forecastAiLottie) {
+            forecastAiLottie.destroy();
+            forecastAiLottie = null;
         }
 
-        document.querySelectorAll("[data-symbol]").forEach(function (button) {
-    button.addEventListener("click", function () {
-        const symbol = button.getAttribute("data-symbol");
+        if (card) {
+            card.classList.remove("ai-card-expanded");
+            card.classList.add("ai-card-compact");
+        }
 
-        input.value = symbol;
-        loadPredictionForecast(symbol);
-    });
-});
+        if (body) {
+            body.innerHTML = `
+                <p class="forecast-ai-placeholder">
+                    Forecast loaded. Click Analyze with AI to generate the analyst summary.
+                </p>
+            `;
+        }
 
-        ["sentimentSlider", "volumeSlider", "volatilitySlider", "macroSlider"].forEach(function (id) {
-            getEl(id).addEventListener("input", updateScenarioForecast);
-        });
+        if (button) {
+            button.disabled = false;
+        }
     }
 
-    function initPredictionDashboard() {
-    bindEvents();
+    function expandForecastAICard() {
+        const card = getEl("forecastAiCard");
 
-   setInlineStatus(
-        "predictionStatus",
-        "Enter a ticker symbol to run the InsiderAI forecast.",
-        "info"
-    );
-}
+        if (!card) return;
 
-async function fetchPredictionFromApi(symbol) {
-    const cleanSymbol = symbol.toUpperCase().trim();
+        card.classList.remove("ai-card-compact");
+        card.classList.add("ai-card-expanded");
 
-    const response = await fetch("/api/predict/" + encodeURIComponent(cleanSymbol));
-    const data = await response.json();
-
-    if (!response.ok || data.error) {
-        throw new Error(data.message || "Prediction API failed");
+        setTimeout(function () {
+            card.scrollIntoView({
+                behavior: "smooth",
+                block: "start"
+            });
+        }, 180);
     }
 
-    return data;
-}
+    function showForecastAILottieThinking() {
+        const body = getEl("aiAnalysisBody");
 
-async function loadPredictionForecast(symbol) {
-        const button = document.getElementById("predictionSearchButton");
+        if (!body) return;
+
+        body.innerHTML = `
+            <div class="forecast-lottie-panel">
+                <div class="forecast-lottie-bg" id="forecastAiLottie"></div>
+                <div class="forecast-lottie-overlay"></div>
+
+                <div class="forecast-lottie-content">
+                    <p class="forecast-lottie-title">Analyzing forecast intelligence...</p>
+
+                    <p class="forecast-lottie-subtitle">
+                        Ollama is reading the LSTM forecast, signal breakdown, confidence,
+                        risk level, model comparison, and forecast range.
+                    </p>
+
+                    <div class="forecast-lottie-steps">
+                        <span>LSTM Forecast</span>
+                        <span>Signal Breakdown</span>
+                        <span>Risk Reading</span>
+                        <span>Confidence Range</span>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        const container = getEl("forecastAiLottie");
+
+        if (!container || !window.lottie) {
+            return;
+        }
+
+        if (forecastAiLottie) {
+            forecastAiLottie.destroy();
+            forecastAiLottie = null;
+        }
+
+        try {
+            forecastAiLottie = lottie.loadAnimation({
+                container: container,
+                renderer: "svg",
+                loop: true,
+                autoplay: true,
+                path: "/static/animations/ai-thinking.json"
+            });
+
+            forecastAiLottie.addEventListener("data_failed", function () {
+                console.error("Forecast Lottie failed to load. Check /static/animations/ai-thinking.json");
+            });
+
+        } catch (error) {
+            console.error("Forecast Lottie init failed:", error);
+        }
+    }
+
+    function showForecastAIStreamBox() {
+        const body = getEl("aiAnalysisBody");
+
+        if (!body) return null;
+
+        if (forecastAiLottie) {
+            forecastAiLottie.destroy();
+            forecastAiLottie = null;
+        }
+
+        body.innerHTML = `
+            <div class="forecast-ai-success streaming" id="forecastAiStreamText"></div>
+        `;
+
+        return getEl("forecastAiStreamText");
+    }
+
+    async function analyzeForecastWithAI() {
+        const body = getEl("aiAnalysisBody");
+        const button = getEl("analyzeWithAiBtn");
+
+        if (!latestForecastApiData) {
+            expandForecastAICard();
+
+            if (body) {
+                body.innerHTML = `
+                    <div class="forecast-ai-unavailable">
+                        Run a forecast first before using AI analysis.
+                    </div>
+                `;
+            }
+
+            return;
+        }
+
+        const symbol = latestForecastApiData.symbol;
+
+        expandForecastAICard();
+        showForecastAILottieThinking();
 
         if (typeof setButtonLoading === "function") {
             setButtonLoading(button, true);
         } else if (button) {
             button.disabled = true;
         }
-    const cleanSymbol = symbol.toUpperCase().trim();
 
-    const pipeline = createStatusPipeline("predictionStatus", [
-        "Validating ticker symbol...",
-        "Fetching historical OHLC price data for " + cleanSymbol + "...",
-        "Preparing 10-year training dataset...",
-        "Normalizing price series and building lookback windows...",
-        "Running PyTorch LSTM neural network forecast...",
-        "Calculating trend, momentum, and volatility signals...",
-        "Combining signals into InsiderAI Consensus Forecast...",
-        "Building forecast range, backtest metrics, and chart data..."
-    ], {
-        interval: 1100
-    });
+        try {
+            const response = await fetch(`/api/predict/${encodeURIComponent(symbol)}/ai-analysis-stream`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    forecast_data: latestForecastApiData
+                })
+            });
 
-    try {
-        const apiData = await fetchPredictionFromApi(cleanSymbol);
-        const dashboardData = buildForecastDataFromApi(apiData);
-        latestForecastApiData = apiData;
+            if (!response.ok || !response.body) {
+                throw new Error("AI forecast stream failed.");
+            }
 
-        renderDashboard(dashboardData);
-        resetAIAnalysisSection();
-        smoothScrollToElement("forecastMain", 300);
+            const output = showForecastAIStreamBox();
+            const aiBody = getEl("aiAnalysisBody");
 
-        pipeline.success(
-            "Forecast ready for " + cleanSymbol + ". " +
-            "Model: " + apiData.model + ". " +
-            "Expected move: " + formatPercent(apiData.expected_move) + "."
-        );
+            if (aiBody) {
+                aiBody.dataset.userScrolled = "false";
 
-    } catch (error) {
-        console.error(error);
+                aiBody.addEventListener("scroll", function () {
+                    const distanceFromBottom =
+                        aiBody.scrollHeight - aiBody.scrollTop - aiBody.clientHeight;
 
-        pipeline.error(
-            "Forecast failed for " + cleanSymbol + ". Please check the ticker and try again."
-        );
-    } finally {
-        if (typeof setButtonLoading === "function") {
+                    aiBody.dataset.userScrolled = distanceFromBottom > 80 ? "true" : "false";
+                });
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder("utf-8");
+
+            let fullText = "";
+
+            while (true) {
+                const result = await reader.read();
+
+                if (result.done) {
+                    break;
+                }
+
+                const chunk = decoder.decode(result.value, {
+                    stream: true
+                });
+
+                fullText += chunk;
+
+                await sleep(35);
+
+                if (output) {
+                    output.textContent = fullText;
+
+                    if (aiBody && aiBody.dataset.userScrolled !== "true") {
+                        aiBody.scrollTop = aiBody.scrollHeight;
+                    }
+                }
+            }
+
+            if (output) {
+                output.classList.remove("streaming");
+            }
+
+            if (!fullText.trim() && output) {
+                output.textContent = "AI analysis returned an empty response.";
+            }
+
+        } catch (error) {
+            console.error("Forecast AI frontend error:", error);
+
+            if (forecastAiLottie) {
+                forecastAiLottie.destroy();
+                forecastAiLottie = null;
+            }
+
+            if (body) {
+                body.innerHTML = `
+                    <div class="forecast-ai-unavailable">
+                        Forecast AI failed: ${escapeHTML(error.message || "Unknown error")}
+                    </div>
+                `;
+            }
+
+        } finally {
+            if (typeof setButtonLoading === "function") {
                 setButtonLoading(button, false);
             } else if (button) {
                 button.disabled = false;
             }
-    }
-}
-
-function resetAIAnalysisSection() {
-    const body = document.getElementById("aiAnalysisBody");
-    const button = document.getElementById("analyzeWithAiBtn");
-
-    if (body) {
-        body.innerHTML = `
-            <p class="ai-analysis-placeholder">
-                Forecast loaded. Click Analyze with AI to generate the analyst summary.
-            </p>
-        `;
-    }
-
-    if (button) {
-        button.disabled = false;
-    }
-}
-
-
-async function analyzeForecastWithAI() {
-    const body = document.getElementById("aiAnalysisBody");
-    const button = document.getElementById("analyzeWithAiBtn");
-
-    if (!latestForecastApiData) {
-        if (body) {
-            body.innerHTML = `
-                <div class="ai-analysis-unavailable">
-                    Run a forecast first before using AI analysis.
-                </div>
-            `;
         }
-        return;
     }
 
-    const symbol = latestForecastApiData.symbol;
 
-    if (body) {
-        body.innerHTML = `
-            <div class="ai-analysis-loading">
-                Ollama is reading the forecast data and generating AI analysis...
-            </div>
-        `;
-    }
+    /* =========================================================
+       9. EVENT BINDING
+       ========================================================= */
 
-    if (typeof setButtonLoading === "function") {
-        setButtonLoading(button, true);
-    } else if (button) {
-        button.disabled = true;
-    }
+    function bindEvents() {
+        const form = getEl("predictionSearchForm");
+        const input = getEl("predictionSymbolInput");
 
-    try {
-        const response = await fetch(`/api/predict/${encodeURIComponent(symbol)}/ai-analysis`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                forecast_data: latestForecastApiData
-            })
+        if (form && input) {
+            form.addEventListener("submit", function (event) {
+                event.preventDefault();
+
+                const symbol = input.value.trim().toUpperCase();
+
+                if (!symbol) {
+                    setInlineStatus(
+                        "predictionStatus",
+                        "Enter a ticker symbol to run the InsiderAI forecast.",
+                        "warning"
+                    );
+                    return;
+                }
+
+                loadPredictionForecast(symbol);
+            });
+        }
+
+        const analyzeWithAiBtn = getEl("analyzeWithAiBtn");
+
+        if (analyzeWithAiBtn) {
+            analyzeWithAiBtn.addEventListener("click", analyzeForecastWithAI);
+        }
+
+        document.querySelectorAll("[data-symbol]").forEach(function (button) {
+            button.addEventListener("click", function () {
+                const symbol = button.getAttribute("data-symbol");
+
+                if (input) {
+                    input.value = symbol;
+                }
+
+                loadPredictionForecast(symbol);
+            });
         });
 
-        const result = await response.json();
+        ["sentimentSlider", "volumeSlider", "volatilitySlider", "macroSlider"].forEach(function (id) {
+            const slider = getEl(id);
 
-        if (!response.ok || !result.success) {
-            throw new Error(result.message || "AI analysis failed.");
-        }
-
-        renderAIAnalysis(result.ai_analysis);
-
-    } catch (error) {
-        console.error(error);
-
-        if (body) {
-            body.innerHTML = `
-                <div class="ai-analysis-unavailable">
-                    AI analysis failed. Please make sure Ollama is running, then try again.
-                </div>
-            `;
-        }
-
-    } finally {
-        if (typeof setButtonLoading === "function") {
-            setButtonLoading(button, false);
-        } else if (button) {
-            button.disabled = false;
-        }
-    }
-}
-
-function buildForecastDataFromApi(apiData) {
-    const symbol = apiData.symbol.toUpperCase();
-
-    const profile = {
-        current: apiData.current_price,
-        drift: apiData.expected_move / 100,
-        volatility: apiData.volatility,
-        confidence: apiData.confidence,
-        risk: apiData.risk
-    };
-
-    const data = buildForecastData(symbol);
-
-    data.symbol = symbol;
-    data.labels = apiData.labels || data.labels;
-    data.actual = apiData.actual || data.actual;
-    data.predicted = apiData.predicted || data.predicted;
-    data.upperBand = apiData.upper_band || data.upperBand;
-    data.lowerBand = apiData.lower_band || data.lowerBand;
-
-    data.currentPrice = apiData.current_price;
-    data.predictedPrice = apiData.predicted_price;
-    data.expectedMove = apiData.expected_move;
-    data.direction = apiData.direction;
-    data.confidence = apiData.confidence;
-    data.risk = apiData.risk;
-    data.signalBreakdown = apiData.signal_breakdown || null;
-    data.model = apiData.model;
-
-    data.momentumScore = clamp(Math.round(55 + apiData.expected_move * 5), 30, 95);
-    data.trendScore = clamp(Math.round(apiData.confidence + apiData.expected_move * 2), 35, 95);
-    data.volatilitySafetyScore = clamp(Math.round(100 - apiData.volatility * 1450), 25, 95);
-
-    data.mae = apiData.mae || apiData.current_price * apiData.volatility * 0.75;
-    data.rmse = apiData.rmse || data.mae * 1.35;
-    data.directionAccuracy = apiData.direction_accuracy || clamp(Math.round(apiData.confidence + 4), 45, 88);
-    data.rangeHitRate = clamp(Math.round(apiData.confidence + 8), 50, 90);
-
-    data.models = buildModelComparison(
-        apiData.current_price,
-        apiData.predicted_price,
-        apiData.expected_move,
-        profile
-    );
-
-    data.bullishReasons = buildBullishReasons(
-        apiData.direction,
-        apiData.expected_move,
-        data.momentumScore,
-        data.trendScore
-    );
-
-    data.bearishReasons = buildBearishReasons(
-        apiData.risk,
-        apiData.volatility,
-        data.volatilitySafetyScore
-    );
-
-    return data;
-}
-
-
-function renderAIAnalysis(aiAnalysis) {
-    const body = document.getElementById("aiAnalysisBody");
-    const badge = document.getElementById("aiModelBadge");
-
-    if (!body) return;
-
-    if (!aiAnalysis) {
-        body.innerHTML = `
-            <p class="ai-analysis-placeholder">
-                AI Analyst Summary was not returned for this forecast.
-            </p>
-        `;
-        return;
-    }
-
-    if (badge) {
-        badge.textContent = aiAnalysis.model
-            ? `Ollama · ${aiAnalysis.model}`
-            : "Ollama";
-    }
-
-    if (!aiAnalysis.available) {
-        body.innerHTML = `
-            <div class="ai-analysis-unavailable">
-                ${aiAnalysis.message || "AI Analyst Summary is not available on this machine."}
-            </div>
-        `;
-        return;
-    }
-
-    const summary = aiAnalysis.summary || "AI Analyst Summary is empty.";
-
-    body.innerHTML = `
-        <div class="ai-analysis-success">
-            ${escapeHTML(summary)}
-        </div>
-    `;
-}
-
-
-function escapeHTML(value) {
-    return String(value)
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#039;");
-}
-function smoothScrollToElement(elementId, delay = 250) {
-    setTimeout(function () {
-        const element = document.getElementById(elementId);
-
-        if (!element) return;
-
-        element.scrollIntoView({
-            behavior: "smooth",
-            block: "start"
+            if (slider) {
+                slider.addEventListener("input", updateScenarioForecast);
+            }
         });
-    }, delay);
-}
+    }
 
+
+    /* =========================================================
+       10. INIT
+       ========================================================= */
+
+    function initPredictionDashboard() {
+        bindEvents();
+
+        setInlineStatus(
+            "predictionStatus",
+            "Enter a ticker symbol to run the InsiderAI forecast.",
+            "info"
+        );
+    }
 
     if (document.readyState === "loading") {
         document.addEventListener("DOMContentLoaded", initPredictionDashboard);

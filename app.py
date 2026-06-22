@@ -327,7 +327,12 @@ def fetch_market_data(data_type, symbol):
 
     return data
 
-@app.route("/", methods=["GET", "POST"])
+
+@app.route("/")
+def landing():
+    return render_template("main.html")
+
+@app.route("/dashboard", methods=["GET", "POST"])
 def home():
     data = {
         "symbol": "",

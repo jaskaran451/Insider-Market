@@ -301,7 +301,7 @@ a {
 
 .statement-section {
     padding: 140px 8vw;
-    background: #152d20;
+    background: #497a60;
     color: #ffffff;
     text-align: center;
 }
@@ -342,7 +342,7 @@ a {
     gap: 18px;
     justify-content: center;
     flex-wrap: wrap;
-    background: #152d20;
+    background: #497a60;
     border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
@@ -760,7 +760,6 @@ a {
 }
 
 .why-left {
-    position: sticky;
     top: 130px;
 }
 
@@ -830,7 +829,7 @@ a {
     display: grid;
     grid-template-columns: 0.9fr 1.1fr;
     gap: 50px;
-    background: #152d20;
+    background: #497a60;
     color: #ffffff;
     border-radius: 46px;
     overflow: hidden;
@@ -916,7 +915,7 @@ a {
     width: max-content;
     border: none;
     background: #ffffff;
-    color: #152d20;
+    color: #497a60;
     padding: 18px 30px;
     border-radius: 999px;
     font-size: 15px;

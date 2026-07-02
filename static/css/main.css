@@ -20,6 +20,10 @@ a {
     color: inherit;
 }
 
+/* =========================
+   NAVBAR
+========================= */
+
 .landing-navbar {
     width: 100%;
     height: 88px;
@@ -37,7 +41,7 @@ a {
 }
 
 .landing-logo {
-    font-size: 31px;
+    font-size: 28px;
     font-weight: 900;
     letter-spacing: -1.5px;
     color: #263b2d;
@@ -58,7 +62,7 @@ a {
     padding: 13px 22px;
     border-radius: 999px;
     color: #374151;
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 800;
     transition: 0.25s ease;
 }
@@ -73,6 +77,7 @@ a {
     color: #ffffff;
     padding: 17px 28px;
     border-radius: 999px;
+    font-size: 15px;
     font-weight: 900;
     box-shadow: 0 18px 40px rgba(22, 50, 34, 0.18);
     transition: 0.25s ease;
@@ -82,6 +87,10 @@ a {
     transform: translateY(-2px);
     background: #234533;
 }
+
+/* =========================
+   HERO
+========================= */
 
 .landing-hero {
     min-height: 100vh;
@@ -142,9 +151,9 @@ a {
 .hero-content h1 {
     margin-top: 25px;
     max-width: 850px;
-    font-size: clamp(58px, 7vw, 116px);
-    line-height: 0.91;
-    letter-spacing: -6px;
+    font-size: clamp(50px, 6vw, 92px);
+    line-height: 0.93;
+    letter-spacing: -5px;
     font-weight: 900;
     color: #263b2d;
 }
@@ -153,7 +162,7 @@ a {
     margin-top: 32px;
     max-width: 720px;
     color: #657387;
-    font-size: 23px;
+    font-size: 19px;
     line-height: 1.55;
     font-weight: 600;
 }
@@ -169,7 +178,7 @@ a {
 .secondary-btn {
     padding: 20px 34px;
     border-radius: 999px;
-    font-size: 16px;
+    font-size: 15px;
     font-weight: 900;
     transition: 0.25s ease;
 }
@@ -190,6 +199,10 @@ a {
 .secondary-btn:hover {
     transform: translateY(-3px);
 }
+
+/* =========================
+   HERO PREVIEW CARDS
+========================= */
 
 .hero-preview {
     min-height: 520px;
@@ -221,7 +234,7 @@ a {
 .preview-card-header span,
 .floating-card span {
     color: #657387;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 900;
     text-transform: uppercase;
     letter-spacing: 2px;
@@ -232,7 +245,7 @@ a {
     color: #263b2d;
     padding: 9px 14px;
     border-radius: 999px;
-    font-size: 13px;
+    font-size: 12px;
 }
 
 .trade-row {
@@ -241,9 +254,10 @@ a {
     justify-content: space-between;
     background: #f7f9f6;
     border: 1px solid rgba(38, 59, 45, 0.08);
-    padding: 22px;
+    padding: 20px;
     border-radius: 22px;
     margin-top: 14px;
+    font-size: 15px;
     font-weight: 800;
 }
 
@@ -262,7 +276,7 @@ a {
 .floating-card {
     position: absolute;
     right: 2%;
-    bottom: 560px;
+    bottom: 70px;
     width: 230px;
     padding: 26px;
 }
@@ -270,15 +284,20 @@ a {
 .floating-card strong {
     display: block;
     margin-top: 16px;
-    font-size: 31px;
+    font-size: 26px;
     color: #111827;
 }
 
 .floating-card p {
     margin-top: 8px;
     color: #8b97a8;
+    font-size: 14px;
     font-weight: 800;
 }
+
+/* =========================
+   STATEMENT SECTION
+========================= */
 
 .statement-section {
     padding: 140px 8vw;
@@ -290,9 +309,9 @@ a {
 .statement-section h2 {
     max-width: 1100px;
     margin: 28px auto 0;
-    font-size: clamp(42px, 5vw, 82px);
-    line-height: 1.02;
-    letter-spacing: -4px;
+    font-size: clamp(36px, 4.4vw, 64px);
+    line-height: 1.04;
+    letter-spacing: -3px;
     font-weight: 900;
 }
 
@@ -300,7 +319,7 @@ a {
     max-width: 900px;
     margin: 30px auto 0;
     color: rgba(255, 255, 255, 0.68);
-    font-size: 22px;
+    font-size: 18px;
     line-height: 1.6;
     font-weight: 600;
 }
@@ -312,6 +331,10 @@ a {
 .statement-section .section-label::before {
     background: #ffffff;
 }
+
+/* =========================
+   FEATURE STRIP
+========================= */
 
 .feature-strip {
     padding: 34px 8vw;
@@ -327,8 +350,9 @@ a {
     background: rgba(255, 255, 255, 0.08);
     border: 1px solid rgba(255, 255, 255, 0.12);
     color: #ffffff;
-    padding: 16px 24px;
+    padding: 15px 22px;
     border-radius: 999px;
+    font-size: 14px;
     font-weight: 900;
 }
 
@@ -336,6 +360,10 @@ a {
     color: rgba(255, 255, 255, 0.45);
     margin-right: 10px;
 }
+
+/* =========================
+   DASHBOARDS SECTION
+========================= */
 
 .dashboards-section {
     padding: 130px 8vw;
@@ -350,16 +378,16 @@ a {
 
 .section-heading h2 {
     margin-top: 24px;
-    font-size: clamp(44px, 5vw, 78px);
-    line-height: 1;
-    letter-spacing: -4px;
+    font-size: clamp(36px, 4.4vw, 62px);
+    line-height: 1.03;
+    letter-spacing: -3px;
     color: #263b2d;
 }
 
 .section-heading p {
     margin-top: 24px;
     color: #657387;
-    font-size: 21px;
+    font-size: 18px;
     line-height: 1.6;
     font-weight: 600;
 }
@@ -407,21 +435,22 @@ a {
     background: #263b2d;
     color: #ffffff;
     border-radius: 50%;
+    font-size: 15px;
     font-weight: 900;
 }
 
 .panel-content h3 {
     margin-top: 20px;
-    font-size: clamp(35px, 4vw, 62px);
-    line-height: 0.98;
-    letter-spacing: -3px;
+    font-size: clamp(31px, 3.4vw, 50px);
+    line-height: 1;
+    letter-spacing: -2.5px;
     color: #1d2a22;
 }
 
 .panel-content p {
     margin-top: 24px;
     color: #657387;
-    font-size: 19px;
+    font-size: 16.5px;
     line-height: 1.65;
     font-weight: 600;
 }
@@ -435,6 +464,7 @@ a {
 
 .panel-content li {
     color: #263b2d;
+    font-size: 15.5px;
     font-weight: 900;
 }
 
@@ -442,6 +472,10 @@ a {
     content: "→";
     margin-right: 10px;
 }
+
+/* =========================
+   MINI UI CARDS
+========================= */
 
 .mini-ui {
     min-height: 360px;
@@ -460,7 +494,7 @@ a {
     background: #ffffff;
     border-radius: 22px;
     color: #6b7280;
-    font-size: 18px;
+    font-size: 16px;
     font-weight: 700;
 }
 
@@ -477,8 +511,8 @@ a {
     background: #ffffff;
     border-radius: 999px;
     color: #263b2d;
+    font-size: 12px;
     font-weight: 900;
-    font-size: 13px;
 }
 
 .mini-tabs .active {
@@ -498,6 +532,7 @@ a {
     background: #ffffff;
     border-radius: 18px;
     padding: 18px;
+    font-size: 14px;
     font-weight: 800;
 }
 
@@ -508,6 +543,8 @@ a {
 .mini-list .muted {
     color: #6b7280;
 }
+
+/* Smart Money Mini */
 
 .fund-card {
     background: #263b2d;
@@ -521,14 +558,14 @@ a {
     color: rgba(255, 255, 255, 0.65);
     text-transform: uppercase;
     letter-spacing: 2px;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 900;
 }
 
 .fund-card strong {
     display: block;
     margin-top: 14px;
-    font-size: 30px;
+    font-size: 24px;
     letter-spacing: -1px;
 }
 
@@ -564,8 +601,11 @@ a {
     border-radius: 999px;
     padding: 13px 18px;
     color: #263b2d;
+    font-size: 13px;
     font-weight: 900;
 }
+
+/* Forecast Mini */
 
 .runtime-head {
     display: flex;
@@ -577,7 +617,7 @@ a {
     text-transform: uppercase;
     letter-spacing: 3px;
     color: #657387;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 900;
 }
 
@@ -586,6 +626,7 @@ a {
     color: #263b2d;
     padding: 10px 16px;
     border-radius: 999px;
+    font-size: 12px;
 }
 
 .runtime-grid {
@@ -609,7 +650,7 @@ a {
     color: #657387;
     text-transform: uppercase;
     letter-spacing: 2px;
-    font-size: 11px;
+    font-size: 10.5px;
     font-weight: 900;
 }
 
@@ -617,8 +658,97 @@ a {
     display: block;
     margin-top: 12px;
     color: #111827;
-    font-size: 20px;
+    font-size: 17px;
 }
+
+/* AI Summary Mini */
+
+.ai-summary-panel {
+    background:
+        radial-gradient(circle at 80% 20%, rgba(38, 59, 45, 0.12), transparent 34%),
+        linear-gradient(135deg, #ffffff 0%, #f1f5f1 100%);
+}
+
+.summary-mini {
+    background:
+        radial-gradient(circle at 30% 10%, rgba(38, 59, 45, 0.1), transparent 32%),
+        #f7f9f6;
+}
+
+.summary-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.summary-header span {
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    color: #657387;
+    font-size: 11px;
+    font-weight: 900;
+}
+
+.summary-header strong {
+    background: #263b2d;
+    color: #ffffff;
+    padding: 10px 16px;
+    border-radius: 999px;
+    font-size: 12px;
+}
+
+.summary-lines {
+    margin-top: 28px;
+    display: grid;
+    gap: 14px;
+}
+
+.summary-lines span {
+    height: 18px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, rgba(38, 59, 45, 0.42), rgba(38, 59, 45, 0.08));
+}
+
+.summary-lines span:nth-child(2) {
+    width: 88%;
+}
+
+.summary-lines span:nth-child(3) {
+    width: 72%;
+}
+
+.summary-lines span:nth-child(4) {
+    width: 58%;
+}
+
+.summary-insight {
+    margin-top: 34px;
+    background: #ffffff;
+    border: 1px solid rgba(38, 59, 45, 0.09);
+    border-radius: 26px;
+    padding: 26px;
+}
+
+.summary-insight span {
+    display: block;
+    color: #657387;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    font-size: 10.5px;
+    font-weight: 900;
+}
+
+.summary-insight p {
+    margin-top: 14px;
+    color: #263b2d;
+    font-size: 16px;
+    line-height: 1.55;
+    font-weight: 800;
+}
+
+/* =========================
+   WHY SECTION
+========================= */
 
 .why-section {
     padding: 130px 8vw;
@@ -636,16 +766,16 @@ a {
 
 .why-left h2 {
     margin-top: 24px;
-    font-size: clamp(42px, 5vw, 76px);
-    line-height: 1;
-    letter-spacing: -4px;
+    font-size: clamp(36px, 4.4vw, 60px);
+    line-height: 1.03;
+    letter-spacing: -3px;
     color: #263b2d;
 }
 
 .why-left p {
     margin-top: 28px;
     color: #657387;
-    font-size: 20px;
+    font-size: 17px;
     line-height: 1.65;
     font-weight: 600;
 }
@@ -667,22 +797,28 @@ a {
 
 .why-card span {
     color: #9ca3af;
+    font-size: 14px;
     font-weight: 900;
 }
 
 .why-card h3 {
     margin-top: 38px;
     color: #263b2d;
-    font-size: 25px;
+    font-size: 21px;
     letter-spacing: -1px;
 }
 
 .why-card p {
     margin-top: 14px;
     color: #657387;
+    font-size: 15px;
     line-height: 1.55;
     font-weight: 600;
 }
+
+/* =========================
+   CONTACT SECTION
+========================= */
 
 .contact-section {
     padding: 120px 8vw;
@@ -728,15 +864,15 @@ a {
 
 .contact-copy h2 {
     margin-top: 24px;
-    font-size: clamp(38px, 4vw, 68px);
-    line-height: 1;
-    letter-spacing: -3px;
+    font-size: clamp(34px, 4vw, 54px);
+    line-height: 1.03;
+    letter-spacing: -2.5px;
 }
 
 .contact-copy p {
     margin-top: 24px;
     color: rgba(255, 255, 255, 0.66);
-    font-size: 19px;
+    font-size: 16.5px;
     line-height: 1.65;
     font-weight: 600;
 }
@@ -762,7 +898,7 @@ a {
     border-radius: 22px;
     padding: 20px 22px;
     font-family: inherit;
-    font-size: 16px;
+    font-size: 15px;
     font-weight: 700;
 }
 
@@ -783,7 +919,7 @@ a {
     color: #152d20;
     padding: 18px 30px;
     border-radius: 999px;
-    font-size: 16px;
+    font-size: 15px;
     font-weight: 900;
     cursor: pointer;
     transition: 0.25s ease;
@@ -792,6 +928,10 @@ a {
 .contact-form button:hover {
     transform: translateY(-2px);
 }
+
+/* =========================
+   FINAL CTA
+========================= */
 
 .final-cta {
     min-height: 75vh;
@@ -809,9 +949,9 @@ a {
 .final-cta h2 {
     margin-top: 24px;
     max-width: 900px;
-    font-size: clamp(48px, 6vw, 92px);
-    line-height: 0.96;
-    letter-spacing: -5px;
+    font-size: clamp(40px, 5vw, 72px);
+    line-height: 0.98;
+    letter-spacing: -4px;
     color: #263b2d;
 }
 
@@ -819,7 +959,7 @@ a {
     margin-top: 26px;
     max-width: 760px;
     color: #657387;
-    font-size: 21px;
+    font-size: 17.5px;
     line-height: 1.6;
     font-weight: 600;
 }
@@ -830,7 +970,7 @@ a {
     color: #ffffff;
     padding: 22px 44px;
     border-radius: 999px;
-    font-size: 18px;
+    font-size: 16px;
     font-weight: 900;
     box-shadow: 0 25px 60px rgba(22, 50, 34, 0.22);
     transition: 0.25s ease;
@@ -840,6 +980,10 @@ a {
     transform: translateY(-3px);
     background: #234533;
 }
+
+/* =========================
+   RESPONSIVE
+========================= */
 
 @media (max-width: 1100px) {
     .landing-navbar {
@@ -886,7 +1030,7 @@ a {
     }
 
     .landing-logo {
-        font-size: 26px;
+        font-size: 25px;
     }
 
     .nav-start-btn {
@@ -899,12 +1043,12 @@ a {
     }
 
     .hero-content h1 {
-        font-size: 58px;
+        font-size: 46px;
         letter-spacing: -3px;
     }
 
     .hero-content p {
-        font-size: 18px;
+        font-size: 16px;
     }
 
     .hero-actions {
@@ -963,86 +1107,4 @@ a {
         padding: 32px;
         border-radius: 34px;
     }
-}
-.ai-summary-panel {
-    background:
-        radial-gradient(circle at 80% 20%, rgba(38, 59, 45, 0.12), transparent 34%),
-        linear-gradient(135deg, #ffffff 0%, #f1f5f1 100%);
-}
-
-.summary-mini {
-    background:
-        radial-gradient(circle at 30% 10%, rgba(38, 59, 45, 0.1), transparent 32%),
-        #f7f9f6;
-}
-
-.summary-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
-
-.summary-header span {
-    text-transform: uppercase;
-    letter-spacing: 3px;
-    color: #657387;
-    font-size: 12px;
-    font-weight: 900;
-}
-
-.summary-header strong {
-    background: #263b2d;
-    color: #ffffff;
-    padding: 10px 16px;
-    border-radius: 999px;
-    font-size: 13px;
-}
-
-.summary-lines {
-    margin-top: 28px;
-    display: grid;
-    gap: 14px;
-}
-
-.summary-lines span {
-    height: 18px;
-    border-radius: 999px;
-    background: linear-gradient(90deg, rgba(38, 59, 45, 0.42), rgba(38, 59, 45, 0.08));
-}
-
-.summary-lines span:nth-child(2) {
-    width: 88%;
-}
-
-.summary-lines span:nth-child(3) {
-    width: 72%;
-}
-
-.summary-lines span:nth-child(4) {
-    width: 58%;
-}
-
-.summary-insight {
-    margin-top: 34px;
-    background: #ffffff;
-    border: 1px solid rgba(38, 59, 45, 0.09);
-    border-radius: 26px;
-    padding: 26px;
-}
-
-.summary-insight span {
-    display: block;
-    color: #657387;
-    text-transform: uppercase;
-    letter-spacing: 2px;
-    font-size: 11px;
-    font-weight: 900;
-}
-
-.summary-insight p {
-    margin-top: 14px;
-    color: #263b2d;
-    font-size: 18px;
-    line-height: 1.55;
-    font-weight: 800;
 }

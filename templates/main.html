@@ -13,12 +13,12 @@
 <body>
 
     <header class="landing-navbar">
-        <a href="/" class="landing-logo">InsiderAI</a>
+        <a href="/" class="landing-logo">Smart Money Flow</a>
 
         <nav class="landing-nav-links">
             <a href="#platform">Platform</a>
             <a href="#dashboards">Dashboards</a>
-            <a href="#why">Why InsiderAI</a>
+            <a href="#why">Why Smart Money Flow</a>
             <a href="#contact">Contact</a>
         </nav>
 
@@ -359,15 +359,30 @@ turns insider activity, smart money movement, news, and forecasts into clear res
                     </p>
                 </div>
 
-                <form class="contact-form">
-                    <div class="form-row">
-                        <input type="text" placeholder="Your name">
-                        <input type="email" placeholder="Email address">
+                <form class="contact-form" action="/contact" method="POST">
+                    <form class="contact-form" action="/contact" method="POST">
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="contact-alerts">
+                {% for category, message in messages %}
+                    <div class="contact-alert {{ category }}">
+                        {{ message }}
                     </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
 
-                    <textarea placeholder="Write your message..."></textarea>
+    <div class="form-row">
+        <input type="text" name="name" placeholder="Your name" required>
+        <input type="email" name="email" placeholder="Email address" required>
+    </div>
 
-                    <button type="button">Send Message</button>
+    <textarea name="message" placeholder="Write your message..." required></textarea>
+
+    <button type="submit">Send Message</button>
+</form>
                 </form>
             </div>
         </section>

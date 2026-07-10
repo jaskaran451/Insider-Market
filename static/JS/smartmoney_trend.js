@@ -86,6 +86,12 @@ async function loadSmartMoneyTrend(query){
 function renderTrendDashboard(data){
     const overview=data.overview;
     const dna=data.manager_dna;
+    if(data.large_fund){
+    notify(
+        "Large institutional portfolio detected. Showing top positions to keep dashboard fast.",
+        "info",8000
+    );
+}
 
     document.getElementById("trendManager").textContent=data.manager || "--";
     document.getElementById("trendPeriod").textContent=`Latest 13F report: ${overview.latest_report_period || "--"}`;
@@ -99,6 +105,13 @@ function renderTrendDashboard(data){
     renderTopHoldingsChart(data.top_holdings || []);
     renderHoldingsTable(data.top_holdings || []);
     trendBubbleData=data.bubble_chart_data || [];
+    const note=document.getElementById("bubbleChartNote");
+
+    if(note){
+        note.textContent=data.large_fund
+            ? `Large fund mode: showing top ${data.bubble_limit_per_report} positions per report.`
+            : "Bubble size represents number of shares. Y-axis shows portfolio weight.";
+    }
     renderTrendBubbleChart("all");
 }
 
@@ -154,7 +167,10 @@ function renderTrendBubbleChart(range="all"){
                 x.status || "CURRENT"
             ]),
             marker:{
-                size:group.map(x=>bubbleSize(x.value)),
+                size:group.map(x=>Number(x.shares || 0)),
+                sizemode:"area",
+                sizeref:getBubbleSizeRef(rows),
+                sizemin:8,
                 color:statusColors[status] || "#64748b",
                 opacity:.72,
                 line:{
@@ -262,10 +278,15 @@ function renderTrendBubbleChart(range="all"){
     Plotly.purge(chart);
     Plotly.newPlot(chart,traces,layout,config);
 }
-function bubbleSize(value){
-    const v=Number(value || 0);
-    if(v<=0) return 10;
-    return Math.max(10,Math.min(90,Math.sqrt(v)/3500));
+function getBubbleSizeRef(rows){
+    const maxShares=Math.max(
+        ...rows.map(x=>Number(x.shares || 0)),
+        1
+    );
+
+    const maxBubbleSize=58;
+
+    return 2 * maxShares / (maxBubbleSize ** 2);
 }
 
 function renderAllocationChart(allocation){

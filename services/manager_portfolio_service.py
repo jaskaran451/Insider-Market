@@ -3,7 +3,7 @@ from sec.manager_13f_parser import manager_13f_parser
 from edgar import set_identity
 set_identity("SmartMoneyDashboard (your_email@gmail.com)")
 class ManagerPortfolioService:
-    def analyze(self,query,limit=8):
+    def analyze(self,query,limit=8,bubble_limit_per_report=75):
         data=manager_13f_parser.get_manager_filings(query,limit)
         filings=data.get("filings",[])
         if not filings:
@@ -12,6 +12,10 @@ class ManagerPortfolioService:
                 "success":False,
                 "message":"No 13F-HR filings found"
             }
+        latest_holdings_count = len(filings[0]["holdings"]) if filings else 0
+        large_fund = latest_holdings_count > 500
+        bubble_limit = 50 if large_fund else 150
+        bubble_limit_per_report = 50 if large_fund else 150
         latest=filings[0]
         previous=filings[1] if len(filings)>1 else None
         changes=self.compare_filings(latest,previous) if previous else []
@@ -31,7 +35,11 @@ class ManagerPortfolioService:
             "copy_trade_portfolio":self.copy_trade_portfolio(latest),
             "manager_dna":self.manager_dna(filings),
             "raw_filings":filings,
-            "bubble_chart_data": self.build_bubble_chart_data(filings)
+            "bubble_chart_data": self.build_bubble_chart_data(filings,
+            limit_per_report=bubble_limit_per_report),
+            "large_fund": large_fund,
+            "bubble_limit_per_report": bubble_limit,
+            "latest_holdings_count": latest_holdings_count
         }
 
     def num(self,value):
@@ -203,30 +211,46 @@ class ManagerPortfolioService:
             "quarters_available":len(filings)
         }
 
-    def build_bubble_chart_data(self, filings):
+    def build_bubble_chart_data(self, filings, limit_per_report=75):
         rows = []
         previous = None
-        for filing in reversed(filings):
+        ordered = list(reversed(filings))
+
+        for filing in ordered:
             changes = self.compare_filings(filing, previous) if previous else []
             change_map = {self.holding_key(c): c for c in changes}
+
             total = self.num(filing["filing"].get("total_value"))
-            for h in filing["holdings"]:
+
+            holdings = filing["holdings"]
+
+            holdings = sorted(
+                holdings,
+                key=lambda h: self.num(h.get("value")),
+                reverse=True
+            )[:limit_per_report]
+
+            for h in holdings:
                 key = self.holding_key(h)
                 value = self.num(h.get("value"))
+                shares = self.num(h.get("shares"))
                 change = change_map.get(key, {})
+
                 rows.append({
                     "report_period": filing["filing"].get("report_period"),
                     "filing_date": filing["filing"].get("filing_date"),
                     "issuer": h.get("issuer"),
                     "ticker": h.get("ticker"),
-                    "shares": self.num(h.get("shares")),
+                    "shares": shares,
                     "value": value,
                     "portfolio_weight": round((value / total) * 100, 4) if total else 0,
                     "status": change.get("status", "CURRENT"),
                     "share_change": change.get("share_change", 0),
                     "value_change": change.get("value_change", 0)
                 })
+
             previous = filing
+
         return rows
 
 manager_portfolio_service=ManagerPortfolioService()

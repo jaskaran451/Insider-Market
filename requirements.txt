@@ -76,3 +76,4 @@ frozendict==2.4.7
 peewee==4.0.7
 websockets==15.0.1
 nest-asyncio==1.6.0
+Flask-Mail

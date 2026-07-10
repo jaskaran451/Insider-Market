@@ -1107,3 +1107,26 @@ a {
         border-radius: 34px;
     }
 }
+.contact-alerts {
+    display: grid;
+    gap: 10px;
+}
+
+.contact-alert {
+    padding: 14px 18px;
+    border-radius: 16px;
+    font-size: 14px;
+    font-weight: 800;
+}
+
+.contact-alert.success {
+    background: rgba(255, 255, 255, 0.14);
+    color: #ffffff;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.contact-alert.error {
+    background: rgba(255, 120, 120, 0.16);
+    color: #ffffff;
+    border: 1px solid rgba(255, 120, 120, 0.24);
+}

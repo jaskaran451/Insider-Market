@@ -1,4 +1,4 @@
-from flask import Response
+from flask import Response,request, redirect, url_for
 import requests
 from config import COMPANY_MAP
 import time
@@ -12,7 +12,7 @@ from collections import defaultdict
 from utils.charts import create_insider_chart
 import base64
 from utils.edgar_wrapper import get_logo_of_company
-from flask import render_template, request
+from flask import render_template
 from services.insider_service import insider_service
 from utils.edgar_wrapper import edgar_client
 from sec.parser import filing_parser
@@ -43,6 +43,7 @@ from flask_login import (
     login_required,
     current_user
 )
+from flask_mail import Mail, Message
 from flask_bcrypt import Bcrypt
 from database.db import get_db_connection
 import yfinance as yf
@@ -249,6 +250,53 @@ def logout():
 def account():
     return render_template("account.html")
 
+app.config["MAIL_SERVER"] = os.getenv("MAIL_SERVER")
+app.config["MAIL_PORT"] = int(os.getenv("MAIL_PORT", 587))
+app.config["MAIL_USE_TLS"] = os.getenv("MAIL_USE_TLS", "True").lower() == "true"
+app.config["MAIL_USERNAME"] = os.getenv("MAIL_USERNAME")
+app.config["MAIL_PASSWORD"] = os.getenv("MAIL_PASSWORD")
+app.config["MAIL_DEFAULT_SENDER"] = os.getenv("MAIL_USERNAME")
+
+mail = Mail(app)
+
+@app.route("/contact", methods=["POST"])
+def contact():
+    name = request.form.get("name", "").strip()
+    email = request.form.get("email", "").strip()
+    message = request.form.get("message", "").strip()
+
+    if not name or not email or not message:
+        flash("Please fill out all contact fields.", "error")
+        return redirect(url_for("landing") + "#contact")
+
+    try:
+        receiver_email = os.getenv("CONTACT_RECEIVER_EMAIL")
+
+        msg = Message(
+            subject=f"New InsiderAI Contact Message from {name}",
+            recipients=[receiver_email],
+            reply_to=email
+        )
+
+        msg.body = f"""
+New contact message from InsiderAI website.
+Name:
+{name}
+Email:
+{email}
+Message:
+{message}
+"""
+        mail.send(msg)
+
+        flash("Message sent successfully. Thank you for contacting InsiderAI.", "success")
+        return redirect(url_for("landing") + "#contact")
+
+    except Exception as e:
+        print("Contact email error:", e)
+        flash("Something went wrong while sending your message. Please try again later.", "error")
+        return redirect(url_for("landing") + "#contact")
+
 def fetch_market_data(data_type, symbol):
     symbol = symbol.upper().strip()
     cache_key = symbol
@@ -326,7 +374,6 @@ def fetch_market_data(data_type, symbol):
                 data = {}
 
     return data
-
 
 @app.route("/")
 def landing():
@@ -791,11 +838,12 @@ def smart_money_trend_api():
             "message":"Query is required"
         }),400
     try:
-        result=manager_portfolio_service.analyze(query)
+        result=manager_portfolio_service.analyze(query,limit=6,
+        bubble_limit_per_report=75)
         time.sleep(3)
         result=make_json_safe(result)
         status=200 if result.get("success") else 404
-        return jsonify(result),status
+        return jsonify(make_json_safe(result)),status
     except Exception as e:
         print(f"[SMART MONEY TREND ERROR] {query}: {e}")
         return jsonify({

@@ -77,6 +77,5 @@ peewee==4.0.7
 websockets==15.0.1
 nest-asyncio==1.6.0
 Flask-Mail
-pygooglenews==0.1.2
 feedparser==6.0.11
 dateparser==1.2.0

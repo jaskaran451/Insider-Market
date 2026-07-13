@@ -743,46 +743,87 @@ def home():
     session["ticker"]=symbol
     session["company_name"]=company_name
 
-    try:
-        transactions=process_insider_data(symbol)
-    except Exception as error:
-        print(f"[INSIDER PROCESSING ERROR] {symbol}:",error)
-        transactions=[]
-
-    try:
-        institutional,institutional_summary=process_institutional_data(symbol)
-    except Exception as error:
-        print(f"[INSTITUTION PROCESSING ERROR] {symbol}:",error)
-        institutional=[]
-        institutional_summary=build_empty_dashboard_data()["institutional_summary"]
-
-    try:
-        news,news_summary=process_news_data(symbol,company_name)
-    except Exception as error:
-        print(f"[NEWS PROCESSING ERROR] {symbol}:",error)
-        news=[]
-        news_summary=build_empty_dashboard_data()["news_summary"]
-
-    earnings=process_earnings_data(symbol)
-    logo=process_company_logo(symbol)
-
-    data={
+    data["symbol"]=symbol
+    data["name"]=company_name
+    dashboard_ai_data_cache[symbol]={
         "symbol":symbol,
         "name":company_name,
-        "transactions":transactions,
-        "insider_transaction_chart":None,
-        "institutional":institutional,
-        "institutional_summary":institutional_summary,
-        "news":news,
-        "news_summary":news_summary,
-        "earnings":earnings,
-        "logo":logo
+        "transactions":[],
+        "institutional":[],
+        "institutional_summary":data["institutional_summary"],
+        "news":[],
+        "news_summary":data["news_summary"],
+        "earnings":data["earnings"]
     }
 
-    cache_dashboard_ai_data(data)
-    notifier.success("Analysis complete")
-
     return render_template("index.html",data=data,companies=COMPANY_MAP)
+
+
+def update_dashboard_ai_section(symbol,section,value,summary_key=None,summary_value=None):
+    symbol=symbol.upper().strip()
+    company_name=session.get("company_name") or COMPANY_MAP.get(symbol) or symbol
+    cached=dashboard_ai_data_cache.setdefault(symbol,{
+        "symbol":symbol,
+        "name":company_name,
+        "transactions":[],
+        "institutional":[],
+        "institutional_summary":build_empty_dashboard_data()["institutional_summary"],
+        "news":[],
+        "news_summary":build_empty_dashboard_data()["news_summary"],
+        "earnings":build_empty_dashboard_data()["earnings"]
+    })
+    cached[section]=value
+    if summary_key:
+        cached[summary_key]=summary_value
+
+
+@app.route("/api/dashboard/<symbol>/insiders")
+def dashboard_insiders_api(symbol):
+    symbol=symbol.upper().strip()
+    try:
+        transactions=process_insider_data(symbol)
+        update_dashboard_ai_section(symbol,"transactions",transactions)
+        return jsonify({"success":True,"transactions":make_json_safe(transactions)})
+    except Exception as error:
+        print(f"[INSIDER API ERROR] {symbol}:",error)
+        return jsonify({"success":False,"message":"Unable to load insider transactions right now."}),500
+
+
+@app.route("/api/dashboard/<symbol>/institutions")
+def dashboard_institutions_api(symbol):
+    symbol=symbol.upper().strip()
+    try:
+        institutional,summary=process_institutional_data(symbol)
+        update_dashboard_ai_section(symbol,"institutional",institutional,"institutional_summary",summary)
+        return jsonify({"success":True,"institutional":make_json_safe(institutional),"summary":make_json_safe(summary)})
+    except Exception as error:
+        print(f"[INSTITUTION API ERROR] {symbol}:",error)
+        return jsonify({"success":False,"message":"Unable to load institutional holdings right now."}),500
+
+
+@app.route("/api/dashboard/<symbol>/news")
+def dashboard_news_api(symbol):
+    symbol=symbol.upper().strip()
+    company_name=(request.args.get("company_name") or session.get("company_name") or COMPANY_MAP.get(symbol) or symbol).strip()
+    try:
+        news,summary=process_news_data(symbol,company_name)
+        update_dashboard_ai_section(symbol,"news",news,"news_summary",summary)
+        return jsonify({"success":True,"news":make_json_safe(news),"summary":make_json_safe(summary)})
+    except Exception as error:
+        print(f"[NEWS API ERROR] {symbol}:",error)
+        return jsonify({"success":False,"message":"Unable to load company news right now."}),500
+
+
+@app.route("/api/dashboard/<symbol>/earnings")
+def dashboard_earnings_api(symbol):
+    symbol=symbol.upper().strip()
+    try:
+        earnings=process_earnings_data(symbol)
+        update_dashboard_ai_section(symbol,"earnings",earnings)
+        return jsonify({"success":True,"earnings":make_json_safe(earnings)})
+    except Exception as error:
+        print(f"[EARNINGS API ERROR] {symbol}:",error)
+        return jsonify({"success":False,"message":"Unable to load earnings transcripts right now."}),500
 
 @app.route("/chart/<symbol>/<int:months>")
 def insider_chart(symbol, months):

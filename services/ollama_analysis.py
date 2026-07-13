@@ -9,7 +9,8 @@ import re
 AI_SUMMARY_ENABLED = os.getenv("AI_SUMMARY_ENABLED", "true").lower() == "true"
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/generate")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2")
-OLLAMA_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "45"))
+OLLAMA_TIMEOUT=int(os.getenv("OLLAMA_TIMEOUT","180"))
+NEWS_SENTIMENT_BATCH_SIZE=int(os.getenv("NEWS_SENTIMENT_BATCH_SIZE","4"))
 
 CACHE_DIR = Path("cache/ai_summaries")
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
@@ -310,43 +311,33 @@ Forecast Data:
         yield "AI Analyst Summary is unavailable right now."
 
 
-def analyze_news_sentiment(news_items, symbol, company_name=None):
-    """
-    Analyzes news sentiment from the perspective of the selected company.
-
-    Returns the original news items with:
-    - news_id
-    - overall_sentiment_label
-    - overall_sentiment_score
-    - sentiment_reason
-    """
-
-    symbol = str(symbol or "").upper().strip()
-    company_name = str(company_name or symbol).strip()
+def analyze_news_sentiment(news_items,symbol,company_name=None):
+    symbol=str(symbol or "").upper().strip()
+    company_name=str(company_name or symbol).strip()
 
     if not news_items:
         return []
 
-    prepared_articles = []
+    prepared_articles=[]
 
-    for index, article in enumerate(news_items):
-        title = str(article.get("title") or "").strip()
-        summary = str(article.get("summary") or "").strip()
-        source = str(article.get("source") or "").strip()
-        url = str(article.get("url") or "").strip()
+    for article in news_items:
+        title=str(article.get("title") or "").strip()
+        summary=str(article.get("summary") or "").strip()
+        source=str(article.get("source") or "").strip()
+        url=str(article.get("url") or "").strip()
 
-        raw_identifier = f"{symbol}|{url}|{title}"
-        article_id = hashlib.sha256(
+        raw_identifier=f"{symbol}|{url}|{title}"
+        article_id=hashlib.sha256(
             raw_identifier.encode("utf-8")
         ).hexdigest()[:16]
 
-        article["news_id"] = article_id
+        article["news_id"]=article_id
 
         prepared_articles.append({
-            "id": article_id,
-            "title": title[:500],
-            "summary": summary[:1200],
-            "source": source[:200]
+            "id":article_id,
+            "title":title[:500],
+            "summary":summary[:1200],
+            "source":source[:200]
         })
 
     if not AI_SUMMARY_ENABLED:
@@ -355,67 +346,105 @@ def analyze_news_sentiment(news_items, symbol, company_name=None):
             reason="AI sentiment analysis is disabled."
         )
 
-    cache_key = _make_cache_key(
-        "news_sentiment",
-        symbol,
-        prepared_articles
-    )
+    all_results=[]
 
-    cached_result = _load_ai_cache(cache_key)
+    for start in range(0,len(prepared_articles),NEWS_SENTIMENT_BATCH_SIZE):
+        batch=prepared_articles[
+            start:start+NEWS_SENTIMENT_BATCH_SIZE
+        ]
 
-    if cached_result:
-        return _merge_news_sentiment_results(
+        try:
+            batch_result=_analyze_news_sentiment_batch(
+                articles=batch,
+                symbol=symbol,
+                company_name=company_name
+            )
+
+            all_results.extend(
+                batch_result.get("results",[])
+            )
+
+        except requests.exceptions.ConnectionError as error:
+            print(
+                f"[NEWS SENTIMENT CONNECTION ERROR] "
+                f"{symbol} batch {start}: {error}"
+            )
+
+        except requests.exceptions.Timeout as error:
+            print(
+                f"[NEWS SENTIMENT TIMEOUT] "
+                f"{symbol} batch {start}: {error}"
+            )
+
+        except Exception as error:
+            print(
+                f"[NEWS SENTIMENT BATCH ERROR] "
+                f"{symbol} batch {start}: {error}"
+            )
+
+    if not all_results:
+        return _apply_default_news_sentiment(
             news_items,
-            cached_result
+            reason="AI sentiment analysis was unavailable."
         )
 
-    instruction = """
+    return _merge_news_sentiment_results(
+        news_items,
+        {
+            "results":all_results
+        }
+    )
+
+def _analyze_news_sentiment_batch(articles,symbol,company_name):
+    cache_key=_make_cache_key(
+        "news_sentiment_batch",
+        symbol,
+        articles
+    )
+
+    cached_result=_load_ai_cache(cache_key)
+
+    if cached_result:
+        return cached_result
+
+    instruction="""
 You are InsiderAI's financial-news sentiment classifier.
 
-Analyze every supplied article from the perspective of the selected company
-and ticker.
+Analyze each article from the perspective of the selected company.
 
-Important:
-- Judge expected impact on the selected company, not the emotional tone of
-  the general story.
-- A negative event affecting a competitor may be bullish for the selected company.
-- A positive industry story is not automatically bullish unless it materially
-  benefits the selected company.
-- Use only the supplied article title, summary, source, company, and ticker.
+Rules:
+- Judge the likely effect on the selected company.
+- Do not judge only the emotional tone of the headline.
 - Do not invent missing facts.
 - Return exactly one result for every article ID.
-- Do not add markdown, commentary, or code fences.
+- Return valid JSON only.
+- Do not return markdown or code fences.
 
 Allowed labels:
 - Bullish
 - Bearish
 - Neutral
 
-Score range:
-- -1.0 means strongly bearish
-- 0.0 means neutral
-- 1.0 means strongly bullish
+Score:
+- -1.0 strongly bearish
+- 0.0 neutral
+- 1.0 strongly bullish
 
-Reason requirements:
-- One short sentence.
-- Explain the likely company-specific impact.
-- Do not provide investment advice.
-
-Return valid JSON only in this exact structure:
+Return exactly:
 
 {
-  "results": [
+  "results":[
     {
-      "id": "article-id",
-      "overall_sentiment_label": "Bullish",
-      "overall_sentiment_score": 0.65,
-      "reason": "The reported contract could increase the company's future revenue pipeline."
+      "id":"article-id",
+      "overall_sentiment_label":"Bullish",
+      "overall_sentiment_score":0.65,
+      "reason":"One short sentence explaining the company-specific impact."
     }
   ]
 }
 """
 
-    prompt = f"""
+    prompt=f"""
 {instruction}
 
 Selected company:
@@ -425,55 +454,60 @@ Selected ticker:
 {symbol}
 
 Articles:
-{json.dumps(prepared_articles, indent=2, ensure_ascii=False)}
+{json.dumps(articles,indent=2,ensure_ascii=False)}
 """
 
-    try:
-        response = requests.post(
-            OLLAMA_URL,
-            json={
-                "model": OLLAMA_MODEL,
-                "prompt": prompt,
-                "stream": False,
-                "format": "json",
-                "options": {
-                    "temperature": 0.1,
-                    "num_predict": 1800
-                }
-            },
-            timeout=OLLAMA_TIMEOUT
-        )
-
-        response.raise_for_status()
-
-        ollama_payload = response.json()
-        raw_model_response = ollama_payload.get("response", "")
-
-        parsed_result = _parse_news_sentiment_response(
-            raw_model_response
-        )
-
-        _save_ai_cache(cache_key, parsed_result)
-
-        return _merge_news_sentiment_results(
-            news_items,
-            parsed_result
-        )
-
-    except requests.exceptions.ConnectionError:
-        print("[NEWS SENTIMENT] Ollama is not running.")
-
-    except requests.exceptions.Timeout:
-        print("[NEWS SENTIMENT] Ollama request timed out.")
-
-    except Exception as error:
-        print("[NEWS SENTIMENT ERROR]", error)
-
-    return _apply_default_news_sentiment(
-        news_items,
-        reason="AI sentiment analysis was unavailable."
+    response=requests.post(
+        OLLAMA_URL,
+        json={
+            "model":OLLAMA_MODEL,
+            "prompt":prompt,
+            "stream":False,
+            "format":"json",
+            "options":{
+                "temperature":0.1,
+                "num_predict":900
+            }
+        },
+        timeout=OLLAMA_TIMEOUT
     )
 
+    response.raise_for_status()
+
+    payload=response.json()
+    raw_response=payload.get("response","")
+
+    if not raw_response:
+        raise ValueError("Ollama returned an empty response.")
+
+    parsed_result=_parse_news_sentiment_response(
+        raw_response
+    )
+
+    returned_ids={
+        item.get("id")
+        for item in parsed_result.get("results",[])
+    }
+
+    expected_ids={
+        article.get("id")
+        for article in articles
+    }
+
+    missing_ids=expected_ids-returned_ids
+
+    if missing_ids:
+        print(
+            f"[NEWS SENTIMENT MISSING IDS] {symbol}:",
+            missing_ids
+        )
+
+    _save_ai_cache(
+        cache_key,
+        parsed_result
+    )
+
+    return parsed_result
 
 def _parse_news_sentiment_response(raw_response):
     if isinstance(raw_response, dict):
@@ -540,33 +574,43 @@ def _parse_news_sentiment_response(raw_response):
     }
 
 
-def _merge_news_sentiment_results(news_items, sentiment_payload):
-    result_map = {
-        item.get("id"): item
-        for item in sentiment_payload.get("results", [])
+def _merge_news_sentiment_results(news_items,sentiment_payload):
+    result_map={
+        item.get("id"):item
+        for item in sentiment_payload.get("results",[])
         if item.get("id")
     }
 
-    merged = []
+    merged=[]
 
     for article in news_items:
-        article_copy = dict(article)
-        article_id = article_copy.get("news_id")
-        sentiment = result_map.get(article_id, {})
+        article_copy=dict(article)
+        article_id=article_copy.get("news_id")
+        sentiment=result_map.get(article_id)
 
-        article_copy["overall_sentiment_label"] = (
-            sentiment.get("overall_sentiment_label")
-            or "Neutral"
-        )
+        if sentiment:
+            article_copy["overall_sentiment_label"]=(
+                sentiment.get("overall_sentiment_label")
+                or "Neutral"
+            )
 
-        article_copy["overall_sentiment_score"] = float(
-            sentiment.get("overall_sentiment_score") or 0
-        )
+            try:
+                article_copy["overall_sentiment_score"]=float(
+                    sentiment.get("overall_sentiment_score") or 0
+                )
+            except (TypeError,ValueError):
+                article_copy["overall_sentiment_score"]=0.0
 
-        article_copy["sentiment_reason"] = (
-            sentiment.get("reason")
-            or "No clear company-specific impact was identified."
-        )
+            article_copy["sentiment_reason"]=(
+                sentiment.get("reason")
+                or "No clear company-specific impact was identified."
+            )
+        else:
+            article_copy["overall_sentiment_label"]="Neutral"
+            article_copy["overall_sentiment_score"]=0.0
+            article_copy["sentiment_reason"]=(
+                "This article could not be analyzed by the AI model."
+            )
 
         merged.append(article_copy)
 

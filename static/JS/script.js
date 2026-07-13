@@ -154,7 +154,7 @@ document.addEventListener("DOMContentLoaded", function () {
         closeSmartMoneyBtn.addEventListener("click", closeSmartMoney);
     }
 
-    async function loadSmartMoney(ticker) {
+    window.loadSmartMoney = async function loadSmartMoney(ticker) {
         try {
             notify("Loading Smart Money Intelligence...", "info");
 
@@ -948,3 +948,291 @@ function smoothScrollToResults() {
         block: "start"
     });
 }
+(function(){
+    "use strict";
+
+    const dashboardState={
+        insiders:"idle",
+        institutions:"idle",
+        news:"idle",
+        earnings:"idle"
+    };
+
+    function escapeDashboardHTML(value){
+        return String(value??"")
+            .replaceAll("&","&amp;")
+            .replaceAll("<","&lt;")
+            .replaceAll(">","&gt;")
+            .replaceAll('"',"&quot;")
+            .replaceAll("'","&#039;");
+    }
+
+    function formatDashboardNumber(value){
+        const number=Number(value);
+        return Number.isFinite(number)?number.toLocaleString():escapeDashboardHTML(value||"--");
+    }
+
+    function setTabStatus(id,status){
+        const indicator=document.getElementById(id);
+        if(!indicator)return;
+        indicator.className=`panel-status ${status}`;
+        indicator.setAttribute("aria-label",status);
+    }
+
+    function loadingCard(title,message,stage){
+        return `
+            <div class="dashboard-loading-card">
+                <div class="dashboard-loader"></div>
+                <div>
+                    <strong>${escapeDashboardHTML(title)}</strong>
+                    <p>${escapeDashboardHTML(message)}</p>
+                    <span class="dashboard-loading-stage">${escapeDashboardHTML(stage)}</span>
+                </div>
+            </div>
+        `;
+    }
+
+    function errorCard(section,message){
+        return `
+            <div class="dashboard-error-card">
+                <div class="dashboard-error-icon">!</div>
+                <div>
+                    <strong>This section could not be loaded</strong>
+                    <p>${escapeDashboardHTML(message)}</p>
+                    <button type="button" class="dashboard-retry-btn" data-retry-section="${section}">Retry</button>
+                </div>
+            </div>
+        `;
+    }
+
+    async function fetchJSON(url){
+        const response=await fetch(url,{headers:{"Accept":"application/json"}});
+        const payload=await response.json().catch(()=>({}));
+        if(!response.ok||payload.success===false){
+            throw new Error(payload.message||`Request failed with status ${response.status}`);
+        }
+        return payload;
+    }
+
+    function insiderHTML(transactions,symbol,companyName){
+        if(!transactions.length){
+            return `<div class="empty-state"><h3>No insider transactions found</h3><p>No recent Form 4 transactions were returned for ${escapeDashboardHTML(symbol)}.</p></div>`;
+        }
+        const cards=transactions.map(t=>`
+            <div class="result-card">
+                <div class="card-top">
+                    <div><h3>${escapeDashboardHTML(t.executive||"Unknown Insider")}</h3><span class="title">${escapeDashboardHTML(t.title||"Insider")}</span></div>
+                    <span class="${t.type==="Buy"?"buy":t.type==="Sell"?"sell":"neutral"}">${escapeDashboardHTML(t.type||"Other")}</span>
+                </div>
+                <div class="card-details">
+                    <div class="detail-item"><span>Date</span><strong>${escapeDashboardHTML(t.date||"--")}</strong></div>
+                    <div class="detail-item"><span>Shares</span><strong>${formatDashboardNumber(t.shares)}</strong></div>
+                    <div class="detail-item"><span>Price</span><strong>${t.price?"$"+escapeDashboardHTML(t.price):"--"}</strong></div>
+                    <div class="detail-item"><span>Security</span><strong>${escapeDashboardHTML(t.security||"--")}</strong></div>
+                    <div class="detail-item"><span>Value</span><strong>${t.shares_value?"$"+formatDashboardNumber(t.shares_value):"--"}</strong></div>
+                    <div class="detail-item"><span>SEC Filing</span><strong>${t.sec_link?`<a class="sec-link" href="${escapeDashboardHTML(t.sec_link)}" target="_blank" rel="noopener noreferrer">View Filing</a>`:"--"}</strong></div>
+                </div>
+            </div>
+        `).join("");
+        return `
+            <div class="results-header">
+                <div class="company-header">
+                    <h2 class="company-name">${escapeDashboardHTML(companyName)} (${escapeDashboardHTML(symbol)})</h2>
+                    <div class="header-actions">
+                        <span class="chart-btn" onclick="toggleChart()">📊<span class="chart-tooltip">Open chart</span></span>
+                        <a href="#" id="smart-money-btn"><img src="../static/grok.svg" class="smart-money-icon" alt="Smart Money"></a>
+                    </div>
+                </div>
+                <p>Insider transaction activity</p>
+            </div>
+            <div class="chart-wrapper hidden" id="chartWrapper">
+                <div class="chart-toolbar"><select id="chartFilter" class="chart-filter"><option value="3">Last 3 Months</option><option value="6">Last 6 Months</option><option value="12">Last 1 Year</option></select></div>
+                <div id="chartContainer" data-symbol="${escapeDashboardHTML(symbol)}"></div>
+            </div>
+            <div class="results-grid">${cards}</div>
+        `;
+    }
+
+    function institutionHTML(rows,summary,symbol){
+        const items=[
+            ["Total Holders",summary.total_holders],["Total Shares",summary.total_shares],["Ownership %",summary.ownership_pct],
+            ["Increased Holders",summary.increased_holders],["Increased Shares",summary.increased_shares],["Decreased Holders",summary.decreased_holders],
+            ["Decreased Shares",summary.decreased_shares],["Unchanged Holders",summary.unchanged_holders]
+        ];
+        const summaryHTML=items.map(([label,value])=>`<div class="summary-card"><span>${label}</span><strong>${formatDashboardNumber(value)}</strong></div>`).join("");
+        const cards=rows.length?rows.map(h=>`
+            <div class="result-card">
+                <div class="card-top"><div><h3>${escapeDashboardHTML(h.holder||"Unknown Holder")}</h3><span class="title">Institutional Holder</span></div><span class="${escapeDashboardHTML(h.css||"neutral")}">${escapeDashboardHTML(h.type||"Hold")}</span></div>
+                <div class="card-details">
+                    <div class="detail-item"><span>Shares Held</span><strong>${formatDashboardNumber(h.shares)}</strong></div>
+                    <div class="detail-item"><span>Change</span><strong>${formatDashboardNumber(h.change)}</strong></div>
+                    <div class="detail-item"><span>Change %</span><strong>${escapeDashboardHTML(h.change_pct||"--")}</strong></div>
+                    <div class="detail-item"><span>Last Report</span><strong>${escapeDashboardHTML(h.date||"--")}</strong></div>
+                </div>
+            </div>
+        `).join(""):`<div class="empty-state"><h3>No institutional holdings found</h3><p>No institutional data was returned for ${escapeDashboardHTML(symbol)}.</p></div>`;
+        return `<div class="results-header"><h2>Institutional Holdings</h2><p>Big money positioning in ${escapeDashboardHTML(symbol)}</p></div><div class="summary-grid">${summaryHTML}</div><div class="results-grid">${cards}</div>`;
+    }
+
+    function newsHTML(news,summary,symbol){
+        const summaryItems=[
+            ["Total Articles",summary.total_articles,""] ,["Bullish",summary.bullish,"bullish"],["Bearish",summary.bearish,"bearish"],
+            ["Neutral",summary.neutral,"neutral"],["Avg Sentiment",summary.avg_score,""] ,["Top Topic",summary.top_topic,""]
+        ];
+        const summaryHTML=summaryItems.map(([label,value,css])=>`<div class="summary-card ${css}"><h3>${label}</h3><p>${escapeDashboardHTML(value??0)}</p></div>`).join("");
+        const cards=news.length?news.map(n=>`
+            <div class="news-card">
+                ${n.image?`<img class="news-image" src="${escapeDashboardHTML(n.image)}" alt="">`:""}
+                <div class="news-body">
+                    <div class="news-top">
+                            <h3>
+                                ${n.url
+                                    ? `<a href="${escapeDashboardHTML(n.url)}" target="_blank" rel="noopener noreferrer">${escapeDashboardHTML(n.title||"Untitled")}</a>`
+                                    : escapeDashboardHTML(n.title||"Untitled")
+                                }
+                            </h3>
+                        
+                            <div class="news-sentiment-result">
+                                <span class="${n.sentiment_label==="Bullish"?"buy":n.sentiment_label==="Bearish"?"sell":"neutral"}">
+                                    ${escapeDashboardHTML(n.sentiment_label||"Neutral")}
+                                </span>
+                        
+                                <span class="news-sentiment-score">
+                                    ${Number(n.sentiment_score||0)>=0?"+":""}${Number(n.sentiment_score||0).toFixed(2)}
+                                </span>
+                            </div>
+                        </div>
+                    <p class="news-summary">${escapeDashboardHTML((n.summary||"").slice(0,240))}${(n.summary||"").length>240?"...":""}</p>
+                    ${n.sentiment_reason?`<div class="news-sentiment-reason"><strong>AI reasoning:</strong> ${escapeDashboardHTML(n.sentiment_reason)}</div>`:""}
+                    <div class="news-meta"><span>Source: ${escapeDashboardHTML(n.source||"Google News")}</span><span>${escapeDashboardHTML(n.time||"")}</span></div>
+                    <div class="tag-row">${(n.topics||[]).map(topic=>`<span class="tag">${escapeDashboardHTML(topic)}</span>`).join("")}</div>
+                    <div class="ticker-row">${(n.tickers||[]).map(t=>`<span class="ticker-chip">${escapeDashboardHTML(t.symbol)} (${escapeDashboardHTML(t.label)})</span>`).join("")}</div>
+                </div>
+            </div>
+        `).join(""):`<div class="empty-state"><h3>No company news found</h3><p>Google News did not return recent articles for ${escapeDashboardHTML(symbol)}.</p></div>`;
+        return `<div class="summary-grid">${summaryHTML}</div><div class="results-header"><h2>News & Sentiment</h2><p>Latest market intelligence for ${escapeDashboardHTML(symbol)}</p></div>${cards}`;
+    }
+
+    function earningsHTML(earnings,symbol,companyName){
+        const items=earnings.items||[];
+        if(!items.length){
+            return `<div class="empty-state"><h3>No earnings transcripts found</h3><p>${escapeDashboardHTML(earnings.message||"Earnings data is not available.")}</p></div>`;
+        }
+        const cards=items.map(call=>`
+            <div class="earnings-card">
+                <div class="earnings-card-header"><div><p class="earnings-label">Earnings Call</p><h3>${escapeDashboardHTML(call.title)}</h3>${call.date?`<p class="earnings-date">${escapeDashboardHTML(call.date)}</p>`:""}</div><span class="earnings-period">Q${escapeDashboardHTML(call.quarter)} ${escapeDashboardHTML(call.year)}</span></div>
+                <div class="earnings-preview">${escapeDashboardHTML(call.preview||"")}</div>
+                <details class="earnings-details"><summary>Read full transcript</summary><div class="earnings-transcript">${escapeDashboardHTML(call.transcript||"")}</div></details>
+            </div>
+        `).join("");
+        return `<div class="results-header"><h2>${escapeDashboardHTML(companyName)} (${escapeDashboardHTML(symbol)})</h2><p>Latest earnings call transcripts</p></div><div class="earnings-grid">${cards}</div>`;
+    }
+
+    function bindDynamicInsiderControls(){
+        const chartFilter=document.getElementById("chartFilter");
+        if(chartFilter)chartFilter.addEventListener("change",loadChart);
+        const smartMoneyBtn=document.getElementById("smart-money-btn");
+        if(smartMoneyBtn){
+            smartMoneyBtn.addEventListener("click",async event=>{
+                event.preventDefault();
+                if(typeof window.loadSmartMoney==="function")await window.loadSmartMoney(window.currentSymbol);
+                else notify("Smart Money panel is available after insider data finishes loading.","info");
+            });
+        }
+    }
+
+    async function loadInsiders(){
+        const target=document.getElementById("insiderContent");
+        dashboardState.insiders="loading";
+        setTabStatus("insiderTabStatus","loading");
+        target.innerHTML=loadingCard("Loading insider activity","Reading recent SEC Form 4 filings...","Step 1 of 4");
+        try{
+            const data=await fetchJSON(`/api/dashboard/${encodeURIComponent(window.currentSymbol)}/insiders`);
+            target.innerHTML=insiderHTML(data.transactions||[],window.currentSymbol,window.currentCompanyName||window.currentSymbol);
+            dashboardState.insiders="success";
+            setTabStatus("insiderTabStatus","success");
+            bindDynamicInsiderControls();
+        }catch(error){
+            dashboardState.insiders="error";
+            setTabStatus("insiderTabStatus","error");
+            target.innerHTML=errorCard("insiders",error.message);
+        }
+    }
+
+    async function loadInstitutions(){
+        const target=document.getElementById("institutionContent");
+        dashboardState.institutions="loading";
+        setTabStatus("institutionTabStatus","loading");
+        target.innerHTML=loadingCard("Loading institutional holdings","Fetching holder positions and ownership changes...","Step 2 of 4");
+        try{
+            const data=await fetchJSON(`/api/dashboard/${encodeURIComponent(window.currentSymbol)}/institutions`);
+            target.innerHTML=institutionHTML(data.institutional||[],data.summary||{},window.currentSymbol);
+            dashboardState.institutions="success";
+            setTabStatus("institutionTabStatus","success");
+        }catch(error){
+            dashboardState.institutions="error";
+            setTabStatus("institutionTabStatus","error");
+            target.innerHTML=errorCard("institutions",error.message);
+        }
+    }
+
+    async function loadNews(){
+        const target=document.getElementById("newsContent");
+        dashboardState.news="loading";
+        setTabStatus("newsTabStatus","loading");
+        target.innerHTML=loadingCard("Collecting company news","Searching Google News for recent company coverage...","Step 3 of 4 · Fetching articles");
+        try{
+            setTimeout(()=>{
+                if(dashboardState.news==="loading")target.innerHTML=loadingCard("Analyzing news sentiment","InsiderAI is evaluating company-specific impact for each article...","Step 3 of 4 · AI sentiment analysis");
+            },1800);
+            const url=`/api/dashboard/${encodeURIComponent(window.currentSymbol)}/news?company_name=${encodeURIComponent(window.currentCompanyName||window.currentSymbol)}`;
+            const data=await fetchJSON(url);
+            target.innerHTML=newsHTML(data.news||[],data.summary||{},window.currentSymbol);
+            dashboardState.news="success";
+            setTabStatus("newsTabStatus","success");
+        }catch(error){
+            dashboardState.news="error";
+            setTabStatus("newsTabStatus","error");
+            target.innerHTML=errorCard("news",error.message);
+        }
+    }
+
+    async function loadEarnings(){
+        const target=document.getElementById("earningsContent");
+        dashboardState.earnings="loading";
+        setTabStatus("earningsTabStatus","loading");
+        target.innerHTML=loadingCard("Loading earnings transcripts","Fetching recent quarterly call transcripts...","Step 4 of 4");
+        try{
+            const data=await fetchJSON(`/api/dashboard/${encodeURIComponent(window.currentSymbol)}/earnings`);
+            target.innerHTML=earningsHTML(data.earnings||{},window.currentSymbol,window.currentCompanyName||window.currentSymbol);
+            dashboardState.earnings="success";
+            setTabStatus("earningsTabStatus","success");
+        }catch(error){
+            dashboardState.earnings="error";
+            setTabStatus("earningsTabStatus","error");
+            target.innerHTML=errorCard("earnings",error.message);
+        }
+    }
+
+    async function loadDashboardProgressively(){
+        if(!window.currentSymbol)return;
+        const aiButton=document.getElementById("analyzeCompanyWithAiBtn");
+        if(aiButton)aiButton.disabled=true;
+        await loadInsiders();
+        await loadInstitutions();
+        await loadNews();
+        await loadEarnings();
+        if(aiButton)aiButton.disabled=false;
+        if(typeof notify==="function")notify("Dashboard analysis complete","success");
+    }
+
+    document.addEventListener("click",async event=>{
+        const button=event.target.closest("[data-retry-section]");
+        if(!button)return;
+        const section=button.dataset.retrySection;
+        const loaders={insiders:loadInsiders,institutions:loadInstitutions,news:loadNews,earnings:loadEarnings};
+        if(loaders[section])await loaders[section]();
+    });
+
+    window.addEventListener("DOMContentLoaded",loadDashboardProgressively);
+})();

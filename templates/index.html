@@ -5,6 +5,7 @@
     <meta content="width=device-width, initial-scale=1.0" name="viewport">
     <title>Insider AI Search</title>
     <link href="../static/css/style.css" rel="stylesheet">
+    <link href="../static/css/progressive_dashboard.css" rel="stylesheet">
     <link href="../static/css/nav.css" rel="stylesheet">
     <link href="../static/css/autocomplete.css" rel="stylesheet">
     <link href="../static/css/footer.css" rel="stylesheet">
@@ -14,7 +15,8 @@
     <!-- Lucide Icons -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script>
     <script>
-        window.currentSymbol = "{{ data.symbol }}";
+        window.currentSymbol={{ data.symbol|tojson }};
+        window.currentCompanyName={{ data.name|tojson }};
     </script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="../static/JS/script.js"></script>
@@ -103,17 +105,17 @@
                 <!-- QUICK ACTIONS -->
             <div class="panel-wrapper">
                 <button onclick="showSection('insider-section')" class="panel active" id="insiderBtn">
-                    Insider Activity
+                    Insider Activity <span class="panel-status" id="insiderTabStatus"></span>
                 </button>
 
                 <button onclick="showSection('largebuys-section')" class="panel" id="largeBuysBtn">
-                    Institutional Holdings
+                    Institutional Holdings <span class="panel-status" id="institutionTabStatus"></span>
                 </button>
                 <button onclick="showSection('news-section')" class="panel" id="newsBtn">
-                    News and Sentiments
+                    News and Sentiments <span class="panel-status" id="newsTabStatus"></span>
                 </button>
                 <button onclick="showSection('earning-section')" class="panel" id="earningBtn">
-                    Earnings
+                    Earnings <span class="panel-status" id="earningsTabStatus"></span>
                 </button>
 
             </div>
@@ -143,108 +145,13 @@
     <!-- RESULTS -->
     <section class="results-section" id="resultsSection">
         <div id="insider-section" class="content-section active">
-            {% if data and data.transactions %}
-            <div class="results-header">
-                <div class="company-header">
-                    <h2 class="company-name">
-                        {{ data.name }} ({{ data.symbol }})
-                    </h2>
-                    <div class="header-actions">
-                    <span class="chart-btn" onclick="toggleChart()">📊
-                        <span class="chart-tooltip">Open chart</span>
-                    </span>
-                        <a href="#" id="smart-money-btn">
-                            <img src="../static/grok.svg" class="smart-money-icon" alt="Smart Money">
-                        </a>
-
-                    </div>
+            <div id="insiderContent" class="progressive-section-content">
+                <div class="empty-results">
+                    <div class="empty-icon">✨</div>
+                    <h2>Trade with confidence.<br>Follow the big money flow</h2>
+                    <p>Select a company above to explore executive trades, unusual insider activity, and filing trends.</p>
                 </div>
-                <p>
-                    Insider transaction activity
-                </p>
             </div>
-            <div class="chart-wrapper hidden" id="chartWrapper">
-
-                <div class="chart-toolbar">
-                    <select id="chartFilter" class="chart-filter">
-                        <option value="3">Last 3 Months</option>
-                        <option value="6">Last 6 Months</option>
-                        <option value="12">Last 1 Year</option>
-                    </select>
-                </div>
-
-                <div id="chartContainer" data-symbol="{{ data.symbol }}">
-                </div>
-
-            </div>
-            <div class="results-grid">
-                {% for t in data.transactions %}
-                <div class="result-card">
-                    <div class="card-top">
-                        <div>
-                            <h3>{{ t.executive }}</h3>
-                            <span class="title">
-                                {{ t.title }}
-                            </span>
-                        </div>
-
-                        <span class="{{ 'buy' if t.type == 'Buy' else 'sell' }}">
-                            {{ t.type }}
-                        </span>
-                    </div>
-                    <div class="card-details">
-                        <div class="detail-item">
-                            <span>Date</span>
-                            <strong>{{ t.date }}</strong>
-                        </div>
-
-                        <div class="detail-item">
-                            <span>Shares</span>
-                            <strong>{{ t.shares }}</strong>
-                        </div>
-
-                        <div class="detail-item">
-                            <span>Price</span>
-                            <strong>${{ t.price }}</strong>
-                        </div>
-
-                        <div class="detail-item">
-                            <span>Security</span>
-                            <strong>{{ t.security }}</strong>
-                        </div>
-                        <div class="detail-item">
-                        <span>Value</span>
-                        <strong>
-                            ${{ "{:,.0f}".format(t.shares_value|float) if t.shares_value else "-" }}
-                        </strong>
-                    </div>
-
-                    <div class="detail-item">
-                        <span>SEC Filing</span>
-                        <strong>
-                            {% if t.sec_link %}
-                            <a href="{{ t.sec_link }}"
-                               target="_blank"
-                               rel="noopener noreferrer"
-                               class="sec-link">
-                                View Filing
-                            </a>
-                            {% else %}
-                            -
-                            {% endif %}
-                        </strong>
-                    </div>
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-            {% else %}
-            <div class="empty-results">
-                <div class="empty-icon">✨</div>
-                <h2>Trade with confidence. <br> Follow the big money flow</h2>
-                <p>Select a company above to explore executive trades, unusual insider activity, and filing trends.</p>
-            </div>
-            {% endif %}
         </div>
                     <!-- SMART MONEY OVERLAY -->
         <!-- SMART MONEY PANEL -->
@@ -406,263 +313,16 @@
 </section>
 
         <div id="largebuys-section" class="content-section">
-
-            <!-- HEADER -->
-            <div class="results-header">
-                <h2>Institutional Holdings</h2>
-                <p>Big money positioning in {{ data.symbol }}</p>
-            </div>
-
-            <!-- SUMMARY GRID -->
-            <div class="summary-grid">
-
-                <div class="summary-card">
-                    <span>Total Holders</span>
-                    <strong>{{ data.institutional_summary.total_holders }}</strong>
-                </div>
-
-                <div class="summary-card">
-                    <span>Total Shares</span>
-                    <strong>{{ data.institutional_summary.total_shares }}</strong>
-                </div>
-
-                <div class="summary-card">
-                    <span>Ownership %</span>
-                    <strong>{{ data.institutional_summary.ownership_pct }}</strong>
-                </div>
-
-                <div class="summary-card">
-                    <span>Increased Holders</span>
-                    <strong>{{ data.institutional_summary.increased_holders }}</strong>
-                </div>
-
-                <div class="summary-card">
-                    <span>Increased Shares</span>
-                    <strong>{{ data.institutional_summary.increased_shares }}</strong>
-                </div>
-
-                <div class="summary-card">
-                    <span>Decreased Holders</span>
-                    <strong>{{ data.institutional_summary.decreased_holders }}</strong>
-                </div>
-
-                <div class="summary-card">
-                    <span>Decreased Shares</span>
-                    <strong>{{ data.institutional_summary.decreased_shares }}</strong>
-                </div>
-
-                <div class="summary-card">
-                    <span>Unchanged Holders</span>
-                    <strong>{{ data.institutional_summary.unchanged_holders }}</strong>
-                </div>
-
-            </div>
-
-            <!-- HOLDINGS GRID -->
-            <div class="results-grid">
-
-                {% for h in data.institutional %}
-
-                <div class="result-card">
-
-                    <div class="card-top">
-                        <div>
-                            <h3>{{ h.holder }}</h3>
-                            <span class="title">Institutional Holder</span>
-                        </div>
-
-                        <span class="{{ h.css }}">
-                    {{ h.type }}
-                </span>
-                    </div>
-
-                    <div class="card-details">
-
-                        <div class="detail-item">
-                            <span>Shares Held</span>
-                            <strong>{{ h.shares }}</strong>
-                        </div>
-
-                        <div class="detail-item">
-                            <span>Change</span>
-                            <strong>{{ h.change }}</strong>
-                        </div>
-
-                        <div class="detail-item">
-                            <span>Change %</span>
-                            <strong>{{ h.change_pct }}</strong>
-                        </div>
-
-                        <div class="detail-item">
-                            <span>Last Report</span>
-                            <strong>{{ h.date }}</strong>
-                        </div>
-
-                    </div>
-
-                </div>
-
-                {% endfor %}
-
-            </div>
-
+            <div id="institutionContent" class="progressive-section-content"></div>
         </div>
         <!-- CEOs -->
         <div id="news-section" class="content-section">
-            <div class="summary-grid">
-
-                <div class="summary-card">
-                    <h3>Total Articles</h3>
-                    <p>{{ data.news_summary.total_articles }}</p>
-                </div>
-
-                <div class="summary-card bullish">
-                    <h3>Bullish</h3>
-                    <p>{{ data.news_summary.bullish }}</p>
-                </div>
-
-                <div class="summary-card bearish">
-                    <h3>Bearish</h3>
-                    <p>{{ data.news_summary.bearish }}</p>
-                </div>
-
-                <div class="summary-card neutral">
-                    <h3>Neutral</h3>
-                    <p>{{ data.news_summary.neutral }}</p>
-                </div>
-
-                <div class="summary-card">
-                    <div class="info-corner">
-                        i
-                        <div class="info-tooltip">
-                            Average Sentiment represents the overall market tone of the selected news articles.<br>
-                            It is calculated by combining sentiment scores from each article mentioning the ticker.<br>
-                            Values closer to +1 indicate bullish sentiment, 0 is neutral, and -1 indicates bearish
-                            sentiment.
-                        </div>
-                    </div>
-                    <h3>Avg Sentiment</h3>
-                    <p>{{ data.news_summary.avg_score }}</p>
-                </div>
-
-                <div class="summary-card">
-                    <h3>Top Topic</h3>
-                    <p>{{ data.news_summary.top_topic }}</p>
-                </div>
-
-            </div>
-            <div class="results-header">
-                <h2>News & Sentiment</h2>
-                <p>Latest market intelligence for {{ data.symbol }}</p>
-            </div>
-
-            {% for n in data.news %}
-
-            <div class="news-card">
-
-                {% if n.image %}
-                <img class="news-image" src="{{ n.image }}">
-                {% endif %}
-
-                <div class="news-body">
-
-                    <div class="news-top">
-                        <h3>{{ n.title }}</h3>
-
-                        <span class="
-                    {% if n.sentiment_label == 'Bullish' %}buy
-                    {% elif n.sentiment_label == 'Bearish' %}sell
-                    {% else %}neutral
-                    {% endif %}
-                ">
-                    {{ n.sentiment_label }}
-                </span>
-                    </div>
-
-                    <p class="news-summary">
-                        {{ n.summary[:200] }}...
-                    </p>
-
-                                        {% if n.sentiment_reason %}
-                <div class="news-sentiment-reason">
-                    <strong>AI reasoning:</strong>
-                    {{ n.sentiment_reason }}
-                </div>
-                {% endif %}
-                    <div class="news-meta">
-                        <span>Source: {{ n.source }}</span>
-                        <span>{{ n.time }}</span>
-                    </div>
-
-                    <div class="tag-row">
-                        {% for t in n.topics %}
-                        <span class="tag">{{ t }}</span>
-                        {% endfor %}
-                    </div>
-
-                    <div class="ticker-row">
-                        {% for t in n.tickers %}
-                        <span class="ticker-chip">
-                        {{ t.symbol }} ({{ t.label }})
-                    </span>
-                        {% endfor %}
-                    </div>
-
-                </div>
-            </div>
-
-            {% endfor %}
+            <div id="newsContent" class="progressive-section-content"></div>
         </div>
 
         <div id="earning-section" class="content-section">
-    {% if data and data.earnings and data.earnings["items"] %}
-        <div class="results-header">
-            <h2>{{ data.name }} ({{ data.symbol }})</h2>
-            <p>Latest earnings call transcripts</p>
+            <div id="earningsContent" class="progressive-section-content"></div>
         </div>
-
-        <div class="earnings-grid">
-            {% for call in data.earnings["items"] %}
-                <div class="earnings-card">
-                    <div class="earnings-card-header">
-                        <div>
-                            <p class="earnings-label">Earnings Call</p>
-                            <h3>{{ call.title }}</h3>
-
-                            {% if call.date %}
-                                <p class="earnings-date">{{ call.date }}</p>
-                            {% endif %}
-                        </div>
-
-                        <span class="earnings-period">
-                            Q{{ call.quarter }} {{ call.year }}
-                        </span>
-                    </div>
-
-                    <div class="earnings-preview">
-                        {{ call.preview }}
-                    </div>
-
-                    <details class="earnings-details">
-                        <summary>Read full transcript</summary>
-
-                        <div class="earnings-transcript">
-                            {{ call.transcript }}
-                        </div>
-                    </details>
-                </div>
-            {% endfor %}
-        </div>
-
-    {% elif data and data.symbol %}
-        <div class="empty-state">
-            <h3>No earnings transcripts found</h3>
-            <p>
-                {{ data.earnings.message if data.earnings else "Earnings data is not available." }}
-            </p>
-        </div>
-    {% endif %}
-</div>
     </section>
 
 

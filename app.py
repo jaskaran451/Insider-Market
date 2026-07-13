@@ -45,6 +45,7 @@ from flask_login import (
     login_required,
     current_user
 )
+from edgar import set_identity
 from flask_mail import Mail, Message
 from flask_bcrypt import Bcrypt
 from database.db import get_db_connection
@@ -97,7 +98,12 @@ login_manager.init_app(app)
 login_manager.login_view = "login"
 login_manager.login_message = "Please log in to continue."
 login_manager.login_message_category = "warning"
-
+set_identity(
+    os.getenv(
+        "SEC_IDENTITY",
+        "Smart Money Flow jaskaran19942@gmail.com"
+    )
+)
 class User(UserMixin):
     def __init__(self, id, full_name, email):
         self.id = str(id)

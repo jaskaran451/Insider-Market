@@ -583,6 +583,12 @@
                         {{ n.summary[:200] }}...
                     </p>
 
+                                        {% if n.sentiment_reason %}
+                <div class="news-sentiment-reason">
+                    <strong>AI reasoning:</strong>
+                    {{ n.sentiment_reason }}
+                </div>
+                {% endif %}
                     <div class="news-meta">
                         <span>Source: {{ n.source }}</span>
                         <span>{{ n.time }}</span>

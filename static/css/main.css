@@ -1130,3 +1130,16 @@ a {
     color: #ffffff;
     border: 1px solid rgba(255, 120, 120, 0.24);
 }
+.news-sentiment-reason{
+    margin-top:12px;
+    padding:12px 14px;
+    border-radius:12px;
+    background:rgba(15,23,42,.05);
+    color:#475569;
+    font-size:.88rem;
+    line-height:1.55;
+}
+
+.news-sentiment-reason strong{
+    color:#111827;
+}

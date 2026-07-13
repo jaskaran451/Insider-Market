@@ -27,9 +27,11 @@ from dataclasses import asdict
 from services.edgar_insider_api_adapter import edgar_insider_api_adapter
 from services.stock_data_service import build_prediction_response
 from services.ollama_analysis import (
-stream_dashboard_ai_analysis,
-stream_forecast_ai_analysis
+    stream_dashboard_ai_analysis,
+    stream_forecast_ai_analysis,
+    analyze_news_sentiment
 )
+from services.google_news_service import google_news_service
 import json
 import queue
 import os
@@ -297,6 +299,349 @@ Message:
         flash("Something went wrong while sending your message. Please try again later.", "error")
         return redirect(url_for("landing") + "#contact")
 
+def build_empty_dashboard_data():
+    return {
+        "symbol": "",
+        "name": "",
+        "transactions": [],
+        "insider_transaction_chart": None,
+        "institutional": [],
+        "institutional_summary": {
+            "total_holders": 0,
+            "total_shares": 0,
+            "increased_holders": 0,
+            "increased_shares": 0,
+            "decreased_holders": 0,
+            "decreased_shares": 0,
+            "unchanged_holders": 0,
+            "unchanged_shares": 0,
+            "ownership_pct": "0%"
+        },
+        "news": [],
+        "news_summary": {
+            "total_articles": 0,
+            "bullish": 0,
+            "bearish": 0,
+            "neutral": 0,
+            "avg_score": 0,
+            "top_topic": "N/A"
+        },
+        "earnings": {
+            "available": False,
+            "message": "Search a company to view earnings transcripts.",
+            "items": []
+        },
+        "logo": None
+    }
+
+def process_insider_data(symbol):
+    insider_data = edgar_insider_api_adapter.get_insider_transactions(symbol)
+    transactions_raw = insider_data.get("data", [])
+
+    transactions = []
+
+    for item in transactions_raw:
+        acquisition_or_disposal = item.get("acquisition_or_disposal")
+
+        if acquisition_or_disposal == "A":
+            transaction_type = "Buy"
+        elif acquisition_or_disposal == "D":
+            transaction_type = "Sell"
+        else:
+            transaction_type = "Other"
+
+        transactions.append({
+            "date": item.get("transaction_date"),
+            "executive": item.get("executive"),
+            "title": item.get("executive_title"),
+            "type": transaction_type,
+            "shares": item.get("shares"),
+            "price": item.get("share_price"),
+            "shares_value": (
+                item.get("transaction_value")
+                or item.get("share_value")
+            ),
+            "security": item.get("security_type"),
+            "sec_link": (
+                item.get("sec_filing_url")
+                or item.get("sec_link")
+            )
+        })
+
+    return transactions
+
+def process_institutional_data(symbol):
+    institutional_data = fetch_market_data(
+        "institutions",
+        symbol
+    )
+
+    holdings_raw = institutional_data.get("holdings", [])
+    institutional = []
+
+    for holding in holdings_raw:
+        change_type = str(
+            holding.get("change_type") or ""
+        ).lower()
+
+        if "increase" in change_type:
+            status = "Increase"
+            css_class = "buy"
+        elif "decrease" in change_type:
+            status = "Decrease"
+            css_class = "sell"
+        else:
+            status = "Hold"
+            css_class = "neutral"
+
+        institutional.append({
+            "holder": holding.get("holder_name"),
+            "shares": holding.get("shares_held"),
+            "change": holding.get("shares_changed"),
+            "change_pct": holding.get(
+                "shares_changed_percentage"
+            ),
+            "type": status,
+            "css": css_class,
+            "date": holding.get("last_reported")
+        })
+
+    institutional_summary = {
+        "total_holders": institutional_data.get(
+            "total_institutional_holders"
+        ) or 0,
+        "total_shares": institutional_data.get(
+            "total_institutional_shares"
+        ) or 0,
+        "increased_holders": institutional_data.get(
+            "holders_with_increased_holdings"
+        ) or 0,
+        "increased_shares": institutional_data.get(
+            "shares_with_increased_holdings"
+        ) or 0,
+        "decreased_holders": institutional_data.get(
+            "holders_with_decreased_holdings"
+        ) or 0,
+        "decreased_shares": institutional_data.get(
+            "shares_with_decreased_holdings"
+        ) or 0,
+        "unchanged_holders": institutional_data.get(
+            "holders_with_unchanged_holdings"
+        ) or 0,
+        "unchanged_shares": institutional_data.get(
+            "shares_with_unchanged_holdings"
+        ) or 0,
+        "ownership_pct": institutional_data.get(
+            "total_institutional_ownership_percentage"
+        ) or "0%"
+    }
+
+    return institutional, institutional_summary
+
+def process_news_data(symbol,company_name):
+    news_data=get_google_news_cached(symbol,company_name)
+    feed_raw=news_data.get("feed",[])[:20]
+
+    feed_raw=analyze_news_sentiment(
+        news_items=feed_raw,
+        symbol=symbol,
+        company_name=company_name
+    )
+
+    bullish=0
+    bearish=0
+    neutral=0
+    total_score=0.0
+    topic_map={}
+
+    for item in feed_raw:
+        label=item.get("overall_sentiment_label") or "Neutral"
+
+        try:
+            score=float(item.get("overall_sentiment_score") or 0)
+        except (TypeError,ValueError):
+            score=0.0
+
+        total_score+=score
+
+        if label=="Bullish":
+            bullish+=1
+        elif label=="Bearish":
+            bearish+=1
+        else:
+            neutral+=1
+
+        for topic_item in item.get("topics",[]):
+            topic=topic_item.get("topic")
+
+            if not topic:
+                continue
+
+            try:
+                relevance=float(topic_item.get("relevance_score") or 1)
+            except (TypeError,ValueError):
+                relevance=1.0
+
+            topic_map[topic]=topic_map.get(topic,0)+relevance
+
+    top_topic=max(topic_map,key=topic_map.get) if topic_map else "N/A"
+
+    summary={
+        "total_articles":len(feed_raw),
+        "bullish":bullish,
+        "bearish":bearish,
+        "neutral":neutral,
+        "avg_score":round(total_score/len(feed_raw),3) if feed_raw else 0,
+        "top_topic":top_topic
+    }
+
+    news=[]
+
+    for item in feed_raw:
+        label=item.get("overall_sentiment_label") or "Neutral"
+
+        try:
+            score=float(item.get("overall_sentiment_score") or 0)
+        except (TypeError,ValueError):
+            score=0.0
+
+        ticker_items=item.get("ticker_sentiment",[])
+        tickers=[]
+
+        for ticker_item in ticker_items:
+            tickers.append({
+                "symbol":ticker_item.get("ticker") or symbol,
+                "label":label,
+                "score":score
+            })
+
+        if not tickers:
+            tickers=[{
+                "symbol":symbol,
+                "label":label,
+                "score":score
+            }]
+
+        news.append({
+            "id":item.get("news_id"),
+            "title":item.get("title"),
+            "summary":item.get("summary") or "",
+            "image":item.get("banner_image"),
+            "source":item.get("source") or "Google News",
+            "url":item.get("url"),
+            "time":item.get("time_published"),
+            "sentiment_label":label,
+            "sentiment_score":score,
+            "sentiment_reason":item.get("sentiment_reason") or "No clear company-specific impact was identified.",
+            "topics":[
+                topic.get("topic")
+                for topic in item.get("topics",[])
+                if topic.get("topic")
+            ],
+            "tickers":tickers
+        })
+
+    return news,summary
+
+def process_earnings_data(symbol):
+    try:
+        return fetch_earnings_transcripts(symbol)
+
+    except Exception as error:
+        print(
+            f"[EARNINGS PROCESSING ERROR] {symbol}:",
+            error
+        )
+
+        return {
+            "available": False,
+            "message": (
+                "Earnings transcript data is temporarily "
+                "unavailable."
+            ),
+            "items": []
+        }
+
+def process_company_logo(symbol):
+    try:
+        image_bytes = get_logo_of_company(symbol)
+
+        if not image_bytes:
+            return None
+
+        encoded_string = base64.b64encode(
+            image_bytes
+        ).decode("utf-8")
+
+        return (
+            f"data:image/jpeg;base64,{encoded_string}"
+        )
+
+    except Exception as error:
+        print(
+            f"[COMPANY LOGO ERROR] {symbol}:",
+            error
+        )
+
+        return None
+
+def cache_dashboard_ai_data(data):
+    symbol = data.get("symbol")
+
+    if not symbol:
+        return
+
+    dashboard_ai_data_cache[symbol] = {
+        "symbol": symbol,
+        "name": data.get("name"),
+        "transactions": data.get(
+            "transactions",
+            []
+        ),
+        "institutional": data.get(
+            "institutional",
+            []
+        ),
+        "institutional_summary": data.get(
+            "institutional_summary",
+            {}
+        ),
+        "news": data.get("news", []),
+        "news_summary": data.get(
+            "news_summary",
+            {}
+        ),
+        "earnings": data.get(
+            "earnings",
+            {}
+        )
+    }
+
+def get_google_news_cached(symbol,company_name=None):
+    symbol=(symbol or "").upper().strip()
+    cache_key=f"google_news_{symbol}"
+    cached=load_cache(CACHE_FOLDER_news,cache_key,max_age_seconds=6*3600)
+
+    if cached and cached.get("feed"):
+        return cached
+
+    fresh=google_news_service.get_company_news(
+        symbol=symbol,
+        company_name=company_name,
+        limit=30,
+        when="7d"
+    )
+
+    if fresh.get("feed"):
+        save_cache(CACHE_FOLDER_news,cache_key,fresh)
+        return fresh
+
+    if cached:
+        cached["_using_cached_fallback"]=True
+        return cached
+
+    return fresh
+
 def fetch_market_data(data_type, symbol):
     symbol = symbol.upper().strip()
     cache_key = symbol
@@ -379,192 +724,65 @@ def fetch_market_data(data_type, symbol):
 def landing():
     return render_template("main.html")
 
-@app.route("/dashboard", methods=["GET", "POST"])
+@app.route("/dashboard",methods=["GET","POST"])
 def home():
-    data = {
-        "symbol": "",
-        "name": "",
-        "transactions": [],
-        "insider_transaction_chart": None,
-        "institutional": [],
-        "institutional_summary": {
-            "total_holders": 0,
-            "total_shares": 0,
-            "increased_holders": 0,
-            "increased_shares": 0,
-            "decreased_holders": 0,
-            "decreased_shares": 0,
-            "unchanged_holders": 0,
-            "ownership_pct": "0%"
-        },
-        "news": [],
-        "news_summary": {
-            "top_sentiment": None,
-            "bullish_count": 0,
-            "bearish_count": 0,
-            "top_topics": []
-        },
-        "earnings": {
-            "available": False,
-            "message": "Search a company to view earnings transcripts.",
-            "items": []
-        }
+    data=build_empty_dashboard_data()
+    if request.method!="POST":
+        return render_template("index.html",data=data,companies=COMPANY_MAP)
+
+    symbol=(request.form.get("symbol") or "").upper().strip()
+    company_name=(request.form.get("company_name") or "").strip()
+
+    if not symbol:
+        flash("Please select a valid company.","warning")
+        return render_template("index.html",data=data,companies=COMPANY_MAP)
+
+    if not company_name:
+        company_name=COMPANY_MAP.get(symbol) or symbol
+
+    session["ticker"]=symbol
+    session["company_name"]=company_name
+
+    try:
+        transactions=process_insider_data(symbol)
+    except Exception as error:
+        print(f"[INSIDER PROCESSING ERROR] {symbol}:",error)
+        transactions=[]
+
+    try:
+        institutional,institutional_summary=process_institutional_data(symbol)
+    except Exception as error:
+        print(f"[INSTITUTION PROCESSING ERROR] {symbol}:",error)
+        institutional=[]
+        institutional_summary=build_empty_dashboard_data()["institutional_summary"]
+
+    try:
+        news,news_summary=process_news_data(symbol,company_name)
+    except Exception as error:
+        print(f"[NEWS PROCESSING ERROR] {symbol}:",error)
+        news=[]
+        news_summary=build_empty_dashboard_data()["news_summary"]
+
+    earnings=process_earnings_data(symbol)
+    logo=process_company_logo(symbol)
+
+    data={
+        "symbol":symbol,
+        "name":company_name,
+        "transactions":transactions,
+        "insider_transaction_chart":None,
+        "institutional":institutional,
+        "institutional_summary":institutional_summary,
+        "news":news,
+        "news_summary":news_summary,
+        "earnings":earnings,
+        "logo":logo
     }
-    if request.method == "POST":
-        notifier.success("Analysis complete")
-        symbol = request.form.get("symbol")
-        session["ticker"] = symbol
-        company_name = request.form.get("company_name", "").strip()
-        session["company_name"] = company_name
 
-        # =========================
-        # INSIDER DATA
-        # ========================= news_data.get("feed", [])
-        insider_data = edgar_insider_api_adapter.get_insider_transactions(symbol)
+    cache_dashboard_ai_data(data)
+    notifier.success("Analysis complete")
 
-        transactions_raw = insider_data.get("data", [])
-
-        transactions = []
-        for t in transactions_raw:
-            transactions.append({
-                "date": t.get("transaction_date"),
-                "executive": t.get("executive"),
-                "title": t.get("executive_title"),
-                "type": "Buy" if t.get("acquisition_or_disposal") == "A" else "Sell",
-                "shares": t.get("shares"),
-                "price": t.get("share_price"),
-                "shares_value": t.get("share_value"),
-                "security": t.get("security_type"),
-                "sec_link": t.get("sec_link")
-            })
-
-        # =========================
-        # INSTITUTIONAL DATA (FIXED)
-        # =========================
-        institutional = []
-        institutional_data=fetch_market_data("institutions", symbol)
-        holdings_raw = institutional_data.get("holdings", [])
-        for h in holdings_raw:
-            change_type = (h.get("change_type") or "").lower()
-            if "increase" in change_type:
-                status = "Increase"
-                css_class = "buy"
-            elif "decrease" in change_type:
-                status = "Decrease"
-                css_class = "sell"
-            else:
-                status = "Hold"
-                css_class = "neutral"
-
-            institutional.append({
-                "holder": h.get("holder_name"),
-                "shares": h.get("shares_held"),
-                "change": h.get("shares_changed"),
-                "change_pct": h.get("shares_changed_percentage"),
-                "type": status,
-                "css": css_class,
-                "date": h.get("last_reported")
-            })
-
-        institutional_summary = {
-            "total_holders": institutional_data.get("total_institutional_holders"),
-            "total_shares": institutional_data.get("total_institutional_shares"),
-            "increased_holders": institutional_data.get("holders_with_increased_holdings"),
-            "increased_shares": institutional_data.get("shares_with_increased_holdings"),
-            "decreased_holders": institutional_data.get("holders_with_decreased_holdings"),
-            "decreased_shares": institutional_data.get("shares_with_decreased_holdings"),
-            "unchanged_holders": institutional_data.get("holders_with_unchanged_holdings"),
-            "unchanged_shares": institutional_data.get("shares_with_unchanged_holdings"),
-            "ownership_pct": institutional_data.get("total_institutional_ownership_percentage")
-        }
-
-        # =========================
-        # News and sentiments
-        # =========================
-        news_data=fetch_market_data("news", symbol)
-        feed_raw = news_data.get("feed", [])[:20]
-        bullish = 0
-        bearish = 0
-        neutral = 0
-        total_score = 0
-        topic_map: Dict[str, float] = {}
-        for item in feed_raw:
-            label = item.get("overall_sentiment_label")
-            score = item.get("overall_sentiment_score") or 0
-            total_score += score
-            if label == "Bullish":
-                bullish += 1
-            elif label == "Bearish":
-                bearish += 1
-            else:
-                neutral += 1
-            for t in item.get("topics", []):
-                topic = t.get("topic")
-                relevance_score = float(t.get("relevance_score", 0))
-                topic_map[t["topic"]] = topic_map.get(t["topic"], 0) + 1
-        news = []
-        top_topic = max(topic_map, key=topic_map.get) if topic_map else "N/A"
-        summary = {
-            "total_articles": len(feed_raw),
-            "bullish": bullish,
-            "bearish": bearish,
-            "neutral": neutral,
-            "avg_score": round(total_score / len(feed_raw), 3) if feed_raw else 0,
-            "top_topic": top_topic
-        }
-
-        for item in feed_raw:
-            news.append({
-                "title": item.get("title"),
-                "summary": item.get("summary"),
-                "image": item.get("banner_image"),
-                "source": item.get("source"),
-                "url": item.get("url"),
-                "time": item.get("time_published"),
-                "sentiment_label": item.get("overall_sentiment_label"),
-                "sentiment_score": item.get("overall_sentiment_score"),
-                "topics": [t["topic"] for t in item.get("topics", [])],
-                "tickers": [
-                    {
-                        "symbol": t["ticker"],
-                        "label": t["ticker_sentiment_label"],
-                        "score": t["ticker_sentiment_score"]
-                    }
-                    for t in item.get("ticker_sentiment", [])
-                ]
-            })
-
-        earnings_data = fetch_earnings_transcripts(symbol)
-        # get logo of company
-        image_bytes=None
-        image_bytes = get_logo_of_company(symbol)
-        if image_bytes:
-            encoded_string = base64.b64encode(image_bytes).decode('utf-8')
-            image_src = f"data:image/jpeg;base64,{encoded_string}"
-        else:
-            image_src = None
-
-        data = {
-            "symbol": symbol,
-            "name": company_name,
-            "transactions": transactions,
-            "institutional": institutional,
-            "institutional_summary": institutional_summary,
-            "news": news,
-            "news_summary": summary,
-            "logo": image_src,
-            "earnings": earnings_data
-        }
-        dashboard_ai_data_cache[symbol] = {
-            "symbol": data.get("symbol"),
-            "name": data.get("name"),
-            "transactions": data.get("transactions", []),
-            "institutional": data.get("institutional", {}),
-            "news": data.get("news", []),
-            "earnings": data.get("earnings", {})
-        }
-
-    return render_template("index.html", data=data, companies=COMPANY_MAP)
+    return render_template("index.html",data=data,companies=COMPANY_MAP)
 
 @app.route("/chart/<symbol>/<int:months>")
 def insider_chart(symbol, months):

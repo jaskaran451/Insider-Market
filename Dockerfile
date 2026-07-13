@@ -32,7 +32,7 @@ COPY requirements.txt .
 
 RUN pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
-
+RUN pip install pygooglenews==0.1.2 --no-deps
 COPY . .
 
 CMD ["gunicorn", "--bind", "0.0.0.0:8080", "app:app"]

@@ -8,9 +8,16 @@ import re
 
 AI_SUMMARY_ENABLED = os.getenv("AI_SUMMARY_ENABLED", "true").lower() == "true"
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/generate")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2")
-OLLAMA_TIMEOUT=int(os.getenv("OLLAMA_TIMEOUT","180"))
-NEWS_SENTIMENT_BATCH_SIZE=int(os.getenv("NEWS_SENTIMENT_BATCH_SIZE","4"))
+OLLAMA_MODEL = os.getenv(
+    "OLLAMA_MODEL",
+    "llama3.2:latest"
+)
+OLLAMA_TIMEOUT = int(
+    os.getenv("OLLAMA_TIMEOUT", "600")
+)
+NEWS_SENTIMENT_BATCH_SIZE = int(
+    os.getenv("NEWS_SENTIMENT_BATCH_SIZE", "2")
+)
 
 CACHE_DIR = Path("cache/ai_summaries")
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
@@ -206,7 +213,7 @@ Dashboard Data:
                 continue
 
     except requests.exceptions.ConnectionError:
-        yield "AI Analyst Summary is not available because Ollama is not running on this machine."
+        yield "AI Analyst Summary is unavailable because the Ollama service could not be reached."
 
     except requests.exceptions.Timeout:
         yield "AI Analyst Summary timed out. The model may be too slow for this server."

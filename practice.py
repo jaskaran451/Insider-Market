@@ -49,12 +49,49 @@ class LinearRegression(nn.Module):
         super().__init__()
         self.weight=nn.Parameter(torch.randn(1))
         self.bias=nn.Parameter(torch.randn(1))
+#
+# III,LVIII,MCMXCIV
 
-def forward(self, x:torch.Tensor) -> torch.Tensor:
-    return null
+def checkspecialcase(s: str):
+    maptothem = dict()
+    specialCases = dict()
+    specialCases["IV"] = 4
+    specialCases["IX"] = 9
+    specialCases["XL"] = 40
+    specialCases["XC"] = 90
+    specialCases["CD"] = 400
+    specialCases["CM"] = 900
+    for i in range(len(s)):
+        if i < len(s) - 1:
+            test=np.array(s)
+            if np.array(s)[i:i+1] in specialCases:
+                maptothem[s[i:i + 1]] = i
+    return maptothem
+
+
+
+def romanToInt(s: str) -> int:
+    mapsymbol = dict()
+
+    roman = "IVXLCDM"
+    values = [1, 5, 10, 50, 100, 500, 1000]
+
+    read = checkspecialcase("MCMXCIV")
+    for index, i in enumerate(roman):
+        mapsymbol[i] = values[index]
+    word = np.array(s)
+    i = len(word)
+    # for i in range(len(word)):
+
+
+
+
+
+
+
 
 def main(name):
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    neuralnetwork()
+    romanToInt("dsfrsdc")
 if __name__ == '__main__':
     main('PyCharm')

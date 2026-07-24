@@ -28,7 +28,32 @@
 
 </head>
 {% include 'nav.html' %}
+
+<div class="dashboard-hero-bg" aria-hidden="true">
+    <video
+        class="dashboard-hero-video"
+        autoplay
+        muted
+        loop
+        playsinline
+        preload="metadata"
+        poster="../static/videos/smart-money-poster.png"
+    >
+        <source
+            src="../static/videos/smart-money-hero.webm"
+            type="video/webm"
+        >
+
+        <source
+            src="../static/videos/smart-money-hero.mp4"
+            type="video/mp4"
+        >
+    </video>
+
+    <div class="dashboard-hero-overlay"></div>
+</div>
 <body>
+<div class="dashboard-page-content">
 <div id="notification-container"></div>
 
 <div class="page">
@@ -120,28 +145,257 @@
 
             </div>
 
-    <section class="dashboard-ai-card ai-card-compact" id="dashboardAiCard">
-    <div class="dashboard-ai-header">
+    <section
+    class="insider-intelligence-frame intelligence-collapsed"
+    id="insiderIntelligenceFrame"
+>
+    <div class="intelligence-frame-header">
         <div>
-            <p class="earnings-label">AI Company Intelligence</p>
-            <h2>InsiderAI Company Analyst Summary</h2>
-            <p class="dashboard-ai-subtitle">
-                Reads insider activity, institutional holdings, news, and earnings transcripts.
+            <p class="earnings-label">
+                AI Insider Intelligence
+            </p>
+
+            <h2>
+                Smart Money Analysis
+            </h2>
+
+            <p class="intelligence-frame-subtitle">
+                Smart Money signals, insider patterns, ownership,
+                timeline activity and AI interpretation.
             </p>
         </div>
 
-        <button class="dashboard-ai-btn" id="analyzeCompanyWithAiBtn" type="button">
-            <span class="btn-icon">Analyze with AI</span>
-            <span class="spinner hidden"></span>
-        </button>
+        <div class="intelligence-header-actions">
+            <button
+                class="dashboard-ai-btn"
+                id="analyzeCompanyWithAiBtn"
+                type="button"
+            >
+                <span class="btn-icon">
+                    Analyze with AI
+                </span>
+
+                <span class="spinner hidden"></span>
+            </button>
+
+            <button
+                class="intelligence-collapse-btn"
+                id="toggleIntelligenceFrameBtn"
+                type="button"
+                aria-expanded="false"
+                aria-controls="insiderIntelligenceContent"
+            >
+                <span id="intelligenceCollapseText">
+                    Open
+                </span>
+
+                <span
+                    class="intelligence-collapse-arrow"
+                    id="intelligenceCollapseArrow"
+                >
+                   ⌄
+                </span>
+            </button>
+        </div>
     </div>
 
-    <div class="dashboard-ai-body" id="dashboardAiBody">
-        <p class="dashboard-ai-placeholder">
-            Click Analyze with AI to generate the company intelligence summary.
-        </p>
+    <div
+        class="insider-intelligence-content"
+        id="insiderIntelligenceContent"
+    >
+        <div
+            class="smart-money-loading hidden"
+            id="smartMoneyLoading"
+        >
+            <div class="intelligence-loading-spinner"></div>
+
+            <div>
+                <strong id="smartMoneyLoadingTitle">
+                    Loading insider intelligence...
+                </strong>
+
+                <p id="smartMoneyLoadingMessage">
+                    Reading recent SEC Form 4 filings.
+                </p>
+            </div>
+        </div>
+
+        <div
+            class="compact-smart-money hidden"
+            id="compactSmartMoney"
+        >
+            <div class="compact-metrics-grid">
+                <article class="compact-score-card">
+                    <div>
+                        <span class="compact-metric-label">
+                            Smart Money Score
+                        </span>
+
+                        <strong
+                            class="compact-score-value"
+                            id="compactSmartMoneyScore"
+                        >
+                            --
+                        </strong>
+                    </div>
+
+                    <div>
+                        <span
+                            class="compact-score-status"
+                            id="compactSmartMoneyStatus"
+                        >
+                            Waiting
+                        </span>
+
+                        <span
+                            class="compact-momentum"
+                            id="compactSmartMoneyMomentum"
+                        >
+                            Momentum: --
+                        </span>
+                    </div>
+                </article>
+
+                <article class="compact-metric-card">
+                    <span>Buys</span>
+                    <strong id="compactSmartMoneyBuys">--</strong>
+                </article>
+
+                <article class="compact-metric-card">
+                    <span>Sells</span>
+                    <strong id="compactSmartMoneySells">--</strong>
+                </article>
+
+                <article class="compact-metric-card">
+                    <span>Taxes</span>
+                    <strong id="compactSmartMoneyTaxes">--</strong>
+                </article>
+
+                <article class="compact-metric-card">
+                    <span>Grants</span>
+                    <strong id="compactSmartMoneyGrants">--</strong>
+                </article>
+            </div>
+
+            <div class="compact-intelligence-grid">
+                <article class="compact-chart-card">
+                    <div class="compact-card-heading">
+                        <div>
+                            <h3>Score</h3>
+                            <p>Overall insider conviction</p>
+                        </div>
+                    </div>
+
+                    <div class="compact-chart-wrap">
+                        <canvas id="compactSmartMoneyGauge"></canvas>
+                    </div>
+                </article>
+
+                <article class="compact-chart-card">
+                    <div class="compact-card-heading">
+                        <div>
+                            <h3>Activity Mix</h3>
+                            <p>Reported transaction categories</p>
+                        </div>
+                    </div>
+
+                    <div class="compact-chart-wrap">
+                        <canvas id="compactActivityMix"></canvas>
+                    </div>
+                </article>
+
+                <article class="compact-chart-card">
+                    <div class="compact-card-heading">
+                        <div>
+                            <h3>Signal Strength</h3>
+                            <p>Most important calculated signals</p>
+                        </div>
+                    </div>
+
+                    <div class="compact-chart-wrap">
+                        <canvas id="compactSignalStrength"></canvas>
+                    </div>
+                </article>
+
+                <article class="compact-chart-card">
+                    <div class="compact-card-heading">
+                        <div>
+                            <h3>Insider Ownership</h3>
+                            <p>Largest remaining reported positions</p>
+                        </div>
+                    </div>
+
+                    <div
+                        class="compact-ownership-list"
+                        id="compactOwnershipList"
+                    ></div>
+                </article>
+            </div>
+
+            <section class="compact-timeline-card">
+                <button
+                    class="compact-section-toggle"
+                    id="toggleCompactTimelineBtn"
+                    type="button"
+                    aria-expanded="false"
+                >
+                    <div>
+                        <h3>Insider Timeline</h3>
+                        <p>Recent transaction activity</p>
+                    </div>
+
+                    <span id="compactTimelineArrow">⌄</span>
+                </button>
+
+                <div
+                    class="compact-timeline-content"
+                    id="compactTimelineContent"
+                >
+                    <div
+                        class="compact-timeline-list"
+                        id="compactTimelineList"
+                    ></div>
+                </div>
+            </section>
+        </div>
+
+        <section
+            class="compact-ai-analysis hidden"
+            id="compactAiAnalysis"
+        >
+            <div class="compact-ai-heading">
+                <div>
+                    <p class="earnings-label">
+                        AI Interpretation
+                    </p>
+
+                    <h3>
+                        What the insider data means
+                    </h3>
+                </div>
+
+                <span
+                    class="ai-stream-status"
+                    id="aiStreamStatus"
+                >
+                    Waiting
+                </span>
+            </div>
+
+            <div
+                class="compact-ai-output"
+                id="dashboardAiBody"
+            >
+                <p class="dashboard-ai-placeholder">
+                    The AI explanation will appear here after
+                    Smart Money Intelligence is prepared.
+                </p>
+            </div>
+        </section>
     </div>
 </section>
+
+
     <!-- RESULTS -->
     <section class="results-section" id="resultsSection">
         <div id="insider-section" class="content-section active">
@@ -327,7 +581,9 @@
 
 
 </div>
-{% include 'footer.html' %}
+
+</div>
+    {% include 'footer.html' %}
 <!-- COMPANY INFO SIDE DRAWER -->
 
 <div class="company-info-drawer" id="companyInfoDrawer">

@@ -112,6 +112,311 @@ def _clean_data_for_ai(data, max_items=15):
 
     return data
 
+def _prepare_smart_money_ai_payload(data):
+    """
+    Creates a compact AI input from the already-calculated
+    Smart Money Intelligence result.
+
+    No scores, signals or transaction classifications
+    are recalculated here.
+    """
+
+    summary = data.get("summary") or {}
+
+    signals = summary.get("signals") or []
+    transactions = (
+        summary.get("recent_transactions")
+        or []
+    )
+
+    compact_signals = []
+
+    for signal in signals:
+        compact_signals.append({
+            "signal": signal.get("signal"),
+            "score": signal.get("score"),
+            "description": signal.get(
+                "description"
+            )
+        })
+
+    compact_transactions = []
+
+    for transaction in transactions[:30]:
+        compact_transactions.append({
+            "date": transaction.get("date"),
+            "insider": transaction.get("insider"),
+            "role": transaction.get("role"),
+            "type": transaction.get("type"),
+            "code": transaction.get("code"),
+            "shares": transaction.get("shares"),
+            "value": transaction.get("value"),
+            "price": transaction.get("price"),
+            "net_change": transaction.get(
+                "net_change"
+            ),
+            "net_value": transaction.get(
+                "net_value"
+            ),
+            "remaining_shares": transaction.get(
+                "remaining_shares"
+            )
+        })
+
+    return {
+        "company": {
+            "symbol": data.get("symbol"),
+            "name": (
+                data.get("company")
+                or summary.get("company")
+            )
+        },
+
+        "scores": {
+            "insider_score": summary.get(
+                "insider_score"
+            ),
+            "smart_money_score": summary.get(
+                "smart_money_score"
+            ),
+            "insider_momentum": summary.get(
+                "insider_momentum"
+            ),
+            "bullish": summary.get("bullish"),
+            "bearish": summary.get("bearish"),
+            "cluster_buying": summary.get(
+                "cluster_buying"
+            )
+        },
+
+        "activity_counts": {
+            "buys": summary.get("total_buys"),
+            "sells": summary.get("total_sells"),
+            "taxes": summary.get("total_taxes"),
+            "grants": summary.get("total_grants"),
+            "net_activity": summary.get(
+                "net_activity"
+            )
+        },
+
+        "summary_stats": (
+            summary.get("summary_stats")
+            or {}
+        ),
+
+        "signals": compact_signals,
+
+        "signal_groups": (
+            summary.get("signal_groups")
+            or {}
+        ),
+
+        "recent_transactions": (
+            compact_transactions
+        )
+    }
+
+def stream_smart_money_ai_explanation(smart_money_data):
+    """
+    Explains an existing Smart Money Intelligence result.
+
+    InsiderService already calculated the scores,
+    classifications and signals. Ollama only explains them.
+    """
+
+    if not AI_SUMMARY_ENABLED:
+        yield (
+            "AI Smart Money explanation is disabled "
+            "on this server."
+        )
+        return
+
+    payload = _prepare_smart_money_ai_payload(
+        smart_money_data
+    )
+
+    system_instruction = """
+You are InsiderAI, a professional SEC Form 4 insider-activity analyst.
+
+You receive a pre-calculated Smart Money Intelligence result.
+
+Your task is to INTERPRET the supplied result for an investor.
+
+You must never:
+- reproduce the supplied JSON;
+- output JSON, Python dictionaries, code blocks, or markdown fences;
+- say that you are making the JSON easier to read;
+- list every transaction;
+- recalculate or change the supplied score;
+- treat grants as open-market purchases;
+- treat tax withholding as voluntary selling;
+- invent motives or unsupported facts;
+- provide buy, sell, or hold advice.
+
+Write a concise narrative analysis using normal prose.
+
+Use exactly these headings:
+
+SMART MONEY INTERPRETATION
+
+WHAT IS DRIVING THE SCORE
+
+IMPORTANT INSIDER PATTERNS
+
+INTENTIONAL VS ADMINISTRATIVE ACTIVITY
+
+CONFIRMING AND CONFLICTING SIGNALS
+
+WHAT THE DASHBOARD MAY OVERSTATE OR UNDERSTATE
+
+LIMITATIONS
+
+WHAT TO MONITOR NEXT
+
+Interpretation requirements:
+- Explain the Smart Money Score and insider momentum together.
+- Explain what activity is primarily driving the score.
+- Separate BUY and SELL activity from Tax and Grant activity.
+- Discuss repeated insider behavior and transaction-date clusters.
+- Give greater weight to CEO, CFO, president, COO, chairman,
+  and other senior operating roles.
+- Use remaining ownership information when available.
+- Explain whether the evidence behind the score is strong or weak.
+- Mention specific people, dates, shares, and values only when useful.
+- Keep the total response under 650 words.
+"""
+
+    user_prompt = f"""
+Analyze the following pre-calculated Smart Money Intelligence result.
+
+Do not repeat or reformat the data.
+Begin immediately with the heading SMART MONEY INTERPRETATION.
+
+SMART MONEY DATA:
+{json.dumps(payload, separators=(",", ":"), default=str)}
+"""
+
+    try:
+        response = requests.post(
+            OLLAMA_URL,
+            json={
+                "model": OLLAMA_MODEL,
+
+                # Keep behavior instructions separate from data.
+                "system": system_instruction,
+                "prompt": user_prompt,
+
+                "stream": True,
+                "keep_alive": "15m",
+
+                "options": {
+                    "temperature": 0.15,
+
+                    # 2048 was too small for the instructions
+                    # plus transaction data.
+                    "num_ctx": 4096,
+
+                    # Enough room for the requested narrative.
+                    "num_predict": 700,
+
+                    "repeat_penalty": 1.1
+                }
+            },
+            stream=True,
+            timeout=OLLAMA_TIMEOUT
+        )
+
+        response.raise_for_status()
+
+        started_output = False
+
+        for line in response.iter_lines():
+            if not line:
+                continue
+
+            try:
+                result = json.loads(
+                    line.decode("utf-8")
+                )
+
+                chunk = result.get("response", "")
+
+                if chunk:
+                    # Defensive filter for a common unwanted opening.
+                    if not started_output:
+                        normalized = chunk.strip().lower()
+
+                        unwanted_openings = (
+                            "here is the json",
+                            "here's the json",
+                            "the json data",
+                            "```json"
+                        )
+
+                        if normalized.startswith(
+                            unwanted_openings
+                        ):
+                            continue
+
+                        started_output = True
+
+                    yield chunk
+
+                if result.get("done"):
+                    break
+
+            except (
+                json.JSONDecodeError,
+                UnicodeDecodeError
+            ) as error:
+                print(
+                    "[SMART MONEY AI PARSE ERROR]",
+                    error
+                )
+
+    except requests.exceptions.ConnectionError as error:
+        print(
+            "[SMART MONEY AI CONNECTION ERROR]",
+            error
+        )
+
+        yield (
+            "Smart Money AI explanation is unavailable "
+            "because the Ollama service could not be reached."
+        )
+
+    except requests.exceptions.Timeout as error:
+        print(
+            "[SMART MONEY AI TIMEOUT]",
+            error
+        )
+
+        yield (
+            "Smart Money AI explanation timed out before "
+            "the model completed its response."
+        )
+
+    except requests.exceptions.RequestException as error:
+        print(
+            "[SMART MONEY AI REQUEST ERROR]",
+            error
+        )
+
+        yield (
+            "Smart Money AI explanation could not be "
+            "completed because the model request failed."
+        )
+
+    except Exception as error:
+        print(
+            "[SMART MONEY AI ERROR]",
+            error
+        )
+
+        yield (
+            "Smart Money AI explanation is unavailable "
+            "right now."
+        )
 
 def stream_dashboard_ai_analysis(company_data):
     """

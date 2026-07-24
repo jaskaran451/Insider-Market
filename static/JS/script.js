@@ -642,210 +642,933 @@ document.addEventListener("DOMContentLoaded", function () {
 
 
     /* =========================================================
-       8. AI COMPANY ANALYSIS STREAMING
+       8. COMBINED SMART MONEY + AI EXPERIENCE
        ========================================================= */
+    let compactAiLottie = null;
+    let compactGaugeChart = null;
+    let compactActivityChart = null;
+    let compactSignalChart = null;
 
     const analyzeCompanyWithAiBtn = getEl("analyzeCompanyWithAiBtn");
+    const intelligenceFrame = getEl("insiderIntelligenceFrame");
+    const toggleIntelligenceFrameBtn = getEl("toggleIntelligenceFrameBtn");
+    const toggleCompactTimelineBtn = getEl("toggleCompactTimelineBtn");
 
     if (analyzeCompanyWithAiBtn) {
-        analyzeCompanyWithAiBtn.addEventListener("click", analyzeCompanyDashboardWithAI);
+        analyzeCompanyWithAiBtn.addEventListener("click", analyzeSmartMoneyWithAI);
     }
 
-    function expandDashboardAICard() {
-        const card = getEl("dashboardAiCard");
-
-        if (!card) return;
-
-        card.classList.remove("ai-card-compact");
-        card.classList.add("ai-card-expanded");
-
-        setTimeout(function () {
-            card.scrollIntoView({
-                behavior: "smooth",
-                block: "start"
-            });
-        }, 180);
+    if (toggleIntelligenceFrameBtn) {
+        toggleIntelligenceFrameBtn.addEventListener("click", toggleIntelligenceFrame);
     }
 
-    function showDashboardAILottieThinking() {
-        const body = getEl("dashboardAiBody");
+    if (toggleCompactTimelineBtn) {
+        toggleCompactTimelineBtn.addEventListener("click", toggleCompactTimeline);
+    }
 
-        if (!body) return;
+    function openIntelligenceFrame() {
+        if (!intelligenceFrame) return;
 
-        body.innerHTML = `
-            <div class="ai-lottie-panel">
-                <div class="ai-lottie-bg" id="dashboardAiLottie"></div>
-                <div class="ai-lottie-overlay"></div>
+        intelligenceFrame.classList.remove("intelligence-collapsed");
 
-                <div class="ai-lottie-content">
-                    <p class="ai-lottie-title">Analyzing company intelligence...</p>
+        if (toggleIntelligenceFrameBtn) {
+            toggleIntelligenceFrameBtn.setAttribute("aria-expanded", "true");
+        }
 
-                    <p class="ai-lottie-subtitle">
-                        Ollama is reading insider activity, institutional holdings, news themes,
-                        and earnings transcript commentary to identify business signals and risks.
-                    </p>
-                </div>
-            </div>
+        safeSetText("intelligenceCollapseText", "Collapse");
+    }
+
+    function toggleIntelligenceFrame() {
+        if (!intelligenceFrame) return;
+
+        const willOpen = intelligenceFrame.classList.contains("intelligence-collapsed");
+
+        intelligenceFrame.classList.toggle("intelligence-collapsed");
+
+        if (toggleIntelligenceFrameBtn) {
+            toggleIntelligenceFrameBtn.setAttribute("aria-expanded", String(willOpen));
+        }
+
+        safeSetText("intelligenceCollapseText", willOpen ? "Collapse" : "Open");
+    }
+
+    function toggleCompactTimeline() {
+        const timelineCard = toggleCompactTimelineBtn
+            ? toggleCompactTimelineBtn.closest(".compact-timeline-card")
+            : null;
+
+        if (!timelineCard || !toggleCompactTimelineBtn) return;
+
+        const isOpen = timelineCard.classList.toggle("timeline-open");
+        toggleCompactTimelineBtn.setAttribute("aria-expanded", String(isOpen));
+    }
+
+    function updateSmartMoneyLoading(title, message) {
+        safeSetText("smartMoneyLoadingTitle", title);
+        safeSetText("smartMoneyLoadingMessage", message);
+    }
+
+    function resetCompactIntelligence() {
+    const loading = getEl("smartMoneyLoading");
+    const dashboard = getEl("compactSmartMoney");
+    const aiSection = getEl("compactAiAnalysis");
+    const aiBody = getEl("dashboardAiBody");
+    const aiStatus = getEl("aiStreamStatus");
+
+    loading?.classList.add("hidden");
+    dashboard?.classList.add("hidden");
+    aiSection?.classList.add("hidden");
+
+    window.smartMoneyData = null;
+
+    if (compactAiLottie) {
+        compactAiLottie.destroy();
+        compactAiLottie = null;
+    }
+
+    if (compactGaugeChart) {
+        compactGaugeChart.destroy();
+        compactGaugeChart = null;
+    }
+
+    if (compactActivityChart) {
+        compactActivityChart.destroy();
+        compactActivityChart = null;
+    }
+
+    if (compactSignalChart) {
+        compactSignalChart.destroy();
+        compactSignalChart = null;
+    }
+
+    if (aiStatus) {
+        aiStatus.textContent = "Waiting";
+    }
+
+    if (aiBody) {
+        aiBody.innerHTML = `
+            <p class="dashboard-ai-placeholder">
+                The AI explanation will appear here after
+                Smart Money Intelligence is prepared.
+            </p>
         `;
+    }
 
-        const container = getEl("dashboardAiLottie");
+    const timelineCard =
+        document.querySelector(
+            ".compact-timeline-card"
+        );
 
-        if (!container || !window.lottie) {
-            return;
+    if (timelineCard) {
+        timelineCard.classList.remove(
+            "timeline-open"
+        );
+    }
+
+    const timelineButton =
+        getEl("toggleCompactTimelineBtn");
+
+    if (timelineButton) {
+        timelineButton.setAttribute(
+            "aria-expanded",
+            "false"
+        );
+    }
+
+    const frame =
+        getEl("insiderIntelligenceFrame");
+
+    const frameButton =
+        getEl("toggleIntelligenceFrameBtn");
+
+    if (frame) {
+        frame.classList.add(
+            "intelligence-collapsed"
+        );
+    }
+
+    if (frameButton) {
+        frameButton.setAttribute(
+            "aria-expanded",
+            "false"
+        );
+    }
+
+    safeSetText(
+        "intelligenceCollapseText",
+        "Open"
+    );
+}
+
+    async function analyzeSmartMoneyWithAI() {
+    const symbol = window.currentSymbol;
+
+    const button =
+        getEl("analyzeCompanyWithAiBtn");
+
+    const loading =
+        getEl("smartMoneyLoading");
+
+    const dashboard =
+        getEl("compactSmartMoney");
+
+    const aiSection =
+        getEl("compactAiAnalysis");
+
+    const aiBody =
+        getEl("dashboardAiBody");
+
+    const aiStatus =
+        getEl("aiStreamStatus");
+
+    if (!symbol) {
+        openIntelligenceFrame();
+
+        aiSection?.classList.remove(
+            "hidden"
+        );
+
+        if (aiStatus) {
+            aiStatus.textContent =
+                "Waiting";
         }
 
-        if (dashboardAiLottie) {
-            dashboardAiLottie.destroy();
-            dashboardAiLottie = null;
+        if (aiBody) {
+            aiBody.innerHTML = `
+                <div class="dashboard-ai-unavailable">
+                    Search a company first before using
+                    AI insider analysis.
+                </div>
+            `;
         }
+
+        return;
+    }
+
+    openIntelligenceFrame();
+
+    if (compactAiLottie) {
+        compactAiLottie.destroy();
+        compactAiLottie = null;
+    }
+
+    loading?.classList.remove("hidden");
+    dashboard?.classList.add("hidden");
+    aiSection?.classList.add("hidden");
+
+    updateSmartMoneyLoading(
+        "Loading insider intelligence...",
+        "Reading recent SEC Form 4 filings."
+    );
+
+    if (
+        typeof setButtonLoading ===
+        "function"
+    ) {
+        setButtonLoading(
+            button,
+            true
+        );
+    } else if (button) {
+        button.disabled = true;
+    }
+
+    try {
+        /*
+         * First request:
+         * prepare the existing Smart Money Intelligence data.
+         */
+        const prepareResponse = await fetch(
+            `/api/smart-money/${encodeURIComponent(symbol)}/prepare`,
+            {
+                method: "POST",
+                headers: {
+                    "Accept": "application/json"
+                }
+            }
+        );
+
+        let prepared;
 
         try {
-            dashboardAiLottie = lottie.loadAnimation({
-                container: container,
+            prepared =
+                await prepareResponse.json();
+        } catch (parseError) {
+            throw new Error(
+                "The Smart Money preparation endpoint returned an invalid response."
+            );
+        }
+
+        if (
+            !prepareResponse.ok ||
+            !prepared.success
+        ) {
+            throw new Error(
+                prepared.message ||
+                "Unable to prepare Smart Money Intelligence."
+            );
+        }
+
+        updateSmartMoneyLoading(
+            "Rendering Smart Money Intelligence...",
+            "Preparing compact charts and insider patterns."
+        );
+
+        window.smartMoneyData =
+            prepared.smart_money || {};
+
+        renderCompactSmartMoney(
+            window.smartMoneyData
+        );
+
+        /*
+         * Display calculated charts first.
+         */
+        loading?.classList.add("hidden");
+        dashboard?.classList.remove("hidden");
+        aiSection?.classList.remove("hidden");
+
+        /*
+         * Show the Lottie animation in compact-ai-output
+         * while the model prepares its first response.
+         */
+        showCompactAILottieThinking();
+
+        /*
+         * Second request:
+         * send the prepared data to Ollama and open the stream.
+         */
+        const aiResponse = await fetch(
+            `/api/smart-money/${encodeURIComponent(symbol)}/ai-explanation-stream`,
+            {
+                method: "POST",
+                headers: {
+                    "Accept": "text/plain"
+                }
+            }
+        );
+
+        if (
+            !aiResponse.ok ||
+            !aiResponse.body
+        ) {
+            throw new Error(
+                "AI explanation stream failed."
+            );
+        }
+
+        const reader =
+            aiResponse.body.getReader();
+
+        const decoder =
+            new TextDecoder("utf-8");
+
+        let fullText = "";
+        let output = null;
+        let streamStarted = false;
+
+        while (true) {
+            const result =
+                await reader.read();
+
+            if (result.done) {
+                break;
+            }
+
+            const chunk = decoder.decode(
+                result.value,
+                {
+                    stream: true
+                }
+            );
+
+            if (!chunk) {
+                continue;
+            }
+
+            /*
+             * Keep the animation visible until the first
+             * actual AI text arrives.
+             */
+            if (!streamStarted) {
+                streamStarted = true;
+
+                output =
+                    showCompactAIStreamBox();
+
+                if (aiStatus) {
+                    aiStatus.textContent =
+                        "Generating";
+                }
+            }
+
+            fullText += chunk;
+
+            if (output) {
+                const distanceFromBottom =
+                    output.scrollHeight -
+                    output.scrollTop -
+                    output.clientHeight;
+
+                const userNearBottom =
+                    distanceFromBottom < 70;
+
+                output.textContent =
+                    fullText;
+
+                if (userNearBottom) {
+                    output.scrollTop =
+                        output.scrollHeight;
+                }
+            }
+        }
+
+        /*
+         * Flush any remaining UTF-8 bytes.
+         */
+        const finalChunk =
+            decoder.decode();
+
+        if (finalChunk) {
+            if (!streamStarted) {
+                streamStarted = true;
+
+                output =
+                    showCompactAIStreamBox();
+            }
+
+            fullText += finalChunk;
+
+            if (output) {
+                output.textContent =
+                    fullText;
+            }
+        }
+
+        /*
+         * The model may theoretically finish without
+         * returning any visible text.
+         */
+        if (!streamStarted) {
+            output =
+                showCompactAIStreamBox();
+        }
+
+        if (output) {
+            output.classList.remove(
+                "streaming"
+            );
+        }
+
+        if (aiStatus) {
+            aiStatus.textContent =
+                "Complete";
+        }
+
+        if (
+            !fullText.trim() &&
+            output
+        ) {
+            output.textContent =
+                "AI explanation returned an empty response.";
+        }
+
+    } catch (error) {
+        console.error(
+            "Insider intelligence error:",
+            error
+        );
+
+        if (compactAiLottie) {
+            compactAiLottie.destroy();
+            compactAiLottie = null;
+        }
+
+        loading?.classList.add("hidden");
+        aiSection?.classList.remove("hidden");
+
+        if (aiStatus) {
+            aiStatus.textContent =
+                "Failed";
+        }
+
+        if (aiBody) {
+            aiBody.innerHTML = `
+                <div class="dashboard-ai-unavailable">
+                    ${escapeHTML(
+                        error.message ||
+                        "Unable to load insider intelligence."
+                    )}
+                </div>
+            `;
+        }
+
+    } finally {
+        if (
+            typeof setButtonLoading ===
+            "function"
+        ) {
+            setButtonLoading(
+                button,
+                false
+            );
+        } else if (button) {
+            button.disabled = false;
+        }
+    }
+}
+
+    function showCompactAILottieThinking() {
+    const aiBody = getEl("dashboardAiBody");
+    const aiStatus = getEl("aiStreamStatus");
+
+    if (!aiBody) return;
+
+    if (compactAiLottie) {
+        compactAiLottie.destroy();
+        compactAiLottie = null;
+    }
+
+    if (aiStatus) {
+        aiStatus.textContent = "Analyzing";
+    }
+
+    aiBody.innerHTML = `
+        <div class="compact-ai-thinking">
+            <div
+                class="compact-ai-lottie"
+                id="compactAiLottie"
+            ></div>
+
+            <div class="compact-ai-thinking-content">
+                <strong>
+                    Interpreting insider activity
+                </strong>
+
+                <p>
+                    Reviewing Smart Money signals, transaction
+                    classifications, ownership changes and insider
+                    activity patterns.
+                </p>
+
+                <div class="compact-ai-thinking-steps">
+                    <span>Analyzing score</span>
+                    <span>Comparing activity</span>
+                    <span>Finding patterns</span>
+                </div>
+            </div>
+        </div>
+    `;
+
+    const animationContainer =
+        getEl("compactAiLottie");
+
+    if (
+        !animationContainer ||
+        !window.lottie
+    ) {
+        return;
+    }
+
+    try {
+        compactAiLottie =
+            lottie.loadAnimation({
+                container:
+                    animationContainer,
                 renderer: "svg",
                 loop: true,
                 autoplay: true,
-                path: "/static/animations/ai-thinking.json"
+                path:
+                    "/static/animations/ai-thinking.json"
             });
 
-            dashboardAiLottie.addEventListener("data_failed", function () {
-                console.error("Dashboard Lottie failed to load. Check /static/animations/ai-thinking.json");
-            });
-
-        } catch (error) {
-            console.error("Dashboard Lottie init failed:", error);
-        }
-    }
-
-    function showDashboardAIStreamBox() {
-        const body = getEl("dashboardAiBody");
-
-        if (!body) return null;
-
-        if (dashboardAiLottie) {
-            dashboardAiLottie.destroy();
-            dashboardAiLottie = null;
-        }
-
-        body.innerHTML = `
-            <div class="dashboard-ai-success streaming" id="dashboardAiStreamText"></div>
-        `;
-
-        return getEl("dashboardAiStreamText");
-    }
-
-    async function analyzeCompanyDashboardWithAI() {
-        const body = getEl("dashboardAiBody");
-        const button = getEl("analyzeCompanyWithAiBtn");
-        const symbol = window.currentSymbol;
-
-        if (!symbol) {
-            expandDashboardAICard();
-
-            if (body) {
-                body.innerHTML = `
-                    <div class="dashboard-ai-unavailable">
-                        Search a company first before using AI company analysis.
-                    </div>
-                `;
+        compactAiLottie.addEventListener(
+            "data_failed",
+            function () {
+                console.error(
+                    "Compact AI Lottie failed to load."
+                );
             }
+        );
+
+    } catch (error) {
+        console.error(
+            "Compact AI Lottie initialization failed:",
+            error
+        );
+    }
+}
+
+    function showCompactAIStreamBox() {
+    const aiBody = getEl("dashboardAiBody");
+
+    if (!aiBody) return null;
+
+    if (compactAiLottie) {
+        compactAiLottie.destroy();
+        compactAiLottie = null;
+    }
+
+    aiBody.innerHTML = `
+        <div
+            class="dashboard-ai-success streaming"
+            id="dashboardAiStreamText"
+        ></div>
+    `;
+
+    return getEl("dashboardAiStreamText");
+}
+
+    function renderCompactSmartMoney(data) {
+        const score = Number(data.smart_money_score || 0);
+
+        safeSetText("compactSmartMoneyScore", `${Math.round(score)} / 100`);
+        safeSetText("compactSmartMoneyStatus", getSmartMoneyLabel(score));
+        safeSetText(
+            "compactSmartMoneyMomentum",
+            `Momentum: ${data.insider_momentum ?? 0}`
+        );
+
+        safeSetText("compactSmartMoneyBuys", data.total_buys ?? 0);
+        safeSetText("compactSmartMoneySells", data.total_sells ?? 0);
+        safeSetText("compactSmartMoneyTaxes", data.total_taxes ?? 0);
+        safeSetText("compactSmartMoneyGrants", data.total_grants ?? 0);
+
+        renderCompactGauge(data);
+        renderCompactActivityMix(data);
+        renderCompactSignalStrength(data);
+        renderCompactOwnership(data);
+        renderCompactTimeline(data);
+    }
+
+    function renderCompactGauge(data) {
+        const canvas = getEl("compactSmartMoneyGauge");
+
+        if (!canvas || !window.Chart) return;
+
+        if (compactGaugeChart) {
+            compactGaugeChart.destroy();
+        }
+
+        const score = Number(data.smart_money_score || 0);
+
+        compactGaugeChart = new Chart(canvas, {
+            type: "doughnut",
+            data: {
+                datasets: [{
+                    data: [
+                        score,
+                        Math.max(0, 100 - score)
+                    ],
+                    backgroundColor: [
+                        score >= 65
+                            ? "#22c55e"
+                            : score >= 45
+                                ? "#facc15"
+                                : "#ef4444",
+                        "#e5e7eb"
+                    ],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: "72%",
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        enabled: false
+                    }
+                }
+            },
+            plugins: [{
+                id: "compactGaugeText",
+                beforeDraw(chart) {
+                    const { ctx, width, height } = chart;
+
+                    ctx.save();
+                    ctx.textAlign = "center";
+                    ctx.textBaseline = "middle";
+                    ctx.font = "800 24px Arial";
+                    ctx.fillStyle = "#142236";
+                    ctx.fillText(
+                        Math.round(score),
+                        width / 2,
+                        height / 2
+                    );
+                    ctx.restore();
+                }
+            }]
+        });
+    }
+
+    function renderCompactActivityMix(data) {
+        const canvas = getEl("compactActivityMix");
+
+        if (!canvas || !window.Chart) return;
+
+        if (compactActivityChart) {
+            compactActivityChart.destroy();
+        }
+
+        compactActivityChart = new Chart(canvas, {
+            type: "doughnut",
+            data: {
+                labels: ["Buys", "Sells", "Taxes", "Grants"],
+                datasets: [{
+                    data: [
+                        Number(data.total_buys || 0),
+                        Number(data.total_sells || 0),
+                        Number(data.total_taxes || 0),
+                        Number(data.total_grants || 0)
+                    ],
+                    backgroundColor: [
+                        "#22c55e",
+                        "#ef4444",
+                        "#f59e0b",
+                        "#3b82f6"
+                    ],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: "68%",
+                plugins: {
+                    legend: {
+                        position: "bottom",
+                        labels: {
+                            boxWidth: 8,
+                            usePointStyle: true,
+                            font: {
+                                size: 9
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function renderCompactSignalStrength(data) {
+        const canvas = getEl("compactSignalStrength");
+
+        if (!canvas || !window.Chart) return;
+
+        if (compactSignalChart) {
+            compactSignalChart.destroy();
+        }
+
+        const signals = (data.signals || []).slice(0, 4);
+
+        if (!signals.length) {
+            const context = canvas.getContext("2d");
+
+            context.clearRect(0, 0, canvas.width, canvas.height);
+            context.save();
+            context.textAlign = "center";
+            context.fillStyle = "#64748b";
+            context.font = "12px Arial";
+            context.fillText(
+                "No strong signals detected",
+                canvas.width / 2,
+                canvas.height / 2
+            );
+            context.restore();
 
             return;
         }
 
-        expandDashboardAICard();
-        showDashboardAILottieThinking();
+        compactSignalChart = new Chart(canvas, {
+            type: "bar",
+            data: {
+                labels: signals.map(function (signal) {
+                    return String(
+                        signal.signal || "Signal"
+                    ).replaceAll("_", " ");
+                }),
+                datasets: [{
+                    data: signals.map(function (signal) {
+                        return Number(signal.score || 0);
+                    }),
+                    backgroundColor: signals.map(function (signal) {
+                        const name = String(signal.signal || "").toLowerCase();
 
-        if (typeof setButtonLoading === "function") {
-            setButtonLoading(button, true);
-        } else if (button) {
-            button.disabled = true;
-        }
+                        if (
+                            name.includes("bearish") ||
+                            name.includes("distribution")
+                        ) {
+                            return "#ef4444";
+                        }
 
-        try {
-            const response = await fetch(`/api/company-dashboard/${encodeURIComponent(symbol)}/ai-analysis-stream`, {
-                method: "POST"
-            });
+                        if (
+                            name.includes("bullish") ||
+                            name.includes("accumulation") ||
+                            name.includes("cluster")
+                        ) {
+                            return "#22c55e";
+                        }
 
-            if (!response.ok || !response.body) {
-                throw new Error("AI stream failed.");
-            }
-
-            const output = showDashboardAIStreamBox();
-            const aiBody = getEl("dashboardAiBody");
-
-            if (aiBody) {
-                aiBody.dataset.userScrolled = "false";
-
-                aiBody.addEventListener("scroll", function () {
-                    const distanceFromBottom =
-                        aiBody.scrollHeight - aiBody.scrollTop - aiBody.clientHeight;
-
-                    aiBody.dataset.userScrolled = distanceFromBottom > 80 ? "true" : "false";
-                });
-            }
-
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder("utf-8");
-
-            let fullText = "";
-
-            while (true) {
-                const result = await reader.read();
-
-                if (result.done) {
-                    break;
-                }
-
-                const chunk = decoder.decode(result.value, {
-                    stream: true
-                });
-
-                fullText += chunk;
-
-                await sleep(35);
-
-                if (output) {
-                    output.textContent = fullText;
-
-                    if (aiBody && aiBody.dataset.userScrolled !== "true") {
-                        aiBody.scrollTop = aiBody.scrollHeight;
+                        return "#60a5fa";
+                    }),
+                    borderRadius: 7,
+                    barThickness: 16
+                }]
+            },
+            options: {
+                indexAxis: "y",
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        suggestedMax: 100,
+                        ticks: {
+                            font: {
+                                size: 9
+                            }
+                        }
+                    },
+                    y: {
+                        ticks: {
+                            font: {
+                                size: 8,
+                                weight: "700"
+                            }
+                        }
                     }
                 }
             }
-
-            if (output) {
-                output.classList.remove("streaming");
-            }
-
-            if (!fullText.trim() && output) {
-                output.textContent = "AI analysis returned an empty response.";
-            }
-
-        } catch (error) {
-            console.error("Dashboard AI frontend error:", error);
-
-            if (dashboardAiLottie) {
-                dashboardAiLottie.destroy();
-                dashboardAiLottie = null;
-            }
-
-            if (body) {
-                body.innerHTML = `
-                    <div class="dashboard-ai-unavailable">
-                        AI company analysis failed: ${escapeHTML(error.message || "Unknown error")}
-                    </div>
-                `;
-            }
-
-        } finally {
-            if (typeof setButtonLoading === "function") {
-                setButtonLoading(button, false);
-            } else if (button) {
-                button.disabled = false;
-            }
-        }
+        });
     }
+
+    function renderCompactOwnership(data) {
+        const container = getEl("compactOwnershipList");
+
+        if (!container) return;
+
+        const transactions = data.recent_transactions || [];
+        const ownershipMap = new Map();
+
+        transactions.forEach(function (transaction) {
+            const name = transaction.insider || "Unknown insider";
+            const remainingShares = Number(
+                transaction.remaining_shares || 0
+            );
+
+            if (
+                remainingShares >
+                (ownershipMap.get(name) || 0)
+            ) {
+                ownershipMap.set(name, remainingShares);
+            }
+        });
+
+        const owners = Array.from(ownershipMap.entries())
+            .sort(function (first, second) {
+                return second[1] - first[1];
+            })
+            .slice(0, 5);
+
+        if (!owners.length) {
+            container.innerHTML = `
+                <p class="dashboard-ai-placeholder">
+                    Ownership data is unavailable.
+                </p>
+            `;
+            return;
+        }
+
+        container.innerHTML = owners.map(function ([name, shares]) {
+            return `
+                <div class="compact-ownership-row">
+                    <span
+                        class="compact-ownership-name"
+                        title="${escapeHTML(name)}"
+                    >
+                        ${escapeHTML(name)}
+                    </span>
+
+                    <span class="compact-ownership-value">
+                        ${Number(shares).toLocaleString()}
+                    </span>
+                </div>
+            `;
+        }).join("");
+    }
+
+    function renderCompactTimeline(data) {
+        const container = getEl("compactTimelineList");
+
+        if (!container) return;
+
+        const transactions = (data.recent_transactions || [])
+            .slice()
+            .sort(function (first, second) {
+                return new Date(second.date) - new Date(first.date);
+            })
+            .slice(0, 20);
+
+        if (!transactions.length) {
+            container.innerHTML = `
+                <p class="dashboard-ai-placeholder">
+                    No recent transactions are available.
+                </p>
+            `;
+            return;
+        }
+
+        container.innerHTML = transactions.map(function (transaction) {
+            const date = transaction.date || "Unknown date";
+            const insider = transaction.insider || "Unknown insider";
+            const type = transaction.type || "Other";
+            const shares = Number(transaction.shares || 0);
+
+            const color =
+                type === "BUY"
+                    ? "green"
+                    : type === "SELL"
+                        ? "red"
+                        : type === "Tax"
+                            ? "orange"
+                            : type === "Grant"
+                                ? "blue"
+                                : "neutral";
+
+            return `
+                <div class="compact-timeline-entry">
+                    <span class="compact-timeline-dot ${color}"></span>
+
+                    <div class="compact-timeline-main">
+                        <strong>
+                            ${escapeHTML(insider)}
+                            ·
+                            ${escapeHTML(type)}
+                        </strong>
+
+                        <span>
+                            ${escapeHTML(String(date))}
+                        </span>
+                    </div>
+
+                    <span class="compact-timeline-value">
+                        ${shares.toLocaleString()} shares
+                    </span>
+                </div>
+            `;
+        }).join("");
+    }
+
+    window.resetCompactIntelligence = resetCompactIntelligence;
 
 
     /* =========================================================
@@ -879,6 +1602,11 @@ function showSection(sectionId, shouldScroll = true) {
     }
 
     targetSection.classList.add("active");
+
+    const intelligenceFrame = document.getElementById("insiderIntelligenceFrame");
+    if (intelligenceFrame) {
+        intelligenceFrame.style.display = sectionId === "insider-section" ? "" : "none";
+    }
 
     if (shouldScroll) {
         setTimeout(function () {
@@ -1040,7 +1768,6 @@ function smoothScrollToResults() {
                     <h2 class="company-name">${escapeDashboardHTML(companyName)} (${escapeDashboardHTML(symbol)})</h2>
                     <div class="header-actions">
                         <span class="chart-btn" onclick="toggleChart()">📊<span class="chart-tooltip">Open chart</span></span>
-                        <a href="#" id="smart-money-btn"><img src="../static/grok.svg" class="smart-money-icon" alt="Smart Money"></a>
                     </div>
                 </div>
                 <p>Insider transaction activity</p>
@@ -1131,14 +1858,6 @@ function smoothScrollToResults() {
     function bindDynamicInsiderControls(){
         const chartFilter=document.getElementById("chartFilter");
         if(chartFilter)chartFilter.addEventListener("change",loadChart);
-        const smartMoneyBtn=document.getElementById("smart-money-btn");
-        if(smartMoneyBtn){
-            smartMoneyBtn.addEventListener("click",async event=>{
-                event.preventDefault();
-                if(typeof window.loadSmartMoney==="function")await window.loadSmartMoney(window.currentSymbol);
-                else notify("Smart Money panel is available after insider data finishes loading.","info");
-            });
-        }
     }
 
     async function loadInsiders(){
@@ -1218,6 +1937,7 @@ function smoothScrollToResults() {
         if(!window.currentSymbol)return;
         const aiButton=document.getElementById("analyzeCompanyWithAiBtn");
         if(aiButton)aiButton.disabled=true;
+        if(typeof window.resetCompactIntelligence==="function")window.resetCompactIntelligence();
         await loadInsiders();
         await loadInstitutions();
         await loadNews();

@@ -29,6 +29,7 @@ from services.stock_data_service import build_prediction_response
 from services.ollama_analysis import (
     stream_dashboard_ai_analysis,
     stream_forecast_ai_analysis,
+stream_smart_money_ai_explanation,
     analyze_news_sentiment
 )
 from services.google_news_service import google_news_service
@@ -68,6 +69,8 @@ CACHE_FOLDER_insider = "cache/insider"
 CACHE_FOLDER_institutions = "cache/institutions"
 CACHE_FOLDER_news = "cache/news"
 dashboard_ai_data_cache = {}
+smart_money_ai_cache = {}
+SMART_MONEY_CACHE_SECONDS = 6 * 60 * 60
 
 os.makedirs(CACHE_FOLDER_insider, exist_ok=True)
 os.makedirs(CACHE_FOLDER_institutions, exist_ok=True)
@@ -726,9 +729,119 @@ def fetch_market_data(data_type, symbol):
 
     return data
 
+def get_cached_smart_money_result(symbol):
+    symbol = symbol.upper().strip()
+
+    cached = smart_money_ai_cache.get(symbol)
+
+    if not cached:
+        return None
+
+    created_at = cached.get("created_at", 0)
+
+    if time.time() - created_at > SMART_MONEY_CACHE_SECONDS:
+        smart_money_ai_cache.pop(symbol, None)
+        return None
+
+    return cached
+
+
+def build_smart_money_result(symbol):
+    """
+    Generates Smart Money Intelligence once and stores the result.
+
+    Both the Smart Money panel and the AI explanation reuse
+    this same calculated result.
+    """
+
+    symbol = symbol.upper().strip()
+
+    company = edgar_client.find(symbol)
+
+    if not company:
+        raise ValueError("Company not found")
+
+    entity = company.raw
+    filings = entity.get_filings(form=["4"])
+
+    parsed_filings = []
+
+    for index, filing in enumerate(filings):
+        if index >= 30:
+            break
+
+        try:
+            parsed = filing_parser.parse(filing)
+
+            if parsed:
+                parsed_filings.append(parsed)
+
+        except Exception as error:
+            print(
+                f"[INSIDER PARSE ERROR] {symbol}:",
+                error
+            )
+
+    summary = insider_service.analyze(
+        parsed_filings,
+        company.name
+    )
+
+    summary_dict = make_json_safe(
+        asdict(summary)
+    )
+
+    result = {
+        "symbol": symbol,
+        "company": company.name,
+        "summary": summary_dict,
+        "created_at": time.time()
+    }
+
+    smart_money_ai_cache[symbol] = result
+
+    return result
+
 @app.route("/")
 def landing():
     return render_template("main.html")
+
+@app.route(
+    "/api/smart-money/<symbol>/prepare",
+    methods=["POST"]
+)
+def prepare_smart_money_intelligence(symbol):
+    symbol = symbol.upper().strip()
+
+    try:
+        result = get_cached_smart_money_result(symbol)
+
+        if not result:
+            result = build_smart_money_result(symbol)
+
+        return jsonify({
+            "success": True,
+            "smart_money": result["summary"]
+        })
+
+    except ValueError as error:
+        return jsonify({
+            "success": False,
+            "message": str(error)
+        }), 404
+
+    except Exception as error:
+        print(
+            f"[SMART MONEY PREPARE ERROR] {symbol}:",
+            error
+        )
+
+        return jsonify({
+            "success": False,
+            "message": (
+                "Unable to prepare insider intelligence."
+            )
+        }), 500
 
 @app.route("/dashboard",methods=["GET","POST"])
 def home():
@@ -932,8 +1045,11 @@ def get_company_info(symbol):
 
 @app.route("/insider", methods=["GET"])
 def insider_dashboard():
-
-    ticker = session.get("ticker")
+    ticker = (
+        request.args.get("ticker")
+        or session.get("ticker")
+        or ""
+    ).upper().strip()
 
     if not ticker:
         return jsonify({
@@ -941,38 +1057,87 @@ def insider_dashboard():
             "message": "Ticker is required"
         }), 400
 
-    company = edgar_client.find(ticker)
+    try:
+        result = get_cached_smart_money_result(
+            ticker
+        )
 
-    if not company:
+        if not result:
+            result = build_smart_money_result(
+                ticker
+            )
+
+        return jsonify({
+            "success": True,
+            "data": result["summary"]
+        })
+
+    except ValueError as error:
         return jsonify({
             "success": False,
-            "message": "Company not found"
+            "message": str(error)
         }), 404
 
-    entity = company.raw
-    filings = entity.get_filings(form=["4"])
+    except Exception as error:
+        print(
+            f"[SMART MONEY ERROR] {ticker}:",
+            error
+        )
 
-    parsed_filings = []
+        return jsonify({
+            "success": False,
+            "message": (
+                "Unable to generate Smart Money "
+                "Intelligence right now."
+            )
+        }), 500
 
-    for idx, filing in enumerate(filings):
-        if idx >= 30:
-            break
+@app.route(
+    "/api/smart-money/<symbol>/ai-explanation-stream",
+    methods=["POST"]
+)
+def smart_money_ai_explanation_stream(symbol):
+    symbol = symbol.upper().strip()
 
+    def generate():
         try:
-            parsed = filing_parser.parse(filing)
-            if parsed:
-                parsed_filings.append(parsed)
-        except Exception as e:
-            print(f"[INSIDER PARSE ERROR] {ticker}: {e}")
+            smart_money_result = (
+                get_cached_smart_money_result(symbol)
+            )
 
-    summary = insider_service.analyze(parsed_filings, company.name)
-    summary_dict = make_json_safe(asdict(summary))
+            # The user does not need to open Smart Money first.
+            if not smart_money_result:
+                smart_money_result = (
+                    build_smart_money_result(symbol)
+                )
 
-    return jsonify({
-        "success": True,
-        "data": summary_dict
-    })
+            for chunk in stream_smart_money_ai_explanation(
+                smart_money_result
+            ):
+                yield chunk
 
+        except ValueError as error:
+            yield str(error)
+
+        except Exception as error:
+            print(
+                f"[SMART MONEY AI ROUTE ERROR] {symbol}:",
+                error
+            )
+
+            yield (
+                "Smart Money AI explanation could not "
+                "be generated right now."
+            )
+
+    return Response(
+        generate(),
+        mimetype="text/plain",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no"
+        }
+    )
 
 @app.route("/api/ticker-list")
 def ticker_list():

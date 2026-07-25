@@ -35,4 +35,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN pip install pygooglenews==0.1.2 --no-deps
 COPY . .
 
-CMD ["gunicorn", "--bind", "0.0.0.0:8080", "app:app"]
+CMD ["gunicorn", "app:app", "--bind", "0.0.0.0:8080", "--worker-class", "gthread", "--workers", "1", "--threads", "4", "--timeout", "300", "--graceful-timeout", "30", "--keep-alive", "5", "--access-logfile", "-", "--error-logfile", "-"]

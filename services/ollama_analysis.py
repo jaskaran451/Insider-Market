@@ -18,7 +18,12 @@ OLLAMA_TIMEOUT = int(
 NEWS_SENTIMENT_BATCH_SIZE = int(
     os.getenv("NEWS_SENTIMENT_BATCH_SIZE", "2")
 )
-
+OLLAMA_CONNECT_TIMEOUT = int(
+    os.getenv("OLLAMA_CONNECT_TIMEOUT", "10")
+)
+OLLAMA_READ_TIMEOUT = int(
+    os.getenv("OLLAMA_READ_TIMEOUT", "240")
+)
 CACHE_DIR = Path("cache/ai_summaries")
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -217,41 +222,20 @@ def _prepare_smart_money_ai_payload(data):
     }
 
 def stream_smart_money_ai_explanation(smart_money_data):
-    """
-    Explains an existing Smart Money Intelligence result.
-
-    InsiderService already calculated the scores,
-    classifications and signals. Ollama only explains them.
-    """
+    """Stream a narrative explanation of Smart Money Intelligence results."""
 
     if not AI_SUMMARY_ENABLED:
-        yield (
-            "AI Smart Money explanation is disabled "
-            "on this server."
-        )
+        yield "AI Smart Money explanation is disabled on this server."
         return
 
-    payload = _prepare_smart_money_ai_payload(
-        smart_money_data
-    )
+    payload = _prepare_smart_money_ai_payload(smart_money_data)
 
     system_instruction = """
 You are InsiderAI, a professional SEC Form 4 insider-activity analyst.
 
 You receive a pre-calculated Smart Money Intelligence result.
 
-Your task is to INTERPRET the supplied result for an investor.
-
-You must never:
-- reproduce the supplied JSON;
-- output JSON, Python dictionaries, code blocks, or markdown fences;
-- say that you are making the JSON easier to read;
-- list every transaction;
-- recalculate or change the supplied score;
-- treat grants as open-market purchases;
-- treat tax withholding as voluntary selling;
-- invent motives or unsupported facts;
-- provide buy, sell, or hold advice.
+Your task is to interpret the supplied result for an investor.
 
 Write a concise narrative analysis using normal prose.
 
@@ -296,39 +280,55 @@ SMART MONEY DATA:
 {json.dumps(payload, separators=(",", ":"), default=str)}
 """
 
+    request_payload = {
+        "model": OLLAMA_MODEL,
+        "system": system_instruction,
+        "prompt": user_prompt,
+        "stream": True,
+        "keep_alive": "15m",
+        "options": {
+            "temperature": 0.15,
+            "num_ctx": 4096,
+            "num_predict": 450,
+            "repeat_penalty": 1.1,
+        },
+    }
+
+    request_started_at = time.perf_counter()
+
+    print(
+        "[SMART MONEY AI REQUEST START] "
+        f"model={OLLAMA_MODEL} url={OLLAMA_URL}"
+    )
+
     try:
         response = requests.post(
             OLLAMA_URL,
-            json={
-                "model": OLLAMA_MODEL,
-
-                # Keep behavior instructions separate from data.
-                "system": system_instruction,
-                "prompt": user_prompt,
-
-                "stream": True,
-                "keep_alive": "15m",
-
-                "options": {
-                    "temperature": 0.15,
-
-                    # 2048 was too small for the instructions
-                    # plus transaction data.
-                    "num_ctx": 4096,
-
-                    # Enough room for the requested narrative.
-                    "num_predict": 700,
-
-                    "repeat_penalty": 1.1
-                }
-            },
+            json=request_payload,
             stream=True,
-            timeout=OLLAMA_TIMEOUT
+            timeout=(
+                OLLAMA_CONNECT_TIMEOUT,
+                OLLAMA_READ_TIMEOUT,
+            ),
         )
-
         response.raise_for_status()
 
+        response_time = time.perf_counter() - request_started_at
+
+        print(
+            "[SMART MONEY AI HTTP RESPONSE] "
+            f"{response_time:.2f} seconds"
+        )
+
+        first_chunk_received = False
         started_output = False
+
+        unwanted_openings = (
+            "here is the json",
+            "here's the json",
+            "the json data",
+            "```json",
+        )
 
         for line in response.iter_lines():
             if not line:
@@ -338,57 +338,87 @@ SMART MONEY DATA:
                 result = json.loads(
                     line.decode("utf-8")
                 )
-
-                chunk = result.get("response", "")
-
-                if chunk:
-                    # Defensive filter for a common unwanted opening.
-                    if not started_output:
-                        normalized = chunk.strip().lower()
-
-                        unwanted_openings = (
-                            "here is the json",
-                            "here's the json",
-                            "the json data",
-                            "```json"
-                        )
-
-                        if normalized.startswith(
-                            unwanted_openings
-                        ):
-                            continue
-
-                        started_output = True
-
-                    yield chunk
-
-                if result.get("done"):
-                    break
-
             except (
                 json.JSONDecodeError,
-                UnicodeDecodeError
+                UnicodeDecodeError,
             ) as error:
                 print(
                     "[SMART MONEY AI PARSE ERROR]",
-                    error
+                    error,
                 )
+                continue
+
+            chunk = result.get("response", "")
+
+            if chunk and not first_chunk_received:
+                first_chunk_received = True
+                first_chunk_time = (
+                    time.perf_counter()
+                    - request_started_at
+                )
+
+                print(
+                    "[SMART MONEY AI FIRST CHUNK] "
+                    f"{first_chunk_time:.2f} seconds"
+                )
+
+            if chunk and not started_output:
+                normalized_chunk = chunk.strip().lower()
+
+                if normalized_chunk.startswith(
+                    unwanted_openings
+                ):
+                    continue
+
+                started_output = True
+
+            if chunk:
+                yield chunk
+
+            if result.get("done"):
+                total_time = (
+                    time.perf_counter()
+                    - request_started_at
+                )
+
+                print(
+                    "[SMART MONEY AI COMPLETE] "
+                    f"{total_time:.2f} seconds"
+                )
+                break
+
+        if not first_chunk_received:
+            print(
+                "[SMART MONEY AI EMPTY RESPONSE] "
+                "Ollama completed without returning text."
+            )
+
+            yield (
+                "The AI model completed the request but "
+                "did not return an explanation."
+            )
 
     except requests.exceptions.ConnectionError as error:
         print(
             "[SMART MONEY AI CONNECTION ERROR]",
-            error
+            error,
         )
 
         yield (
-            "Smart Money AI explanation is unavailable "
-            "because the Ollama service could not be reached."
+            "Smart Money AI explanation is unavailable because "
+            "the Ollama service could not be reached."
         )
 
     except requests.exceptions.Timeout as error:
+        elapsed_time = (
+            time.perf_counter()
+            - request_started_at
+        )
+
         print(
-            "[SMART MONEY AI TIMEOUT]",
-            error
+            "[SMART MONEY AI TIMEOUT] "
+            f"after {elapsed_time:.2f} seconds:",
+            error,
         )
 
         yield (
@@ -399,18 +429,31 @@ SMART MONEY DATA:
     except requests.exceptions.RequestException as error:
         print(
             "[SMART MONEY AI REQUEST ERROR]",
-            error
+            error,
         )
 
         yield (
-            "Smart Money AI explanation could not be "
-            "completed because the model request failed."
+            "Smart Money AI explanation could not be completed "
+            "because the model request failed."
         )
+
+    except GeneratorExit:
+        elapsed_time = (
+            time.perf_counter()
+            - request_started_at
+        )
+
+        print(
+            "[SMART MONEY AI STREAM CLOSED] "
+            f"after {elapsed_time:.2f} seconds"
+        )
+
+        raise
 
     except Exception as error:
         print(
             "[SMART MONEY AI ERROR]",
-            error
+            error,
         )
 
         yield (

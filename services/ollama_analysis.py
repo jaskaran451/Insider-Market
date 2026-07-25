@@ -622,6 +622,263 @@ Forecast Data:
         print("[FORECAST OLLAMA STREAM ERROR]", error)
         yield "AI Analyst Summary is unavailable right now."
 
+def stream_news_sentiment(
+    news_items,
+    symbol,
+    company_name=None
+):
+    """
+    Analyzes news in small batches and yields each completed
+    article immediately.
+
+    Each yielded value is a fully merged article dictionary.
+    """
+
+    symbol = str(
+        symbol or ""
+    ).upper().strip()
+
+    company_name = str(
+        company_name or symbol
+    ).strip()
+
+    if not news_items:
+        return
+
+    prepared_articles = []
+    article_lookup = {}
+
+    for article in news_items:
+        article_copy = dict(article)
+
+        title = str(
+            article_copy.get("title") or ""
+        ).strip()
+
+        summary = str(
+            article_copy.get("summary") or ""
+        ).strip()
+
+        source = str(
+            article_copy.get("source") or ""
+        ).strip()
+
+        url = str(
+            article_copy.get("url") or ""
+        ).strip()
+
+        raw_identifier = (
+            f"{symbol}|{url}|{title}"
+        )
+
+        article_id = hashlib.sha256(
+            raw_identifier.encode("utf-8")
+        ).hexdigest()[:16]
+
+        article_copy["news_id"] = article_id
+
+        article_lookup[article_id] = article_copy
+
+        prepared_articles.append({
+            "id": article_id,
+            "title": title[:500],
+            "summary": summary[:1200],
+            "source": source[:200]
+        })
+
+    if not AI_SUMMARY_ENABLED:
+        for article in article_lookup.values():
+            article["overall_sentiment_label"] = (
+                "Neutral"
+            )
+
+            article["overall_sentiment_score"] = 0.0
+
+            article["sentiment_reason"] = (
+                "AI sentiment analysis is disabled."
+            )
+
+            yield article
+
+        return
+
+    for start in range(
+        0,
+        len(prepared_articles),
+        NEWS_SENTIMENT_BATCH_SIZE
+    ):
+        batch = prepared_articles[
+            start:
+            start + NEWS_SENTIMENT_BATCH_SIZE
+        ]
+
+        batch_ids = {
+            item["id"]
+            for item in batch
+        }
+
+        try:
+            batch_result = (
+                _analyze_news_sentiment_batch(
+                    articles=batch,
+                    symbol=symbol,
+                    company_name=company_name
+                )
+            )
+
+            result_map = {
+                result.get("id"): result
+                for result in batch_result.get(
+                    "results",
+                    []
+                )
+                if result.get("id")
+            }
+
+            for article_id in batch_ids:
+                article = dict(
+                    article_lookup[article_id]
+                )
+
+                sentiment = result_map.get(
+                    article_id
+                )
+
+                if sentiment:
+                    article[
+                        "overall_sentiment_label"
+                    ] = (
+                        sentiment.get(
+                            "overall_sentiment_label"
+                        )
+                        or "Neutral"
+                    )
+
+                    try:
+                        article[
+                            "overall_sentiment_score"
+                        ] = float(
+                            sentiment.get(
+                                "overall_sentiment_score"
+                            )
+                            or 0
+                        )
+
+                    except (
+                        TypeError,
+                        ValueError
+                    ):
+                        article[
+                            "overall_sentiment_score"
+                        ] = 0.0
+
+                    article["sentiment_reason"] = (
+                        sentiment.get("reason")
+                        or (
+                            "No clear company-specific "
+                            "impact was identified."
+                        )
+                    )
+
+                else:
+                    article[
+                        "overall_sentiment_label"
+                    ] = "Neutral"
+
+                    article[
+                        "overall_sentiment_score"
+                    ] = 0.0
+
+                    article["sentiment_reason"] = (
+                        "This article could not be "
+                        "analyzed by the AI model."
+                    )
+
+                yield article
+
+        except requests.exceptions.ConnectionError as error:
+            print(
+                "[NEWS STREAM CONNECTION ERROR]",
+                symbol,
+                start,
+                error
+            )
+
+            for article_id in batch_ids:
+                article = dict(
+                    article_lookup[article_id]
+                )
+
+                article[
+                    "overall_sentiment_label"
+                ] = "Neutral"
+
+                article[
+                    "overall_sentiment_score"
+                ] = 0.0
+
+                article["sentiment_reason"] = (
+                    "AI sentiment analysis was "
+                    "temporarily unavailable."
+                )
+
+                yield article
+
+        except requests.exceptions.Timeout as error:
+            print(
+                "[NEWS STREAM TIMEOUT]",
+                symbol,
+                start,
+                error
+            )
+
+            for article_id in batch_ids:
+                article = dict(
+                    article_lookup[article_id]
+                )
+
+                article[
+                    "overall_sentiment_label"
+                ] = "Neutral"
+
+                article[
+                    "overall_sentiment_score"
+                ] = 0.0
+
+                article["sentiment_reason"] = (
+                    "AI sentiment analysis timed out "
+                    "for this article."
+                )
+
+                yield article
+
+        except Exception as error:
+            print(
+                "[NEWS STREAM BATCH ERROR]",
+                symbol,
+                start,
+                error
+            )
+
+            for article_id in batch_ids:
+                article = dict(
+                    article_lookup[article_id]
+                )
+
+                article[
+                    "overall_sentiment_label"
+                ] = "Neutral"
+
+                article[
+                    "overall_sentiment_score"
+                ] = 0.0
+
+                article["sentiment_reason"] = (
+                    "This article could not be "
+                    "analyzed."
+                )
+
+                yield article
 
 def analyze_news_sentiment(news_items,symbol,company_name=None):
     symbol=str(symbol or "").upper().strip()

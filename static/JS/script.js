@@ -1840,6 +1840,245 @@ function smoothScrollToResults() {
         return `<div class="summary-grid">${summaryHTML}</div><div class="results-header"><h2>News & Sentiment</h2><p>Latest market intelligence for ${escapeDashboardHTML(symbol)}</p></div>${cards}`;
     }
 
+   function newsArticleHTML(item) {
+    const sentimentClass =
+        item.sentiment_label === "Bullish"
+            ? "buy"
+            : item.sentiment_label === "Bearish"
+                ? "sell"
+                : "neutral";
+
+    const score = Number(
+        item.sentiment_score || 0
+    );
+
+    return `
+        <article
+            class="news-card news-card-streamed"
+            data-news-id="${escapeDashboardHTML(
+                item.id || ""
+            )}"
+        >
+            ${
+                item.image
+                    ? `
+                        <img
+                            class="news-image"
+                            src="${escapeDashboardHTML(
+                                item.image
+                            )}"
+                            alt=""
+                            loading="lazy"
+                        >
+                      `
+                    : ""
+            }
+
+            <div class="news-body">
+                <div class="news-top">
+                    <h3>
+                        ${
+                            item.url
+                                ? `
+                                    <a
+                                        href="${escapeDashboardHTML(
+                                            item.url
+                                        )}"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                    >
+                                        ${escapeDashboardHTML(
+                                            item.title ||
+                                            "Untitled"
+                                        )}
+                                    </a>
+                                  `
+                                : escapeDashboardHTML(
+                                    item.title ||
+                                    "Untitled"
+                                )
+                        }
+                    </h3>
+
+                    <div class="news-sentiment-result">
+                        <span class="${sentimentClass}">
+                            ${escapeDashboardHTML(
+                                item.sentiment_label ||
+                                "Neutral"
+                            )}
+                        </span>
+
+                        <span class="news-sentiment-score">
+                            ${
+                                score >= 0
+                                    ? "+"
+                                    : ""
+                            }${score.toFixed(2)}
+                        </span>
+                    </div>
+                </div>
+
+                <p class="news-summary">
+                    ${escapeDashboardHTML(
+                        (
+                            item.summary || ""
+                        ).slice(0, 240)
+                    )}${
+                        (
+                            item.summary || ""
+                        ).length > 240
+                            ? "..."
+                            : ""
+                    }
+                </p>
+
+                ${
+                    item.sentiment_reason
+                        ? `
+                            <div class="news-sentiment-reason">
+                                <strong>
+                                    AI reasoning:
+                                </strong>
+
+                                ${escapeDashboardHTML(
+                                    item.sentiment_reason
+                                )}
+                            </div>
+                          `
+                        : ""
+                }
+
+                <div class="news-meta">
+                    <span>
+                        Source:
+                        ${escapeDashboardHTML(
+                            item.source ||
+                            "Google News"
+                        )}
+                    </span>
+
+                    <span>
+                        ${escapeDashboardHTML(
+                            item.time || ""
+                        )}
+                    </span>
+                </div>
+
+                <div class="tag-row">
+                    ${
+                        (
+                            item.topics || []
+                        ).map(
+                            function (topic) {
+                                return `
+                                    <span class="tag">
+                                        ${escapeDashboardHTML(
+                                            topic
+                                        )}
+                                    </span>
+                                `;
+                            }
+                        ).join("")
+                    }
+                </div>
+
+                ${
+                    (
+                        item.tickers || []
+                    ).length
+                        ? `
+                            <div class="ticker-row">
+                                ${
+                                    item.tickers.map(
+                                        function (ticker) {
+                                            return `
+                                                <span class="ticker-chip">
+                                                    ${escapeDashboardHTML(
+                                                        ticker.symbol ||
+                                                        ""
+                                                    )}
+                                                </span>
+                                            `;
+                                        }
+                                    ).join("")
+                                }
+                            </div>
+                          `
+                        : ""
+                }
+            </div>
+        </article>
+    `;
+}
+
+
+function renderStreamingNewsSummary(
+    container,
+    summary
+) {
+    if (!container) return;
+
+    const items = [
+        [
+            "Total Articles",
+            summary.total_articles ?? 0,
+            ""
+        ],
+        [
+            "Bullish",
+            summary.bullish ?? 0,
+            "bullish"
+        ],
+        [
+            "Bearish",
+            summary.bearish ?? 0,
+            "bearish"
+        ],
+        [
+            "Neutral",
+            summary.neutral ?? 0,
+            "neutral"
+        ],
+        [
+            "Avg Sentiment",
+            summary.avg_score ?? 0,
+            ""
+        ],
+        [
+            "Top Topic",
+            summary.top_topic || "N/A",
+            ""
+        ]
+    ];
+
+    container.innerHTML =
+        items.map(
+            function (
+                [
+                    label,
+                    value,
+                    css
+                ]
+            ) {
+                return `
+                    <div class="summary-card ${css}">
+                        <h3>
+                            ${escapeDashboardHTML(
+                                label
+                            )}
+                        </h3>
+
+                        <p>
+                            ${escapeDashboardHTML(
+                                value
+                            )}
+                        </p>
+                    </div>
+                `;
+            }
+        ).join("");
+}
+
     function earningsHTML(earnings,symbol,companyName){
         const items=earnings.items||[];
         if(!items.length){
@@ -1895,26 +2134,515 @@ function smoothScrollToResults() {
         }
     }
 
-    async function loadNews(){
-        const target=document.getElementById("newsContent");
-        dashboardState.news="loading";
-        setTabStatus("newsTabStatus","loading");
-        target.innerHTML=loadingCard("Collecting company news","Searching Google News for recent company coverage...","Step 3 of 4 · Fetching articles");
-        try{
-            setTimeout(()=>{
-                if(dashboardState.news==="loading")target.innerHTML=loadingCard("Analyzing news sentiment","InsiderAI is evaluating company-specific impact for each article...","Step 3 of 4 · AI sentiment analysis");
-            },1800);
-            const url=`/api/dashboard/${encodeURIComponent(window.currentSymbol)}/news?company_name=${encodeURIComponent(window.currentCompanyName||window.currentSymbol)}`;
-            const data=await fetchJSON(url);
-            target.innerHTML=newsHTML(data.news||[],data.summary||{},window.currentSymbol);
-            dashboardState.news="success";
-            setTabStatus("newsTabStatus","success");
-        }catch(error){
-            dashboardState.news="error";
-            setTabStatus("newsTabStatus","error");
-            target.innerHTML=errorCard("news",error.message);
+    async function loadNews() {
+    const target =
+        document.getElementById(
+            "newsContent"
+        );
+
+    if (!target) return;
+
+    dashboardState.news =
+        "loading";
+
+    setTabStatus(
+        "newsTabStatus",
+        "loading"
+    );
+
+    target.innerHTML = `
+        <div
+            class="news-stream-shell"
+            id="newsStreamShell"
+        >
+            <div
+                class="dashboard-loading-card"
+                id="newsStreamStatus"
+            >
+                <div class="dashboard-loader"></div>
+
+                <div>
+                    <strong>
+                        Collecting company news
+                    </strong>
+
+                    <p id="newsStreamMessage">
+                        Searching for recent
+                        company coverage...
+                    </p>
+
+                    <span
+                        class="dashboard-loading-stage"
+                        id="newsStreamProgress"
+                    >
+                        Preparing news stream
+                    </span>
+                </div>
+            </div>
+
+            <div
+                class="summary-grid hidden"
+                id="newsStreamSummary"
+            ></div>
+
+            <div
+                class="results-header hidden"
+                id="newsStreamHeader"
+            >
+                <h2>
+                    News & Sentiment
+                </h2>
+
+                <p>
+                    Latest market intelligence for
+                    ${escapeDashboardHTML(
+                        window.currentSymbol
+                    )}
+                </p>
+            </div>
+
+            <div
+                class="news-stream-list"
+                id="newsStreamList"
+            ></div>
+        </div>
+    `;
+
+    const statusCard =
+        document.getElementById(
+            "newsStreamStatus"
+        );
+
+    const statusMessage =
+        document.getElementById(
+            "newsStreamMessage"
+        );
+
+    const progress =
+        document.getElementById(
+            "newsStreamProgress"
+        );
+
+    const summaryContainer =
+        document.getElementById(
+            "newsStreamSummary"
+        );
+
+    const header =
+        document.getElementById(
+            "newsStreamHeader"
+        );
+
+    const list =
+        document.getElementById(
+            "newsStreamList"
+        );
+
+    let receivedArticles = 0;
+    let nonFatalStreamError = null;
+
+    try {
+        const url =
+            `/api/dashboard/${encodeURIComponent(
+                window.currentSymbol
+            )}/news-stream?company_name=${encodeURIComponent(
+                window.currentCompanyName ||
+                window.currentSymbol
+            )}`;
+
+        const response = await fetch(
+            url,
+            {
+                headers: {
+                    "Accept":
+                        "application/x-ndjson"
+                },
+                cache: "no-store"
+            }
+        );
+
+        if (
+            !response.ok ||
+            !response.body
+        ) {
+            throw new Error(
+                "News stream could not be opened."
+            );
         }
+
+        const reader =
+            response.body.getReader();
+
+        const decoder =
+            new TextDecoder("utf-8");
+
+        let buffer = "";
+        let streamDone = false;
+
+        while (!streamDone) {
+            const result =
+                await reader.read();
+
+            if (result.done) {
+                break;
+            }
+
+            buffer += decoder.decode(
+                result.value,
+                {
+                    stream: true
+                }
+            );
+
+            const lines =
+                buffer.split("\n");
+
+            buffer =
+                lines.pop() || "";
+
+            for (const rawLine of lines) {
+                const line =
+                    rawLine.trim();
+
+                if (!line) {
+                    continue;
+                }
+
+                let event;
+
+                try {
+                    event =
+                        JSON.parse(line);
+
+                } catch (error) {
+                    console.error(
+                        "Invalid news stream event:",
+                        line,
+                        error
+                    );
+
+                    continue;
+                }
+
+                if (
+                    event.type ===
+                    "status"
+                ) {
+                    if (statusMessage) {
+                        statusMessage.textContent =
+                            event.message ||
+                            "Processing news...";
+                    }
+
+                    continue;
+                }
+
+                if (
+                    event.type ===
+                    "start"
+                ) {
+                    header?.classList.remove(
+                        "hidden"
+                    );
+
+                    if (progress) {
+                        progress.textContent =
+                            `0 of ${
+                                event.total || 0
+                            } articles analyzed`;
+                    }
+
+                    continue;
+                }
+
+                if (
+                    event.type ===
+                    "article"
+                ) {
+                    receivedArticles += 1;
+
+                    header?.classList.remove(
+                        "hidden"
+                    );
+
+                    if (progress) {
+                        progress.textContent =
+                            `${event.index} of ${event.total} articles analyzed`;
+                    }
+
+                    if (
+                        list &&
+                        event.article
+                    ) {
+                        list.insertAdjacentHTML(
+                            "beforeend",
+                            newsArticleHTML(
+                                event.article
+                            )
+                        );
+                    }
+
+                    continue;
+                }
+
+                if (
+                    event.type ===
+                    "summary"
+                ) {
+                    renderStreamingNewsSummary(
+                        summaryContainer,
+                        event.summary || {}
+                    );
+
+                    summaryContainer
+                        ?.classList.remove(
+                            "hidden"
+                        );
+
+                    continue;
+                }
+
+                if (
+                    event.type ===
+                    "warning"
+                ) {
+                    nonFatalStreamError =
+                        event.message ||
+                        (
+                            "Some news processing could not be completed."
+                        );
+
+                    console.warn(
+                        "News stream warning:",
+                        nonFatalStreamError
+                    );
+
+                    if (
+                        typeof notify ===
+                        "function"
+                    ) {
+                        notify(
+                            nonFatalStreamError,
+                            "warning",
+                            6000
+                        );
+                    }
+
+                    continue;
+                }
+
+                if (
+                    event.type ===
+                    "error"
+                ) {
+                    const message =
+                        event.message ||
+                        "News analysis failed.";
+
+                    console.error(
+                        "News stream backend error:",
+                        message
+                    );
+
+                    if (
+                        receivedArticles > 0
+                    ) {
+                        nonFatalStreamError =
+                            message;
+
+                        if (
+                            typeof notify ===
+                            "function"
+                        ) {
+                            notify(
+                                `${receivedArticles} news articles loaded. Some later analysis could not be completed.`,
+                                "warning",
+                                7000
+                            );
+                        }
+
+                        continue;
+                    }
+
+                    throw new Error(
+                        message
+                    );
+                }
+
+                if (
+                    event.type ===
+                    "done"
+                ) {
+                    streamDone = true;
+
+                    statusCard?.classList.add(
+                        "hidden"
+                    );
+
+                    break;
+                }
+            }
+        }
+
+        const finalDecoded =
+            decoder.decode();
+
+        if (finalDecoded) {
+            buffer += finalDecoded;
+        }
+
+        if (buffer.trim()) {
+            try {
+                const finalEvent =
+                    JSON.parse(
+                        buffer.trim()
+                    );
+
+                if (
+                    finalEvent.type ===
+                    "summary"
+                ) {
+                    renderStreamingNewsSummary(
+                        summaryContainer,
+                        finalEvent.summary || {}
+                    );
+
+                    summaryContainer
+                        ?.classList.remove(
+                            "hidden"
+                        );
+                }
+
+                if (
+                    finalEvent.type ===
+                    "warning"
+                ) {
+                    nonFatalStreamError =
+                        finalEvent.message ||
+                        "Some news processing was incomplete.";
+                }
+
+                if (
+                    finalEvent.type ===
+                    "error" &&
+                    receivedArticles === 0
+                ) {
+                    throw new Error(
+                        finalEvent.message ||
+                        "News analysis failed."
+                    );
+                }
+
+            } catch (error) {
+                if (
+                    receivedArticles === 0
+                ) {
+                    throw error;
+                }
+
+                console.warn(
+                    "Final news stream event "
+                    + "could not be parsed:",
+                    error
+                );
+            }
+        }
+
+        statusCard?.classList.add(
+            "hidden"
+        );
+
+        if (
+            receivedArticles === 0 &&
+            list
+        ) {
+            list.innerHTML = `
+                <div class="empty-state">
+                    <h3>
+                        No company news found
+                    </h3>
+
+                    <p>
+                        No recent articles were
+                        returned for
+                        ${escapeDashboardHTML(
+                            window.currentSymbol
+                        )}.
+                    </p>
+                </div>
+            `;
+        }
+
+        dashboardState.news =
+            "success";
+
+        setTabStatus(
+            "newsTabStatus",
+            "success"
+        );
+
+        if (
+            nonFatalStreamError &&
+            progress
+        ) {
+            progress.textContent =
+                `${receivedArticles} articles loaded`;
+        }
+
+    } catch (error) {
+        console.error(
+            "News stream failed:",
+            error
+        );
+
+        const existingCards =
+            target.querySelectorAll(
+                ".news-card-streamed"
+            );
+
+        if (
+            existingCards.length > 0
+        ) {
+            dashboardState.news =
+                "success";
+
+            setTabStatus(
+                "newsTabStatus",
+                "success"
+            );
+
+            statusCard?.classList.add(
+                "hidden"
+            );
+
+            if (
+                typeof notify ===
+                "function"
+            ) {
+                notify(
+                    `${existingCards.length} news articles loaded. Some later analysis could not be completed.`,
+                    "warning",
+                    7000
+                );
+            }
+
+            return;
+        }
+
+        dashboardState.news =
+            "error";
+
+        setTabStatus(
+            "newsTabStatus",
+            "error"
+        );
+
+        target.innerHTML = errorCard(
+            "news",
+            error.message
+        );
     }
+}
 
     async function loadEarnings(){
         const target=document.getElementById("earningsContent");

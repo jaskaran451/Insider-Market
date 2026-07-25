@@ -19,7 +19,7 @@ from sec.parser import filing_parser
 from flask import flash
 import pandas as pd
 import numpy as np
-
+import traceback
 from werkzeug.security import (generate_password_hash,check_password_hash)
 from utils.notifier import notifier
 from services.manager_portfolio_service import manager_portfolio_service
@@ -30,7 +30,8 @@ from services.ollama_analysis import (
     stream_dashboard_ai_analysis,
     stream_forecast_ai_analysis,
 stream_smart_money_ai_explanation,
-    analyze_news_sentiment
+    analyze_news_sentiment,
+stream_news_sentiment
 )
 from services.google_news_service import google_news_service
 import json
@@ -447,6 +448,163 @@ def process_institutional_data(symbol):
 
     return institutional, institutional_summary
 
+def build_news_ui_article(
+    item,
+    symbol
+):
+    label = (
+        item.get("overall_sentiment_label")
+        or "Neutral"
+    )
+
+    try:
+        score = float(
+            item.get(
+                "overall_sentiment_score"
+            )
+            or 0
+        )
+    except (
+        TypeError,
+        ValueError
+    ):
+        score = 0.0
+
+    ticker_items = (
+        item.get("ticker_sentiment")
+        or []
+    )
+
+    tickers = []
+
+    for ticker_item in ticker_items:
+        tickers.append({
+            "symbol": (
+                ticker_item.get("ticker")
+                or symbol
+            ),
+            "label": label,
+            "score": score
+        })
+
+    if not tickers:
+        tickers = [{
+            "symbol": symbol,
+            "label": label,
+            "score": score
+        }]
+
+    return {
+        "id": item.get("news_id"),
+        "title": item.get("title"),
+        "summary": item.get("summary") or "",
+        "image": item.get("banner_image"),
+        "source": (
+            item.get("source")
+            or "Google News"
+        ),
+        "url": item.get("url"),
+        "time": item.get("time_published"),
+
+        "sentiment_label": label,
+        "sentiment_score": score,
+
+        "sentiment_reason": (
+            item.get("sentiment_reason")
+            or (
+                "No clear company-specific "
+                "impact was identified."
+            )
+        ),
+
+        "topics": [
+            topic.get("topic")
+            for topic in item.get(
+                "topics",
+                []
+            )
+            if topic.get("topic")
+        ],
+
+        "tickers": tickers
+    }
+
+
+def build_news_summary(news_items):
+    bullish = 0
+    bearish = 0
+    neutral = 0
+    total_score = 0.0
+    topic_map = {}
+
+    for item in news_items:
+        label = (
+            item.get("sentiment_label")
+            or "Neutral"
+        )
+
+        try:
+            score = float(
+                item.get(
+                    "sentiment_score"
+                )
+                or 0
+            )
+        except (
+            TypeError,
+            ValueError
+        ):
+            score = 0.0
+
+        total_score += score
+
+        if label == "Bullish":
+            bullish += 1
+        elif label == "Bearish":
+            bearish += 1
+        else:
+            neutral += 1
+
+        for topic in item.get(
+            "topics",
+            []
+        ):
+            if not topic:
+                continue
+
+            topic_map[topic] = (
+                topic_map.get(topic, 0)
+                + 1
+            )
+
+    top_topic = (
+        max(
+            topic_map,
+            key=topic_map.get
+        )
+        if topic_map
+        else "N/A"
+    )
+
+    return {
+        "total_articles": len(news_items),
+        "bullish": bullish,
+        "bearish": bearish,
+        "neutral": neutral,
+
+        "avg_score": (
+            round(
+                total_score /
+                len(news_items),
+                3
+            )
+            if news_items
+            else 0
+        ),
+
+        "top_topic": top_topic
+    }
+
 def process_news_data(symbol,company_name):
     news_data=get_google_news_cached(symbol,company_name)
     feed_raw=news_data.get("feed",[])[:20]
@@ -830,17 +988,19 @@ def prepare_smart_money_intelligence(symbol):
             "message": str(error)
         }), 404
 
+
     except Exception as error:
-        print(
-            f"[SMART MONEY PREPARE ERROR] {symbol}:",
-            error
-        )
+
+        print(f"[SMART MONEY PREPARE ERROR] {symbol}: {error}")
+
+        traceback.print_exc()
 
         return jsonify({
+
             "success": False,
-            "message": (
-                "Unable to prepare insider intelligence."
-            )
+
+            "message": "Unable to prepare insider intelligence.",
+
         }), 500
 
 @app.route("/dashboard",methods=["GET","POST"])
@@ -878,22 +1038,46 @@ def home():
     return render_template("index.html",data=data,companies=COMPANY_MAP)
 
 
-def update_dashboard_ai_section(symbol,section,value,summary_key=None,summary_value=None):
-    symbol=symbol.upper().strip()
-    company_name=session.get("company_name") or COMPANY_MAP.get(symbol) or symbol
-    cached=dashboard_ai_data_cache.setdefault(symbol,{
-        "symbol":symbol,
-        "name":company_name,
-        "transactions":[],
-        "institutional":[],
-        "institutional_summary":build_empty_dashboard_data()["institutional_summary"],
-        "news":[],
-        "news_summary":build_empty_dashboard_data()["news_summary"],
-        "earnings":build_empty_dashboard_data()["earnings"]
-    })
-    cached[section]=value
+def update_dashboard_ai_section(
+    symbol,
+    section,
+    value,
+    summary_key=None,
+    summary_value=None,
+    company_name=None,
+):
+    """Update cached dashboard data without requiring a request context."""
+
+    symbol = symbol.upper().strip()
+    resolved_company_name = (
+        company_name
+        or COMPANY_MAP.get(symbol)
+        or symbol
+    )
+
+    empty_data = build_empty_dashboard_data()
+
+    cached = dashboard_ai_data_cache.setdefault(
+        symbol,
+        {
+            "symbol": symbol,
+            "name": resolved_company_name,
+            "transactions": [],
+            "institutional": [],
+            "institutional_summary": empty_data[
+                "institutional_summary"
+            ],
+            "news": [],
+            "news_summary": empty_data["news_summary"],
+            "earnings": empty_data["earnings"],
+        },
+    )
+
+    cached["name"] = resolved_company_name
+    cached[section] = value
+
     if summary_key:
-        cached[summary_key]=summary_value
+        cached[summary_key] = summary_value
 
 
 @app.route("/api/dashboard/<symbol>/insiders")
@@ -932,6 +1116,240 @@ def dashboard_news_api(symbol):
         print(f"[NEWS API ERROR] {symbol}:",error)
         return jsonify({"success":False,"message":"Unable to load company news right now."}),500
 
+@app.route(
+    "/api/dashboard/<symbol>/news-stream"
+)
+def dashboard_news_stream_api(symbol):
+    symbol = symbol.upper().strip()
+
+    company_name = (
+        request.args.get("company_name")
+        or session.get("company_name")
+        or COMPANY_MAP.get(symbol)
+        or symbol
+    ).strip()
+
+    def generate():
+        completed_news = []
+
+        try:
+            yield json.dumps({
+                "type": "status",
+                "stage": "collecting",
+                "message": (
+                    "Collecting recent company news..."
+                )
+            }) + "\n"
+
+            news_data = get_google_news_cached(
+                symbol,
+                company_name
+            )
+
+            feed_raw = (
+                news_data.get("feed", [])
+                or []
+            )[:20]
+
+            yield json.dumps({
+                "type": "start",
+                "total": len(feed_raw),
+                "symbol": symbol,
+                "company_name": company_name
+            }) + "\n"
+
+            if not feed_raw:
+                empty_summary = {
+                    "total_articles": 0,
+                    "bullish": 0,
+                    "bearish": 0,
+                    "neutral": 0,
+                    "avg_score": 0,
+                    "top_topic": "N/A"
+                }
+
+                yield json.dumps({
+                    "type": "summary",
+                    "summary": empty_summary
+                }) + "\n"
+
+                yield json.dumps({
+                    "type": "done",
+                    "total": 0
+                }) + "\n"
+
+                return
+
+            yield json.dumps({
+                "type": "status",
+                "stage": "analyzing",
+                "message": (
+                    "Analyzing company-specific "
+                    "news sentiment..."
+                )
+            }) + "\n"
+
+            for analyzed_item in stream_news_sentiment(
+                news_items=feed_raw,
+                symbol=symbol,
+                company_name=company_name
+            ):
+                ui_article = build_news_ui_article(
+                    analyzed_item,
+                    symbol
+                )
+
+                completed_news.append(
+                    ui_article
+                )
+
+                yield json.dumps(
+                    {
+                        "type": "article",
+                        "index": len(completed_news),
+                        "total": len(feed_raw),
+                        "article": make_json_safe(
+                            ui_article
+                        )
+                    },
+                    default=str
+                ) + "\n"
+
+            try:
+                summary = build_news_summary(
+                    completed_news
+                )
+
+            except Exception as error:
+                print(
+                    f"[NEWS SUMMARY ERROR] {symbol}:",
+                    error
+                )
+
+                summary = {
+                    "total_articles": len(
+                        completed_news
+                    ),
+                    "bullish": 0,
+                    "bearish": 0,
+                    "neutral": len(
+                        completed_news
+                    ),
+                    "avg_score": 0,
+                    "top_topic": "N/A"
+                }
+
+            try:
+                update_dashboard_ai_section(
+                    symbol=symbol,
+                    section="news",
+                    value=completed_news,
+                    summary_key="news_summary",
+                    summary_value=summary,
+                    company_name=company_name,
+                )
+
+            except Exception as error:
+                print(
+                    f"[NEWS CACHE UPDATE ERROR] {symbol}:",
+                    error
+                )
+
+            yield json.dumps(
+                {
+                    "type": "summary",
+                    "summary": make_json_safe(
+                        summary
+                    )
+                },
+                default=str
+            ) + "\n"
+
+            yield json.dumps({
+                "type": "done",
+                "total": len(
+                    completed_news
+                ),
+                "partial": False
+            }) + "\n"
+
+        except GeneratorExit:
+            print(
+                f"[NEWS STREAM CLOSED] {symbol}"
+            )
+
+        except Exception as error:
+            print(
+                f"[NEWS STREAM API ERROR] {symbol}:",
+                error
+            )
+
+            if completed_news:
+                try:
+                    partial_summary = (
+                        build_news_summary(
+                            completed_news
+                        )
+                    )
+
+                    yield json.dumps(
+                        {
+                            "type": "summary",
+                            "summary": make_json_safe(
+                                partial_summary
+                            )
+                        },
+                        default=str
+                    ) + "\n"
+
+                except Exception as summary_error:
+                    print(
+                        f"[PARTIAL NEWS SUMMARY ERROR] "
+                        f"{symbol}:",
+                        summary_error
+                    )
+
+                yield json.dumps({
+                    "type": "warning",
+                    "message": (
+                        "Some final news processing "
+                        "could not be completed."
+                    ),
+                    "loaded": len(
+                        completed_news
+                    )
+                }) + "\n"
+
+                yield json.dumps({
+                    "type": "done",
+                    "total": len(
+                        completed_news
+                    ),
+                    "partial": True
+                }) + "\n"
+
+            else:
+                yield json.dumps({
+                    "type": "error",
+                    "message": (
+                        "Unable to load company "
+                        "news right now."
+                    )
+                }) + "\n"
+
+    return Response(
+        generate(),
+        mimetype="application/x-ndjson",
+        headers={
+            "Cache-Control": (
+                "no-cache, no-store, "
+                "must-revalidate"
+            ),
+            "Pragma": "no-cache",
+            "Expires": "0",
+            "X-Accel-Buffering": "no"
+        }
+    )
 
 @app.route("/api/dashboard/<symbol>/earnings")
 def dashboard_earnings_api(symbol):

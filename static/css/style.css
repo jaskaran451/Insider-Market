@@ -2595,3 +2595,30 @@ nav,
         display: none;
     }
 }
+
+.news-card-streamed {
+    animation:
+        newsStreamReveal
+        0.35s ease both;
+}
+
+@keyframes newsStreamReveal {
+    from {
+        opacity: 0;
+        transform: translateY(12px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.news-stream-list {
+    display: grid;
+    gap: 18px;
+}
+
+#newsStreamStatus {
+    margin-bottom: 18px;
+}

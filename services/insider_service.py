@@ -134,29 +134,34 @@ class InsiderService:
             cluster_buying=cluster_buying
         )
         summary_stats = {
-
             "buy_count": len(buys),
             "sell_count": len(sells),
             "tax_count": len(taxes),
             "grant_count": len(grants),
-
-            "buy_value":
-                sum(t["value"] or 0 for t in buys),
-
-            "sell_value":
-                sum(t["value"] or 0 for t in sells),
-
-            "tax_value":
-                sum(t["value"] or 0 for t in taxes),
-
-            "grant_shares":
-                sum(t["shares"] or 0 for t in grants),
-
-            "tax_shares":
-                sum(t["shares"] or 0 for t in taxes),
-
-            "net_shares":
-                sum(t["net_change"] or 0 for t in transactions)
+            "buy_value": sum(
+                self._to_float(transaction.get("value"))
+                for transaction in buys
+            ),
+            "sell_value": sum(
+                self._to_float(transaction.get("value"))
+                for transaction in sells
+            ),
+            "tax_value": sum(
+                self._to_float(transaction.get("value"))
+                for transaction in taxes
+            ),
+            "grant_shares": sum(
+                self._to_float(transaction.get("shares"))
+                for transaction in grants
+            ),
+            "tax_shares": sum(
+                self._to_float(transaction.get("shares"))
+                for transaction in taxes
+            ),
+            "net_shares": sum(
+                self._to_float(transaction.get("net_change"))
+                for transaction in transactions
+            ),
         }
 
         return InsiderSummary(
@@ -199,32 +204,51 @@ class InsiderService:
     # =====================================================
     # TRANSACTION NORMALIZATION
     # =====================================================
-    def _normalize_transaction(self, activity,context) -> Optional[Dict[str, Any]]:
+    def _normalize_transaction(
+            self,
+            activity,
+            context,
+    ) -> Optional[Dict[str, Any]]:
+        """Normalize one parsed SEC transaction."""
 
-            try:
-                return {
-                    "type": self._classify_transaction(activity),
+        try:
+            shares = self._to_float(
+                getattr(activity, "shares", None)
+            )
+            value = self._to_float(
+                getattr(activity, "value", None)
+            )
+            price = self._to_float(
+                getattr(activity, "price_per_share", None)
+            )
 
-                    "shares": getattr(activity, "shares", None),
-                    "value": getattr(activity, "value", None),
-                    "price": getattr(activity, "price_per_share", None),
-
-                    "transaction_type": getattr(activity, "transaction_type", None),
-                    "code": getattr(activity, "code", None),
-
-                    # -------------------------------------------------
-                    # FILLED FROM FILING LAYER (IMPORTANT)
-                    # -------------------------------------------------
-                    "insider": context.get("insider"),
-                    "role": context.get("role"),
-                    "date": context.get("date"),
-                    "net_change": context.get("net_change"),
-                    "net_value": context.get("net_value"),
-                    "remaining_shares": context.get("remaining_shares")
-                }
-
-            except Exception:
-                return None
+            return {
+                "type": self._classify_transaction(activity),
+                "shares": shares,
+                "value": value,
+                "price": price,
+                "transaction_type": getattr(
+                    activity,
+                    "transaction_type",
+                    None,
+                ),
+                "code": getattr(activity, "code", None),
+                "insider": context.get("insider"),
+                "role": context.get("role"),
+                "date": context.get("date"),
+                "net_change": self._to_float(
+                    context.get("net_change")
+                ),
+                "net_value": self._to_float(
+                    context.get("net_value")
+                ),
+                "remaining_shares": self._to_float(
+                    context.get("remaining_shares")
+                ),
+            }
+        except Exception as error:
+            print("[INSIDER NORMALIZATION ERROR]", error)
+            return None
 
 
 
@@ -253,50 +277,69 @@ class InsiderService:
 
         return "OTHER"
 
+    def _extract_filing_context(self, filing, activity):
+        """Extract ownership and reporting context from a filing."""
 
-
-    def _extract_filing_context(self, filing,activity):
+        empty_context = {
+            "insider": None,
+            "role": None,
+            "date": None,
+            "net_change": 0.0,
+            "net_value": 0.0,
+            "remaining_shares": 0.0,
+        }
 
         if not filing or not hasattr(filing, "data"):
-            return {"insider": None, "role": None, "date": None}
+            return empty_context
 
-        data = filing.data
-
-        insider_name = data.get("insider_name")
-
-
+        data = filing.data or {}
         ownership = data.get("ownership_summary")
 
-        role = None
-        date = None
+        if not ownership:
+            return {
+                **empty_context,
+                "insider": data.get("insider_name"),
+            }
+
         code = getattr(activity, "code", None)
-        if ownership:
-            role = getattr(ownership, "position", None)
-            date = getattr(ownership, "reporting_date", None)
-            if code not in ["A", "F", "M"]:
-                net_change=getattr(ownership, "net_change", None)
-                net_value=getattr(ownership, "net_value", None)
-                remaining_shares=getattr(ownership, "remaining_shares", None)
-            elif code in ["F","M"]:
-                shares = getattr(activity, "shares", 0)
-                net_change = -shares
-                net_value = -getattr(activity, "value", 0)
-                remaining_shares = getattr(ownership,"remaining_shares",None)
-            elif code == "A":
-                shares = getattr(activity, "shares", 0)
-                net_change = shares
-                net_value = getattr(activity, "value", 0)
-                remaining_shares = getattr(ownership,"remaining_shares",None)
+        shares = self._to_float(
+            getattr(activity, "shares", None)
+        )
+        value = self._to_float(
+            getattr(activity, "value", None)
+        )
 
+        net_change = self._to_float(
+            getattr(ownership, "net_change", None)
+        )
+        net_value = self._to_float(
+            getattr(ownership, "net_value", None)
+        )
 
+        if code in {"F", "M"}:
+            net_change = -abs(shares)
+            net_value = -abs(value)
+        elif code == "A":
+            net_change = abs(shares)
+            net_value = abs(value)
 
         return {
-            "insider": insider_name,
-            "role": role,
-            "date": date,
+            "insider": data.get("insider_name"),
+            "role": getattr(ownership, "position", None),
+            "date": getattr(
+                ownership,
+                "reporting_date",
+                None,
+            ),
             "net_change": net_change,
             "net_value": net_value,
-            "remaining_shares": remaining_shares,
+            "remaining_shares": self._to_float(
+                getattr(
+                    ownership,
+                    "remaining_shares",
+                    None,
+                )
+            ),
         }
 
 
@@ -304,24 +347,31 @@ class InsiderService:
     # CLUSTER BUYING DETECTION
     # =====================================================
     def _detect_cluster_buying(self, buys):
+        """Return True when at least two purchases occur within seven days."""
 
         if len(buys) < 2:
             return False
 
         dates = []
 
-        for b in buys:
-            if b.get("date"):
-                dates.append(b["date"])
+        for transaction in buys:
+            transaction_date = self._to_datetime(
+                transaction.get("date")
+            )
+
+            if transaction_date:
+                dates.append(transaction_date)
 
         if len(dates) < 2:
             return False
 
-        dates = sorted(dates)
+        dates.sort()
 
-        # check if multiple buys within 7 days
-        for i in range(len(dates) - 1):
-            if (dates[i + 1] - dates[i]).days <= 7:
+        for current_date, next_date in zip(
+                dates,
+                dates[1:],
+        ):
+            if (next_date - current_date).days <= 7:
                 return True
 
         return False
@@ -375,87 +425,124 @@ class InsiderService:
 
         return round(score, 2)
 
-    def _generate_signals(self, transactions, cluster_buying, score):
+    def _generate_signals(
+            self,
+            transactions,
+            cluster_buying,
+            score,
+    ):
+        """Generate directional signals from normalized transactions."""
 
         signals = []
 
-        buys = [t for t in transactions if t["type"] == "BUY"]
-        sells = [t for t in transactions if t["type"] == "SELL"]
+        buys = [
+            transaction
+            for transaction in transactions
+            if transaction["type"] == "BUY"
+        ]
+        sells = [
+            transaction
+            for transaction in transactions
+            if transaction["type"] == "SELL"
+        ]
 
-        buy_value = sum(t.get("value") or 0 for t in buys)
-        sell_value = sum(t.get("value") or 0 for t in sells)
+        buy_value = sum(
+            self._to_float(transaction.get("value"))
+            for transaction in buys
+        )
+        sell_value = sum(
+            self._to_float(transaction.get("value"))
+            for transaction in sells
+        )
 
-        net = buy_value - sell_value
+        net_value = buy_value - sell_value
 
         if cluster_buying:
             signals.append({
                 "signal": "CLUSTERED_ACTIVITY",
-                "score": 30
+                "score": 30,
             })
 
-        if net > 50000 and buy_value > sell_value:
+        if net_value > 50_000 and buy_value > sell_value:
             signals.append({
                 "signal": "ACCUMULATION",
-                "score": 25
+                "score": 25,
             })
 
-        if net < -50000 and sell_value > buy_value:
+        if net_value < -50_000 and sell_value > buy_value:
             signals.append({
                 "signal": "DISTRIBUTION",
-                "score": 25
+                "score": 25,
             })
 
         if score >= 75:
             signals.append({
                 "signal": "BULLISH_INSIDER_SENTIMENT",
-                "score": 20
+                "score": 20,
             })
 
         if score <= 25:
             signals.append({
                 "signal": "BEARISH_INSIDER_SENTIMENT",
-                "score": 20
+                "score": 20,
             })
 
         if not signals:
             signals.append({
                 "signal": "NEUTRAL_ACTIVITY",
-                "score": 10
+                "score": 10,
             })
 
         return signals
-    def _calculate_smart_money_score(self,insider_score,signals,transactions,cluster_buying):
 
-        score = insider_score
+    def _calculate_smart_money_score(
+            self,
+            insider_score,
+            signals,
+            transactions,
+            cluster_buying,
+    ):
+        """Calculate the final normalized Smart Money score."""
 
-        # -------------------------------------------------
-        # SIGNAL STRENGTH BOOST
-        # -------------------------------------------------
-        signal_boost = sum(s.get("score", 0) for s in signals)
+        score = float(insider_score)
+
+        signal_boost = sum(
+            self._to_float(signal.get("score"))
+            for signal in signals
+        )
         score += signal_boost * 0.2
 
-        # -------------------------------------------------
-        # FLOW IMBALANCE (BUY vs SELL VALUE)
-        # -------------------------------------------------
-        buys = [t for t in transactions if t["type"] == "BUY"]
-        sells = [t for t in transactions if t["type"] == "SELL"]
+        buys = [
+            transaction
+            for transaction in transactions
+            if transaction["type"] == "BUY"
+        ]
+        sells = [
+            transaction
+            for transaction in transactions
+            if transaction["type"] == "SELL"
+        ]
 
-        buy_value = sum(t.get("value", 0) for t in buys)
-        sell_value = sum(t.get("value", 0) for t in sells)
+        buy_value = sum(
+            self._to_float(transaction.get("value"))
+            for transaction in buys
+        )
+        sell_value = sum(
+            self._to_float(transaction.get("value"))
+            for transaction in sells
+        )
 
-        if buy_value + sell_value > 0:
-            flow_ratio = (buy_value - sell_value) / (buy_value + sell_value)
+        total_value = buy_value + sell_value
+
+        if total_value > 0:
+            flow_ratio = (
+                                 buy_value - sell_value
+                         ) / total_value
             score += flow_ratio * 20
 
-        # -------------------------------------------------
-        # CLUSTER BONUS
-        # -------------------------------------------------
         if cluster_buying:
             score += 10
 
-        # -------------------------------------------------
-        # FINAL NORMALIZATION
-        # -------------------------------------------------
         return max(5, min(95, round(score, 2)))
 
     def _group_signals(self, signals):
@@ -518,6 +605,63 @@ class InsiderService:
 
         return False
 
+    @staticmethod
+    def _to_float(value, default=0.0):
+        """Convert SEC numeric values to floats safely."""
+
+        if value is None:
+            return default
+
+        if isinstance(value, (int, float)):
+            return float(value)
+
+        try:
+            cleaned_value = str(value).replace(",", "").strip()
+
+            if not cleaned_value:
+                return default
+
+            return float(cleaned_value)
+        except (TypeError, ValueError):
+            return default
+
+    @staticmethod
+    def _to_datetime(value):
+        """Convert SEC date values to datetime objects safely."""
+
+        if not value:
+            return None
+
+        if isinstance(value, datetime):
+            return value
+
+        if hasattr(value, "year") and hasattr(value, "month"):
+            try:
+                return datetime(value.year, value.month, value.day)
+            except (TypeError, ValueError, AttributeError):
+                return None
+
+        date_text = str(value).strip()
+
+        supported_formats = (
+            "%Y-%m-%d",
+            "%Y-%m-%dT%H:%M:%S",
+            "%Y-%m-%d %H:%M:%S",
+            "%m/%d/%Y",
+        )
+
+        for date_format in supported_formats:
+            try:
+                return datetime.strptime(date_text, date_format)
+            except ValueError:
+                continue
+
+        try:
+            return datetime.fromisoformat(
+                date_text.replace("Z", "+00:00")
+            ).replace(tzinfo=None)
+        except ValueError:
+            return None
 
 
 # =========================================================

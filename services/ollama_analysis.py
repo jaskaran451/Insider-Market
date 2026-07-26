@@ -6,29 +6,70 @@ import requests
 from pathlib import Path
 import re
 
-AI_SUMMARY_ENABLED = os.getenv("AI_SUMMARY_ENABLED", "true").lower() == "true"
-OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/generate")
+AI_SUMMARY_ENABLED = (
+    os.getenv("AI_SUMMARY_ENABLED", "true").lower() == "true"
+)
+OLLAMA_URL = os.getenv(
+    "OLLAMA_URL",
+    "https://ollama.com/api/generate",
+)
 OLLAMA_MODEL = os.getenv(
     "OLLAMA_MODEL",
-    "llama3.2:latest"
+    "gpt-oss:20b",
 )
+OLLAMA_API_KEY = os.getenv(
+    "OLLAMA_API_KEY",
+    "",
+).strip()
 OLLAMA_TIMEOUT = int(
     os.getenv("OLLAMA_TIMEOUT", "600")
 )
 NEWS_SENTIMENT_BATCH_SIZE = int(
-    os.getenv("NEWS_SENTIMENT_BATCH_SIZE", "2")
+    os.getenv("NEWS_SENTIMENT_BATCH_SIZE", "5")
 )
 OLLAMA_CONNECT_TIMEOUT = int(
-    os.getenv("OLLAMA_CONNECT_TIMEOUT", "10")
+    os.getenv("OLLAMA_CONNECT_TIMEOUT", "15")
 )
 OLLAMA_READ_TIMEOUT = int(
-    os.getenv("OLLAMA_READ_TIMEOUT", "240")
+    os.getenv("OLLAMA_READ_TIMEOUT", "540")
 )
 CACHE_DIR = Path("cache/ai_summaries")
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 CACHE_MAX_AGE_SECONDS = 6 * 60 * 60
 
+
+def _get_ollama_headers():
+    """Build authentication headers for Ollama Cloud requests."""
+
+    if not OLLAMA_API_KEY:
+        raise RuntimeError(
+            "OLLAMA_API_KEY is not configured."
+        )
+
+    return {
+        "Authorization": f"Bearer {OLLAMA_API_KEY}",
+        "Content-Type": "application/json",
+    }
+
+
+def _post_to_ollama(
+    request_payload,
+    *,
+    stream=False,
+):
+    """Send an authenticated request to Ollama Cloud."""
+
+    return requests.post(
+        OLLAMA_URL,
+        headers=_get_ollama_headers(),
+        json=request_payload,
+        stream=stream,
+        timeout=(
+            OLLAMA_CONNECT_TIMEOUT,
+            OLLAMA_READ_TIMEOUT,
+        ),
+    )
 
 def _make_cache_key(page_type, symbol_or_query, data):
     raw = json.dumps(
@@ -285,7 +326,6 @@ SMART MONEY DATA:
         "system": system_instruction,
         "prompt": user_prompt,
         "stream": True,
-        "keep_alive": "15m",
         "options": {
             "temperature": 0.15,
             "num_ctx": 4096,
@@ -302,14 +342,9 @@ SMART MONEY DATA:
     )
 
     try:
-        response = requests.post(
-            OLLAMA_URL,
-            json=request_payload,
+        response = _post_to_ollama(
+            request_payload,
             stream=True,
-            timeout=(
-                OLLAMA_CONNECT_TIMEOUT,
-                OLLAMA_READ_TIMEOUT,
-            ),
         )
         response.raise_for_status()
 
@@ -525,9 +560,8 @@ Dashboard Data:
 """
 
     try:
-        response = requests.post(
-            OLLAMA_URL,
-            json={
+        response = _post_to_ollama(
+            {
                 "model": OLLAMA_MODEL,
                 "prompt": prompt,
                 "stream": True,
@@ -537,7 +571,6 @@ Dashboard Data:
                 }
             },
             stream=True,
-            timeout=OLLAMA_TIMEOUT
         )
 
         response.raise_for_status()
@@ -561,10 +594,10 @@ Dashboard Data:
                 continue
 
     except requests.exceptions.ConnectionError:
-        yield "AI Analyst Summary is unavailable because the Ollama service could not be reached."
+        yield "AI Analyst Summary is unavailable because Ollama Cloud could not be reached."
 
     except requests.exceptions.Timeout:
-        yield "AI Analyst Summary timed out. The model may be too slow for this server."
+        yield "AI Analyst Summary timed out before Ollama Cloud completed the response."
 
     except Exception as error:
         print("[OLLAMA STREAM ERROR]", error)
@@ -620,9 +653,8 @@ Forecast Data:
 """
 
     try:
-        response = requests.post(
-            OLLAMA_URL,
-            json={
+        response = _post_to_ollama(
+            {
                 "model": OLLAMA_MODEL,
                 "prompt": prompt,
                 "stream": True,
@@ -632,7 +664,6 @@ Forecast Data:
                 }
             },
             stream=True,
-            timeout=OLLAMA_TIMEOUT
         )
 
         response.raise_for_status()
@@ -656,10 +687,10 @@ Forecast Data:
                 continue
 
     except requests.exceptions.ConnectionError:
-        yield "AI Analyst Summary is not available because Ollama is not running on this machine."
+        yield "AI Analyst Summary is unavailable because Ollama Cloud could not be reached."
 
     except requests.exceptions.Timeout:
-        yield "AI Analyst Summary timed out. The model may be too slow for this server."
+        yield "AI Analyst Summary timed out before Ollama Cloud completed the response."
 
     except Exception as error:
         print("[FORECAST OLLAMA STREAM ERROR]", error)
@@ -1069,9 +1100,8 @@ Articles:
 {json.dumps(articles,indent=2,ensure_ascii=False)}
 """
 
-    response=requests.post(
-        OLLAMA_URL,
-        json={
+    response = _post_to_ollama(
+        {
             "model":OLLAMA_MODEL,
             "prompt":prompt,
             "stream":False,
@@ -1080,8 +1110,7 @@ Articles:
                 "temperature":0.1,
                 "num_predict":900
             }
-        },
-        timeout=OLLAMA_TIMEOUT
+        }
     )
 
     response.raise_for_status()
@@ -1252,4 +1281,3 @@ def _apply_default_news_sentiment(news_items, reason):
         output.append(article_copy)
 
     return output
-

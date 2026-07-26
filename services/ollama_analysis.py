@@ -6,9 +6,7 @@ import requests
 from pathlib import Path
 import re
 
-AI_SUMMARY_ENABLED = (
-    os.getenv("AI_SUMMARY_ENABLED", "true").lower() == "true"
-)
+AI_SUMMARY_ENABLED = os.getenv("AI_SUMMARY_ENABLED", "true").lower() == "true"
 OLLAMA_URL = os.getenv(
     "OLLAMA_URL",
     "https://ollama.com/api/generate",
@@ -21,18 +19,10 @@ OLLAMA_API_KEY = os.getenv(
     "OLLAMA_API_KEY",
     "",
 ).strip()
-OLLAMA_TIMEOUT = int(
-    os.getenv("OLLAMA_TIMEOUT", "600")
-)
-NEWS_SENTIMENT_BATCH_SIZE = int(
-    os.getenv("NEWS_SENTIMENT_BATCH_SIZE", "5")
-)
-OLLAMA_CONNECT_TIMEOUT = int(
-    os.getenv("OLLAMA_CONNECT_TIMEOUT", "15")
-)
-OLLAMA_READ_TIMEOUT = int(
-    os.getenv("OLLAMA_READ_TIMEOUT", "540")
-)
+OLLAMA_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "600"))
+NEWS_SENTIMENT_BATCH_SIZE = int(os.getenv("NEWS_SENTIMENT_BATCH_SIZE", "5"))
+OLLAMA_CONNECT_TIMEOUT = int(os.getenv("OLLAMA_CONNECT_TIMEOUT", "15"))
+OLLAMA_READ_TIMEOUT = int(os.getenv("OLLAMA_READ_TIMEOUT", "540"))
 CACHE_DIR = Path("cache/ai_summaries")
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -43,9 +33,7 @@ def _get_ollama_headers():
     """Build authentication headers for Ollama Cloud requests."""
 
     if not OLLAMA_API_KEY:
-        raise RuntimeError(
-            "OLLAMA_API_KEY is not configured."
-        )
+        raise RuntimeError("OLLAMA_API_KEY is not configured.")
 
     return {
         "Authorization": f"Bearer {OLLAMA_API_KEY}",
@@ -71,19 +59,18 @@ def _post_to_ollama(
         ),
     )
 
+
 def _make_cache_key(page_type, symbol_or_query, data):
     raw = json.dumps(
-        {
-            "page_type": page_type,
-            "symbol_or_query": symbol_or_query,
-            "data": data
-        },
+        {"page_type": page_type, "symbol_or_query": symbol_or_query, "data": data},
         sort_keys=True,
-        default=str
+        default=str,
     )
 
     digest = hashlib.md5(raw.encode("utf-8")).hexdigest()
-    return f"{page_type}_{symbol_or_query}_{digest}.json".replace("/", "_").replace(" ", "_")
+    return f"{page_type}_{symbol_or_query}_{digest}.json".replace("/", "_").replace(
+        " ", "_"
+    )
 
 
 def _load_ai_cache(cache_key):
@@ -113,14 +100,7 @@ def _save_ai_cache(cache_key, result):
 
     try:
         with open(path, "w", encoding="utf-8") as file:
-            json.dump(
-                {
-                    "created_at": time.time(),
-                    "result": result
-                },
-                file,
-                indent=2
-            )
+            json.dump({"created_at": time.time(), "result": result}, file, indent=2)
 
     except Exception as error:
         print("[AI CACHE WRITE ERROR]", error)
@@ -136,7 +116,15 @@ def _clean_data_for_ai(data, max_items=15):
         cleaned = {}
 
         for key, value in data.items():
-            if key in ["labels", "actual", "predicted", "upper_band", "lower_band", "upperBand", "lowerBand"]:
+            if key in [
+                "labels",
+                "actual",
+                "predicted",
+                "upper_band",
+                "lower_band",
+                "upperBand",
+                "lowerBand",
+            ]:
                 if isinstance(value, list):
                     cleaned[key] = value[-max_items:]
                 else:
@@ -158,6 +146,7 @@ def _clean_data_for_ai(data, max_items=15):
 
     return data
 
+
 def _prepare_smart_money_ai_payload(data):
     """
     Creates a compact AI input from the already-calculated
@@ -170,100 +159,67 @@ def _prepare_smart_money_ai_payload(data):
     summary = data.get("summary") or {}
 
     signals = summary.get("signals") or []
-    transactions = (
-        summary.get("recent_transactions")
-        or []
-    )
+    transactions = summary.get("recent_transactions") or []
 
     compact_signals = []
 
     for signal in signals:
-        compact_signals.append({
-            "signal": signal.get("signal"),
-            "score": signal.get("score"),
-            "description": signal.get(
-                "description"
-            )
-        })
+        compact_signals.append(
+            {
+                "signal": signal.get("signal"),
+                "score": signal.get("score"),
+                "description": signal.get("description"),
+            }
+        )
 
     compact_transactions = []
 
     for transaction in transactions[:30]:
-        compact_transactions.append({
-            "date": transaction.get("date"),
-            "insider": transaction.get("insider"),
-            "role": transaction.get("role"),
-            "type": transaction.get("type"),
-            "code": transaction.get("code"),
-            "shares": transaction.get("shares"),
-            "value": transaction.get("value"),
-            "price": transaction.get("price"),
-            "net_change": transaction.get(
-                "net_change"
-            ),
-            "net_value": transaction.get(
-                "net_value"
-            ),
-            "remaining_shares": transaction.get(
-                "remaining_shares"
-            )
-        })
+        compact_transactions.append(
+            {
+                "date": transaction.get("date"),
+                "insider": transaction.get("insider"),
+                "role": transaction.get("role"),
+                "type": transaction.get("type"),
+                "code": transaction.get("code"),
+                "shares": transaction.get("shares"),
+                "value": transaction.get("value"),
+                "price": transaction.get("price"),
+                "net_change": transaction.get("net_change"),
+                "net_value": transaction.get("net_value"),
+                "remaining_shares": transaction.get("remaining_shares"),
+            }
+        )
 
     return {
         "company": {
             "symbol": data.get("symbol"),
-            "name": (
-                data.get("company")
-                or summary.get("company")
-            )
+            "name": (data.get("company") or summary.get("company")),
         },
-
         "scores": {
-            "insider_score": summary.get(
-                "insider_score"
-            ),
-            "smart_money_score": summary.get(
-                "smart_money_score"
-            ),
-            "insider_momentum": summary.get(
-                "insider_momentum"
-            ),
+            "insider_score": summary.get("insider_score"),
+            "smart_money_score": summary.get("smart_money_score"),
+            "insider_momentum": summary.get("insider_momentum"),
             "bullish": summary.get("bullish"),
             "bearish": summary.get("bearish"),
-            "cluster_buying": summary.get(
-                "cluster_buying"
-            )
+            "cluster_buying": summary.get("cluster_buying"),
         },
-
         "activity_counts": {
             "buys": summary.get("total_buys"),
             "sells": summary.get("total_sells"),
             "taxes": summary.get("total_taxes"),
             "grants": summary.get("total_grants"),
-            "net_activity": summary.get(
-                "net_activity"
-            )
+            "net_activity": summary.get("net_activity"),
         },
-
-        "summary_stats": (
-            summary.get("summary_stats")
-            or {}
-        ),
-
+        "summary_stats": (summary.get("summary_stats") or {}),
         "signals": compact_signals,
-
-        "signal_groups": (
-            summary.get("signal_groups")
-            or {}
-        ),
-
-        "recent_transactions": (
-            compact_transactions
-        )
+        "signal_groups": (summary.get("signal_groups") or {}),
+        "recent_transactions": (compact_transactions),
     }
 
+
 def stream_smart_money_ai_explanation(smart_money_data):
-    """Stream a narrative explanation of Smart Money Intelligence results."""
+    """Stream a Smart Money Intelligence explanation from Ollama Cloud."""
 
     if not AI_SUMMARY_ENABLED:
         yield "AI Smart Money explanation is disabled on this server."
@@ -277,6 +233,12 @@ You are InsiderAI, a professional SEC Form 4 insider-activity analyst.
 You receive a pre-calculated Smart Money Intelligence result.
 
 Your task is to interpret the supplied result for an investor.
+
+Do not reproduce the supplied JSON.
+Do not provide buy, sell, or hold advice.
+Do not treat grants as open-market purchases.
+Do not treat tax withholding as voluntary selling.
+Do not invent motives or unsupported facts.
 
 Write a concise narrative analysis using normal prose.
 
@@ -308,14 +270,14 @@ Interpretation requirements:
 - Use remaining ownership information when available.
 - Explain whether the evidence behind the score is strong or weak.
 - Mention specific people, dates, shares, and values only when useful.
-- Keep the total response under 650 words.
+- Keep the response under 650 words.
 """
 
     user_prompt = f"""
 Analyze the following pre-calculated Smart Money Intelligence result.
 
-Do not repeat or reformat the data.
 Begin immediately with the heading SMART MONEY INTERPRETATION.
+Do not repeat or reformat the input data.
 
 SMART MONEY DATA:
 {json.dumps(payload, separators=(",", ":"), default=str)}
@@ -326,10 +288,10 @@ SMART MONEY DATA:
         "system": system_instruction,
         "prompt": user_prompt,
         "stream": True,
+        "think": "low",
         "options": {
             "temperature": 0.15,
-            "num_ctx": 4096,
-            "num_predict": 450,
+            "num_predict": 650,
             "repeat_penalty": 1.1,
         },
     }
@@ -355,24 +317,16 @@ SMART MONEY DATA:
             f"{response_time:.2f} seconds"
         )
 
-        first_chunk_received = False
-        started_output = False
-
-        unwanted_openings = (
-            "here is the json",
-            "here's the json",
-            "the json data",
-            "```json",
-        )
+        first_output_received = False
+        final_response_received = False
+        thinking_text = []
 
         for line in response.iter_lines():
             if not line:
                 continue
 
             try:
-                result = json.loads(
-                    line.decode("utf-8")
-                )
+                result = json.loads(line.decode("utf-8"))
             except (
                 json.JSONDecodeError,
                 UnicodeDecodeError,
@@ -383,10 +337,19 @@ SMART MONEY DATA:
                 )
                 continue
 
-            chunk = result.get("response", "")
+            stream_error = result.get("error")
 
-            if chunk and not first_chunk_received:
-                first_chunk_received = True
+            if stream_error:
+                raise RuntimeError(stream_error)
+
+            thinking_chunk = result.get("thinking", "")
+            response_chunk = result.get("response", "")
+
+            if thinking_chunk:
+                thinking_text.append(thinking_chunk)
+
+            if response_chunk and not first_output_received:
+                first_output_received = True
                 first_chunk_time = (
                     time.perf_counter()
                     - request_started_at
@@ -397,18 +360,9 @@ SMART MONEY DATA:
                     f"{first_chunk_time:.2f} seconds"
                 )
 
-            if chunk and not started_output:
-                normalized_chunk = chunk.strip().lower()
-
-                if normalized_chunk.startswith(
-                    unwanted_openings
-                ):
-                    continue
-
-                started_output = True
-
-            if chunk:
-                yield chunk
+            if response_chunk:
+                final_response_received = True
+                yield response_chunk
 
             if result.get("done"):
                 total_time = (
@@ -422,16 +376,29 @@ SMART MONEY DATA:
                 )
                 break
 
-        if not first_chunk_received:
+        if final_response_received:
+            return
+
+        combined_thinking = "".join(thinking_text).strip()
+
+        if combined_thinking:
             print(
-                "[SMART MONEY AI EMPTY RESPONSE] "
-                "Ollama completed without returning text."
+                "[SMART MONEY AI THINKING-ONLY RESPONSE] "
+                "No final response field was returned."
             )
 
-            yield (
-                "The AI model completed the request but "
-                "did not return an explanation."
-            )
+            yield combined_thinking
+            return
+
+        print(
+            "[SMART MONEY AI EMPTY RESPONSE] "
+            "Ollama completed without returning text."
+        )
+
+        yield (
+            "The AI model completed the request but did not "
+            "return an explanation."
+        )
 
     except requests.exceptions.ConnectionError as error:
         print(
@@ -441,7 +408,7 @@ SMART MONEY DATA:
 
         yield (
             "Smart Money AI explanation is unavailable because "
-            "the Ollama service could not be reached."
+            "Ollama Cloud could not be reached."
         )
 
     except requests.exceptions.Timeout as error:
@@ -458,7 +425,21 @@ SMART MONEY DATA:
 
         yield (
             "Smart Money AI explanation timed out before "
-            "the model completed its response."
+            "Ollama Cloud completed the response."
+        )
+
+    except requests.exceptions.HTTPError as error:
+        status_code = error.response.status_code
+        response_text = error.response.text[:500]
+
+        print(
+            "[SMART MONEY AI HTTP ERROR] "
+            f"status={status_code} response={response_text}"
+        )
+
+        yield (
+            "Smart Money AI explanation could not be completed "
+            "because the cloud model request was rejected."
         )
 
     except requests.exceptions.RequestException as error:
@@ -565,10 +546,7 @@ Dashboard Data:
                 "model": OLLAMA_MODEL,
                 "prompt": prompt,
                 "stream": True,
-                "options": {
-                    "temperature": 0.2,
-                    "num_predict": 1200
-                }
+                "options": {"temperature": 0.2, "num_predict": 1200},
             },
             stream=True,
         )
@@ -602,6 +580,7 @@ Dashboard Data:
     except Exception as error:
         print("[OLLAMA STREAM ERROR]", error)
         yield "AI Analyst Summary is unavailable right now."
+
 
 def stream_forecast_ai_analysis(forecast_data):
     if not AI_SUMMARY_ENABLED:
@@ -658,10 +637,7 @@ Forecast Data:
                 "model": OLLAMA_MODEL,
                 "prompt": prompt,
                 "stream": True,
-                "options": {
-                    "temperature": 0.2,
-                    "num_predict": 1000
-                }
+                "options": {"temperature": 0.2, "num_predict": 1000},
             },
             stream=True,
         )
@@ -696,11 +672,8 @@ Forecast Data:
         print("[FORECAST OLLAMA STREAM ERROR]", error)
         yield "AI Analyst Summary is unavailable right now."
 
-def stream_news_sentiment(
-    news_items,
-    symbol,
-    company_name=None
-):
+
+def stream_news_sentiment(news_items, symbol, company_name=None):
     """
     Analyzes news in small batches and yields each completed
     article immediately.
@@ -708,13 +681,9 @@ def stream_news_sentiment(
     Each yielded value is a fully merged article dictionary.
     """
 
-    symbol = str(
-        symbol or ""
-    ).upper().strip()
+    symbol = str(symbol or "").upper().strip()
 
-    company_name = str(
-        company_name or symbol
-    ).strip()
+    company_name = str(company_name or symbol).strip()
 
     if not news_items:
         return
@@ -725,332 +694,211 @@ def stream_news_sentiment(
     for article in news_items:
         article_copy = dict(article)
 
-        title = str(
-            article_copy.get("title") or ""
-        ).strip()
+        title = str(article_copy.get("title") or "").strip()
 
-        summary = str(
-            article_copy.get("summary") or ""
-        ).strip()
+        summary = str(article_copy.get("summary") or "").strip()
 
-        source = str(
-            article_copy.get("source") or ""
-        ).strip()
+        source = str(article_copy.get("source") or "").strip()
 
-        url = str(
-            article_copy.get("url") or ""
-        ).strip()
+        url = str(article_copy.get("url") or "").strip()
 
-        raw_identifier = (
-            f"{symbol}|{url}|{title}"
-        )
+        raw_identifier = f"{symbol}|{url}|{title}"
 
-        article_id = hashlib.sha256(
-            raw_identifier.encode("utf-8")
-        ).hexdigest()[:16]
+        article_id = hashlib.sha256(raw_identifier.encode("utf-8")).hexdigest()[:16]
 
         article_copy["news_id"] = article_id
 
         article_lookup[article_id] = article_copy
 
-        prepared_articles.append({
-            "id": article_id,
-            "title": title[:500],
-            "summary": summary[:1200],
-            "source": source[:200]
-        })
+        prepared_articles.append(
+            {
+                "id": article_id,
+                "title": title[:500],
+                "summary": summary[:1200],
+                "source": source[:200],
+            }
+        )
 
     if not AI_SUMMARY_ENABLED:
         for article in article_lookup.values():
-            article["overall_sentiment_label"] = (
-                "Neutral"
-            )
+            article["overall_sentiment_label"] = "Neutral"
 
             article["overall_sentiment_score"] = 0.0
 
-            article["sentiment_reason"] = (
-                "AI sentiment analysis is disabled."
-            )
+            article["sentiment_reason"] = "AI sentiment analysis is disabled."
 
             yield article
 
         return
 
-    for start in range(
-        0,
-        len(prepared_articles),
-        NEWS_SENTIMENT_BATCH_SIZE
-    ):
-        batch = prepared_articles[
-            start:
-            start + NEWS_SENTIMENT_BATCH_SIZE
-        ]
+    for start in range(0, len(prepared_articles), NEWS_SENTIMENT_BATCH_SIZE):
+        batch = prepared_articles[start : start + NEWS_SENTIMENT_BATCH_SIZE]
 
-        batch_ids = {
-            item["id"]
-            for item in batch
-        }
+        batch_ids = {item["id"] for item in batch}
 
         try:
-            batch_result = (
-                _analyze_news_sentiment_batch(
-                    articles=batch,
-                    symbol=symbol,
-                    company_name=company_name
-                )
+            batch_result = _analyze_news_sentiment_batch(
+                articles=batch, symbol=symbol, company_name=company_name
             )
 
             result_map = {
                 result.get("id"): result
-                for result in batch_result.get(
-                    "results",
-                    []
-                )
+                for result in batch_result.get("results", [])
                 if result.get("id")
             }
 
             for article_id in batch_ids:
-                article = dict(
-                    article_lookup[article_id]
-                )
+                article = dict(article_lookup[article_id])
 
-                sentiment = result_map.get(
-                    article_id
-                )
+                sentiment = result_map.get(article_id)
 
                 if sentiment:
-                    article[
-                        "overall_sentiment_label"
-                    ] = (
-                        sentiment.get(
-                            "overall_sentiment_label"
-                        )
-                        or "Neutral"
+                    article["overall_sentiment_label"] = (
+                        sentiment.get("overall_sentiment_label") or "Neutral"
                     )
 
                     try:
-                        article[
-                            "overall_sentiment_score"
-                        ] = float(
-                            sentiment.get(
-                                "overall_sentiment_score"
-                            )
-                            or 0
+                        article["overall_sentiment_score"] = float(
+                            sentiment.get("overall_sentiment_score") or 0
                         )
 
-                    except (
-                        TypeError,
-                        ValueError
-                    ):
-                        article[
-                            "overall_sentiment_score"
-                        ] = 0.0
+                    except (TypeError, ValueError):
+                        article["overall_sentiment_score"] = 0.0
 
-                    article["sentiment_reason"] = (
-                        sentiment.get("reason")
-                        or (
-                            "No clear company-specific "
-                            "impact was identified."
-                        )
+                    article["sentiment_reason"] = sentiment.get("reason") or (
+                        "No clear company-specific impact was identified."
                     )
 
                 else:
-                    article[
-                        "overall_sentiment_label"
-                    ] = "Neutral"
+                    article["overall_sentiment_label"] = "Neutral"
 
-                    article[
-                        "overall_sentiment_score"
-                    ] = 0.0
+                    article["overall_sentiment_score"] = 0.0
 
                     article["sentiment_reason"] = (
-                        "This article could not be "
-                        "analyzed by the AI model."
+                        "This article could not be analyzed by the AI model."
                     )
 
                 yield article
 
         except requests.exceptions.ConnectionError as error:
-            print(
-                "[NEWS STREAM CONNECTION ERROR]",
-                symbol,
-                start,
-                error
-            )
+            print("[NEWS STREAM CONNECTION ERROR]", symbol, start, error)
 
             for article_id in batch_ids:
-                article = dict(
-                    article_lookup[article_id]
-                )
+                article = dict(article_lookup[article_id])
 
-                article[
-                    "overall_sentiment_label"
-                ] = "Neutral"
+                article["overall_sentiment_label"] = "Neutral"
 
-                article[
-                    "overall_sentiment_score"
-                ] = 0.0
+                article["overall_sentiment_score"] = 0.0
 
                 article["sentiment_reason"] = (
-                    "AI sentiment analysis was "
-                    "temporarily unavailable."
+                    "AI sentiment analysis was temporarily unavailable."
                 )
 
                 yield article
 
         except requests.exceptions.Timeout as error:
-            print(
-                "[NEWS STREAM TIMEOUT]",
-                symbol,
-                start,
-                error
-            )
+            print("[NEWS STREAM TIMEOUT]", symbol, start, error)
 
             for article_id in batch_ids:
-                article = dict(
-                    article_lookup[article_id]
-                )
+                article = dict(article_lookup[article_id])
 
-                article[
-                    "overall_sentiment_label"
-                ] = "Neutral"
+                article["overall_sentiment_label"] = "Neutral"
 
-                article[
-                    "overall_sentiment_score"
-                ] = 0.0
+                article["overall_sentiment_score"] = 0.0
 
                 article["sentiment_reason"] = (
-                    "AI sentiment analysis timed out "
-                    "for this article."
+                    "AI sentiment analysis timed out for this article."
                 )
 
                 yield article
 
         except Exception as error:
-            print(
-                "[NEWS STREAM BATCH ERROR]",
-                symbol,
-                start,
-                error
-            )
+            print("[NEWS STREAM BATCH ERROR]", symbol, start, error)
 
             for article_id in batch_ids:
-                article = dict(
-                    article_lookup[article_id]
-                )
+                article = dict(article_lookup[article_id])
 
-                article[
-                    "overall_sentiment_label"
-                ] = "Neutral"
+                article["overall_sentiment_label"] = "Neutral"
 
-                article[
-                    "overall_sentiment_score"
-                ] = 0.0
+                article["overall_sentiment_score"] = 0.0
 
-                article["sentiment_reason"] = (
-                    "This article could not be "
-                    "analyzed."
-                )
+                article["sentiment_reason"] = "This article could not be analyzed."
 
                 yield article
 
-def analyze_news_sentiment(news_items,symbol,company_name=None):
-    symbol=str(symbol or "").upper().strip()
-    company_name=str(company_name or symbol).strip()
+
+def analyze_news_sentiment(news_items, symbol, company_name=None):
+    symbol = str(symbol or "").upper().strip()
+    company_name = str(company_name or symbol).strip()
 
     if not news_items:
         return []
 
-    prepared_articles=[]
+    prepared_articles = []
 
     for article in news_items:
-        title=str(article.get("title") or "").strip()
-        summary=str(article.get("summary") or "").strip()
-        source=str(article.get("source") or "").strip()
-        url=str(article.get("url") or "").strip()
+        title = str(article.get("title") or "").strip()
+        summary = str(article.get("summary") or "").strip()
+        source = str(article.get("source") or "").strip()
+        url = str(article.get("url") or "").strip()
 
-        raw_identifier=f"{symbol}|{url}|{title}"
-        article_id=hashlib.sha256(
-            raw_identifier.encode("utf-8")
-        ).hexdigest()[:16]
+        raw_identifier = f"{symbol}|{url}|{title}"
+        article_id = hashlib.sha256(raw_identifier.encode("utf-8")).hexdigest()[:16]
 
-        article["news_id"]=article_id
+        article["news_id"] = article_id
 
-        prepared_articles.append({
-            "id":article_id,
-            "title":title[:500],
-            "summary":summary[:1200],
-            "source":source[:200]
-        })
+        prepared_articles.append(
+            {
+                "id": article_id,
+                "title": title[:500],
+                "summary": summary[:1200],
+                "source": source[:200],
+            }
+        )
 
     if not AI_SUMMARY_ENABLED:
         return _apply_default_news_sentiment(
-            news_items,
-            reason="AI sentiment analysis is disabled."
+            news_items, reason="AI sentiment analysis is disabled."
         )
 
-    all_results=[]
+    all_results = []
 
-    for start in range(0,len(prepared_articles),NEWS_SENTIMENT_BATCH_SIZE):
-        batch=prepared_articles[
-            start:start+NEWS_SENTIMENT_BATCH_SIZE
-        ]
+    for start in range(0, len(prepared_articles), NEWS_SENTIMENT_BATCH_SIZE):
+        batch = prepared_articles[start : start + NEWS_SENTIMENT_BATCH_SIZE]
 
         try:
-            batch_result=_analyze_news_sentiment_batch(
-                articles=batch,
-                symbol=symbol,
-                company_name=company_name
+            batch_result = _analyze_news_sentiment_batch(
+                articles=batch, symbol=symbol, company_name=company_name
             )
 
-            all_results.extend(
-                batch_result.get("results",[])
-            )
+            all_results.extend(batch_result.get("results", []))
 
         except requests.exceptions.ConnectionError as error:
-            print(
-                f"[NEWS SENTIMENT CONNECTION ERROR] "
-                f"{symbol} batch {start}: {error}"
-            )
+            print(f"[NEWS SENTIMENT CONNECTION ERROR] {symbol} batch {start}: {error}")
 
         except requests.exceptions.Timeout as error:
-            print(
-                f"[NEWS SENTIMENT TIMEOUT] "
-                f"{symbol} batch {start}: {error}"
-            )
+            print(f"[NEWS SENTIMENT TIMEOUT] {symbol} batch {start}: {error}")
 
         except Exception as error:
-            print(
-                f"[NEWS SENTIMENT BATCH ERROR] "
-                f"{symbol} batch {start}: {error}"
-            )
+            print(f"[NEWS SENTIMENT BATCH ERROR] {symbol} batch {start}: {error}")
 
     if not all_results:
         return _apply_default_news_sentiment(
-            news_items,
-            reason="AI sentiment analysis was unavailable."
+            news_items, reason="AI sentiment analysis was unavailable."
         )
 
-    return _merge_news_sentiment_results(
-        news_items,
-        {
-            "results":all_results
-        }
-    )
+    return _merge_news_sentiment_results(news_items, {"results": all_results})
 
-def _analyze_news_sentiment_batch(articles,symbol,company_name):
-    cache_key=_make_cache_key(
-        "news_sentiment_batch",
-        symbol,
-        articles
-    )
 
-    cached_result=_load_ai_cache(cache_key)
+def _analyze_news_sentiment_batch(articles, symbol, company_name):
+    cache_key = _make_cache_key("news_sentiment_batch", symbol, articles)
+
+    cached_result = _load_ai_cache(cache_key)
 
     if cached_result:
         return cached_result
 
-    instruction="""
+    instruction = """
 You are InsiderAI's financial-news sentiment classifier.
 
 Analyze each article from the perspective of the selected company.
@@ -1087,7 +935,7 @@ Return exactly:
 }
 """
 
-    prompt=f"""
+    prompt = f"""
 {instruction}
 
 Selected company:
@@ -1097,58 +945,42 @@ Selected ticker:
 {symbol}
 
 Articles:
-{json.dumps(articles,indent=2,ensure_ascii=False)}
+{json.dumps(articles, indent=2, ensure_ascii=False)}
 """
 
     response = _post_to_ollama(
         {
-            "model":OLLAMA_MODEL,
-            "prompt":prompt,
-            "stream":False,
-            "format":"json",
-            "options":{
-                "temperature":0.1,
-                "num_predict":900
-            }
+            "model": OLLAMA_MODEL,
+            "prompt": prompt,
+            "stream": False,
+            "format": "json",
+            "options": {"temperature": 0.1, "num_predict": 900},
         }
     )
 
     response.raise_for_status()
 
-    payload=response.json()
-    raw_response=payload.get("response","")
+    payload = response.json()
+    raw_response = payload.get("response", "")
 
     if not raw_response:
         raise ValueError("Ollama returned an empty response.")
 
-    parsed_result=_parse_news_sentiment_response(
-        raw_response
-    )
+    parsed_result = _parse_news_sentiment_response(raw_response)
 
-    returned_ids={
-        item.get("id")
-        for item in parsed_result.get("results",[])
-    }
+    returned_ids = {item.get("id") for item in parsed_result.get("results", [])}
 
-    expected_ids={
-        article.get("id")
-        for article in articles
-    }
+    expected_ids = {article.get("id") for article in articles}
 
-    missing_ids=expected_ids-returned_ids
+    missing_ids = expected_ids - returned_ids
 
     if missing_ids:
-        print(
-            f"[NEWS SENTIMENT MISSING IDS] {symbol}:",
-            missing_ids
-        )
+        print(f"[NEWS SENTIMENT MISSING IDS] {symbol}:", missing_ids)
 
-    _save_ai_cache(
-        cache_key,
-        parsed_result
-    )
+    _save_ai_cache(cache_key, parsed_result)
 
     return parsed_result
+
 
 def _parse_news_sentiment_response(raw_response):
     if isinstance(raw_response, dict):
@@ -1157,12 +989,7 @@ def _parse_news_sentiment_response(raw_response):
         text = str(raw_response or "").strip()
 
         if text.startswith("```"):
-            text = re.sub(
-                r"^```(?:json)?\s*|\s*```$",
-                "",
-                text,
-                flags=re.I
-            ).strip()
+            text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text, flags=re.I).strip()
 
         parsed = json.loads(text)
 
@@ -1182,74 +1009,68 @@ def _parse_news_sentiment_response(raw_response):
         if not article_id:
             continue
 
-        label = str(
-            item.get("overall_sentiment_label") or "Neutral"
-        ).strip().title()
+        label = str(item.get("overall_sentiment_label") or "Neutral").strip().title()
 
         if label not in {"Bullish", "Bearish", "Neutral"}:
             label = "Neutral"
 
         try:
-            score = float(
-                item.get("overall_sentiment_score", 0)
-            )
+            score = float(item.get("overall_sentiment_score", 0))
         except (TypeError, ValueError):
             score = 0.0
 
         score = round(max(-1.0, min(1.0, score)), 3)
 
         reason = str(
-            item.get("reason")
-            or "No clear company-specific impact was identified."
+            item.get("reason") or "No clear company-specific impact was identified."
         ).strip()
 
-        validated.append({
-            "id": article_id,
-            "overall_sentiment_label": label,
-            "overall_sentiment_score": score,
-            "reason": reason[:500]
-        })
+        validated.append(
+            {
+                "id": article_id,
+                "overall_sentiment_label": label,
+                "overall_sentiment_score": score,
+                "reason": reason[:500],
+            }
+        )
 
-    return {
-        "results": validated
-    }
+    return {"results": validated}
 
 
-def _merge_news_sentiment_results(news_items,sentiment_payload):
-    result_map={
-        item.get("id"):item
-        for item in sentiment_payload.get("results",[])
+def _merge_news_sentiment_results(news_items, sentiment_payload):
+    result_map = {
+        item.get("id"): item
+        for item in sentiment_payload.get("results", [])
         if item.get("id")
     }
 
-    merged=[]
+    merged = []
 
     for article in news_items:
-        article_copy=dict(article)
-        article_id=article_copy.get("news_id")
-        sentiment=result_map.get(article_id)
+        article_copy = dict(article)
+        article_id = article_copy.get("news_id")
+        sentiment = result_map.get(article_id)
 
         if sentiment:
-            article_copy["overall_sentiment_label"]=(
-                sentiment.get("overall_sentiment_label")
-                or "Neutral"
+            article_copy["overall_sentiment_label"] = (
+                sentiment.get("overall_sentiment_label") or "Neutral"
             )
 
             try:
-                article_copy["overall_sentiment_score"]=float(
+                article_copy["overall_sentiment_score"] = float(
                     sentiment.get("overall_sentiment_score") or 0
                 )
-            except (TypeError,ValueError):
-                article_copy["overall_sentiment_score"]=0.0
+            except (TypeError, ValueError):
+                article_copy["overall_sentiment_score"] = 0.0
 
-            article_copy["sentiment_reason"]=(
+            article_copy["sentiment_reason"] = (
                 sentiment.get("reason")
                 or "No clear company-specific impact was identified."
             )
         else:
-            article_copy["overall_sentiment_label"]="Neutral"
-            article_copy["overall_sentiment_score"]=0.0
-            article_copy["sentiment_reason"]=(
+            article_copy["overall_sentiment_label"] = "Neutral"
+            article_copy["overall_sentiment_score"] = 0.0
+            article_copy["sentiment_reason"] = (
                 "This article could not be analyzed by the AI model."
             )
 
@@ -1266,8 +1087,7 @@ def _apply_default_news_sentiment(news_items, reason):
 
         if not article_copy.get("news_id"):
             raw_identifier = (
-                f"{article_copy.get('url', '')}|"
-                f"{article_copy.get('title', '')}"
+                f"{article_copy.get('url', '')}|{article_copy.get('title', '')}"
             )
 
             article_copy["news_id"] = hashlib.sha256(

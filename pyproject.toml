@@ -1,0 +1,21 @@
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.lint]
+select = [
+    "E",    # PEP 8 errors
+    "W",    # PEP 8 warnings
+    "F",    # Pyflakes
+    "I",    # Import sorting
+    "B",    # Bugbear readability and bug checks
+    "UP",   # Modern Python syntax
+    "SIM",  # Simplification suggestions
+    "C4",   # Comprehension improvements
+    "RUF",  # Ruff-specific checks
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"

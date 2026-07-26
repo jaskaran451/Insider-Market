@@ -1,10 +1,10 @@
-from flask import Response,request, redirect, url_for
+from flask import Response, request, redirect, url_for
 import requests
 from config import COMPANY_MAP
 import time
 import threading
 from config import TICKERS
-import os,re
+import os, re
 from datetime import datetime, date
 from typing import Dict
 from utils.cache_utils import load_cache, save_cache
@@ -20,7 +20,7 @@ from flask import flash
 import pandas as pd
 import numpy as np
 import traceback
-from werkzeug.security import (generate_password_hash,check_password_hash)
+from werkzeug.security import generate_password_hash, check_password_hash
 from utils.notifier import notifier
 from services.manager_portfolio_service import manager_portfolio_service
 from dataclasses import asdict
@@ -29,23 +29,23 @@ from services.stock_data_service import build_prediction_response
 from services.ollama_analysis import (
     stream_dashboard_ai_analysis,
     stream_forecast_ai_analysis,
-stream_smart_money_ai_explanation,
+    stream_smart_money_ai_explanation,
     analyze_news_sentiment,
-stream_news_sentiment
+    stream_news_sentiment,
 )
 from services.google_news_service import google_news_service
 import json
 import queue
 import os
 from dotenv import load_dotenv
-from flask import Flask, render_template, request, redirect, url_for, flash,session
+from flask import Flask, render_template, request, redirect, url_for, flash, session
 from flask_login import (
     LoginManager,
     UserMixin,
     login_user,
     logout_user,
     login_required,
-    current_user
+    current_user,
 )
 from edgar import set_identity
 from flask_mail import Mail, Message
@@ -54,6 +54,7 @@ from database.db import get_db_connection
 import yfinance as yf
 from flask import jsonify
 from dotenv import load_dotenv
+
 load_dotenv()
 
 
@@ -102,12 +103,9 @@ login_manager.init_app(app)
 login_manager.login_view = "login"
 login_manager.login_message = "Please log in to continue."
 login_manager.login_message_category = "warning"
-set_identity(
-    os.getenv(
-        "SEC_IDENTITY",
-        "Smart Money Flow jaskaran19942@gmail.com"
-    )
-)
+set_identity(os.getenv("SEC_IDENTITY", "Smart Money Flow jaskaran19942@gmail.com"))
+
+
 class User(UserMixin):
     def __init__(self, id, full_name, email):
         self.id = str(id)
@@ -126,6 +124,8 @@ class User(UserMixin):
             return parts[0][:2].upper()
 
         return "U"
+
+
 @login_manager.user_loader
 def load_user(user_id):
     session_user_id = session.get("user_id")
@@ -136,6 +136,7 @@ def load_user(user_id):
         return User(session_user_id, full_name, email)
 
     return None
+
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -156,7 +157,7 @@ def login():
 
             cursor.execute(
                 "SELECT id, full_name, email, password_hash FROM users WHERE email = ?",
-                email
+                email,
             )
 
             row = cursor.fetchone()
@@ -214,10 +215,7 @@ def signup():
             conn = get_db_connection()
             cursor = conn.cursor()
 
-            cursor.execute(
-                "SELECT id FROM users WHERE email = ?",
-                email
-            )
+            cursor.execute("SELECT id FROM users WHERE email = ?", email)
             existing_user = cursor.fetchone()
 
             if existing_user:
@@ -232,7 +230,7 @@ def signup():
                 """,
                 full_name,
                 email,
-                password_hash
+                password_hash,
             )
 
             conn.commit()
@@ -257,10 +255,12 @@ def logout():
     flash("Logged out successfully.", "success")
     return redirect(url_for("home"))
 
+
 @app.route("/account")
 @login_required
 def account():
     return render_template("account.html")
+
 
 app.config["MAIL_SERVER"] = os.getenv("MAIL_SERVER")
 app.config["MAIL_PORT"] = int(os.getenv("MAIL_PORT", 587))
@@ -270,6 +270,7 @@ app.config["MAIL_PASSWORD"] = os.getenv("MAIL_PASSWORD")
 app.config["MAIL_DEFAULT_SENDER"] = os.getenv("MAIL_USERNAME")
 
 mail = Mail(app)
+
 
 @app.route("/contact", methods=["POST"])
 def contact():
@@ -287,7 +288,7 @@ def contact():
         msg = Message(
             subject=f"New InsiderAI Contact Message from {name}",
             recipients=[receiver_email],
-            reply_to=email
+            reply_to=email,
         )
 
         msg.body = f"""
@@ -301,13 +302,19 @@ Message:
 """
         mail.send(msg)
 
-        flash("Message sent successfully. Thank you for contacting InsiderAI.", "success")
+        flash(
+            "Message sent successfully. Thank you for contacting InsiderAI.", "success"
+        )
         return redirect(url_for("landing") + "#contact")
 
     except Exception as e:
         print("Contact email error:", e)
-        flash("Something went wrong while sending your message. Please try again later.", "error")
+        flash(
+            "Something went wrong while sending your message. Please try again later.",
+            "error",
+        )
         return redirect(url_for("landing") + "#contact")
+
 
 def build_empty_dashboard_data():
     return {
@@ -325,7 +332,7 @@ def build_empty_dashboard_data():
             "decreased_shares": 0,
             "unchanged_holders": 0,
             "unchanged_shares": 0,
-            "ownership_pct": "0%"
+            "ownership_pct": "0%",
         },
         "news": [],
         "news_summary": {
@@ -334,15 +341,16 @@ def build_empty_dashboard_data():
             "bearish": 0,
             "neutral": 0,
             "avg_score": 0,
-            "top_topic": "N/A"
+            "top_topic": "N/A",
         },
         "earnings": {
             "available": False,
             "message": "Search a company to view earnings transcripts.",
-            "items": []
+            "items": [],
         },
-        "logo": None
+        "logo": None,
     }
+
 
 def process_insider_data(symbol):
     insider_data = edgar_insider_api_adapter.get_insider_transactions(symbol)
@@ -360,39 +368,33 @@ def process_insider_data(symbol):
         else:
             transaction_type = "Other"
 
-        transactions.append({
-            "date": item.get("transaction_date"),
-            "executive": item.get("executive"),
-            "title": item.get("executive_title"),
-            "type": transaction_type,
-            "shares": item.get("shares"),
-            "price": item.get("share_price"),
-            "shares_value": (
-                item.get("transaction_value")
-                or item.get("share_value")
-            ),
-            "security": item.get("security_type"),
-            "sec_link": (
-                item.get("sec_filing_url")
-                or item.get("sec_link")
-            )
-        })
+        transactions.append(
+            {
+                "date": item.get("transaction_date"),
+                "executive": item.get("executive"),
+                "title": item.get("executive_title"),
+                "type": transaction_type,
+                "shares": item.get("shares"),
+                "price": item.get("share_price"),
+                "shares_value": (
+                    item.get("transaction_value") or item.get("share_value")
+                ),
+                "security": item.get("security_type"),
+                "sec_link": (item.get("sec_filing_url") or item.get("sec_link")),
+            }
+        )
 
     return transactions
 
+
 def process_institutional_data(symbol):
-    institutional_data = fetch_market_data(
-        "institutions",
-        symbol
-    )
+    institutional_data = fetch_market_data("institutions", symbol)
 
     holdings_raw = institutional_data.get("holdings", [])
     institutional = []
 
     for holding in holdings_raw:
-        change_type = str(
-            holding.get("change_type") or ""
-        ).lower()
+        change_type = str(holding.get("change_type") or "").lower()
 
         if "increase" in change_type:
             status = "Increase"
@@ -404,129 +406,84 @@ def process_institutional_data(symbol):
             status = "Hold"
             css_class = "neutral"
 
-        institutional.append({
-            "holder": holding.get("holder_name"),
-            "shares": holding.get("shares_held"),
-            "change": holding.get("shares_changed"),
-            "change_pct": holding.get(
-                "shares_changed_percentage"
-            ),
-            "type": status,
-            "css": css_class,
-            "date": holding.get("last_reported")
-        })
+        institutional.append(
+            {
+                "holder": holding.get("holder_name"),
+                "shares": holding.get("shares_held"),
+                "change": holding.get("shares_changed"),
+                "change_pct": holding.get("shares_changed_percentage"),
+                "type": status,
+                "css": css_class,
+                "date": holding.get("last_reported"),
+            }
+        )
 
     institutional_summary = {
-        "total_holders": institutional_data.get(
-            "total_institutional_holders"
-        ) or 0,
-        "total_shares": institutional_data.get(
-            "total_institutional_shares"
-        ) or 0,
-        "increased_holders": institutional_data.get(
-            "holders_with_increased_holdings"
-        ) or 0,
-        "increased_shares": institutional_data.get(
-            "shares_with_increased_holdings"
-        ) or 0,
-        "decreased_holders": institutional_data.get(
-            "holders_with_decreased_holdings"
-        ) or 0,
-        "decreased_shares": institutional_data.get(
-            "shares_with_decreased_holdings"
-        ) or 0,
-        "unchanged_holders": institutional_data.get(
-            "holders_with_unchanged_holdings"
-        ) or 0,
-        "unchanged_shares": institutional_data.get(
-            "shares_with_unchanged_holdings"
-        ) or 0,
+        "total_holders": institutional_data.get("total_institutional_holders") or 0,
+        "total_shares": institutional_data.get("total_institutional_shares") or 0,
+        "increased_holders": institutional_data.get("holders_with_increased_holdings")
+        or 0,
+        "increased_shares": institutional_data.get("shares_with_increased_holdings")
+        or 0,
+        "decreased_holders": institutional_data.get("holders_with_decreased_holdings")
+        or 0,
+        "decreased_shares": institutional_data.get("shares_with_decreased_holdings")
+        or 0,
+        "unchanged_holders": institutional_data.get("holders_with_unchanged_holdings")
+        or 0,
+        "unchanged_shares": institutional_data.get("shares_with_unchanged_holdings")
+        or 0,
         "ownership_pct": institutional_data.get(
             "total_institutional_ownership_percentage"
-        ) or "0%"
+        )
+        or "0%",
     }
 
     return institutional, institutional_summary
 
-def build_news_ui_article(
-    item,
-    symbol
-):
-    label = (
-        item.get("overall_sentiment_label")
-        or "Neutral"
-    )
+
+def build_news_ui_article(item, symbol):
+    label = item.get("overall_sentiment_label") or "Neutral"
 
     try:
-        score = float(
-            item.get(
-                "overall_sentiment_score"
-            )
-            or 0
-        )
-    except (
-        TypeError,
-        ValueError
-    ):
+        score = float(item.get("overall_sentiment_score") or 0)
+    except (TypeError, ValueError):
         score = 0.0
 
-    ticker_items = (
-        item.get("ticker_sentiment")
-        or []
-    )
+    ticker_items = item.get("ticker_sentiment") or []
 
     tickers = []
 
     for ticker_item in ticker_items:
-        tickers.append({
-            "symbol": (
-                ticker_item.get("ticker")
-                or symbol
-            ),
-            "label": label,
-            "score": score
-        })
+        tickers.append(
+            {
+                "symbol": (ticker_item.get("ticker") or symbol),
+                "label": label,
+                "score": score,
+            }
+        )
 
     if not tickers:
-        tickers = [{
-            "symbol": symbol,
-            "label": label,
-            "score": score
-        }]
+        tickers = [{"symbol": symbol, "label": label, "score": score}]
 
     return {
         "id": item.get("news_id"),
         "title": item.get("title"),
         "summary": item.get("summary") or "",
         "image": item.get("banner_image"),
-        "source": (
-            item.get("source")
-            or "Google News"
-        ),
+        "source": (item.get("source") or "Google News"),
         "url": item.get("url"),
         "time": item.get("time_published"),
-
         "sentiment_label": label,
         "sentiment_score": score,
-
         "sentiment_reason": (
             item.get("sentiment_reason")
-            or (
-                "No clear company-specific "
-                "impact was identified."
-            )
+            or ("No clear company-specific impact was identified.")
         ),
-
         "topics": [
-            topic.get("topic")
-            for topic in item.get(
-                "topics",
-                []
-            )
-            if topic.get("topic")
+            topic.get("topic") for topic in item.get("topics", []) if topic.get("topic")
         ],
-
-        "tickers": tickers
+        "tickers": tickers,
     }
 
 
@@ -538,22 +495,11 @@ def build_news_summary(news_items):
     topic_map = {}
 
     for item in news_items:
-        label = (
-            item.get("sentiment_label")
-            or "Neutral"
-        )
+        label = item.get("sentiment_label") or "Neutral"
 
         try:
-            score = float(
-                item.get(
-                    "sentiment_score"
-                )
-                or 0
-            )
-        except (
-            TypeError,
-            ValueError
-        ):
+            score = float(item.get("sentiment_score") or 0)
+        except (TypeError, ValueError):
             score = 0.0
 
         total_score += score
@@ -565,169 +511,142 @@ def build_news_summary(news_items):
         else:
             neutral += 1
 
-        for topic in item.get(
-            "topics",
-            []
-        ):
+        for topic in item.get("topics", []):
             if not topic:
                 continue
 
-            topic_map[topic] = (
-                topic_map.get(topic, 0)
-                + 1
-            )
+            topic_map[topic] = topic_map.get(topic, 0) + 1
 
-    top_topic = (
-        max(
-            topic_map,
-            key=topic_map.get
-        )
-        if topic_map
-        else "N/A"
-    )
+    top_topic = max(topic_map, key=topic_map.get) if topic_map else "N/A"
 
     return {
         "total_articles": len(news_items),
         "bullish": bullish,
         "bearish": bearish,
         "neutral": neutral,
-
-        "avg_score": (
-            round(
-                total_score /
-                len(news_items),
-                3
-            )
-            if news_items
-            else 0
-        ),
-
-        "top_topic": top_topic
+        "avg_score": (round(total_score / len(news_items), 3) if news_items else 0),
+        "top_topic": top_topic,
     }
 
-def process_news_data(symbol,company_name):
-    news_data=get_google_news_cached(symbol,company_name)
-    feed_raw=news_data.get("feed",[])[:20]
 
-    feed_raw=analyze_news_sentiment(
-        news_items=feed_raw,
-        symbol=symbol,
-        company_name=company_name
+def process_news_data(symbol, company_name):
+    news_data = get_google_news_cached(symbol, company_name)
+    feed_raw = news_data.get("feed", [])[:20]
+
+    feed_raw = analyze_news_sentiment(
+        news_items=feed_raw, symbol=symbol, company_name=company_name
     )
 
-    bullish=0
-    bearish=0
-    neutral=0
-    total_score=0.0
-    topic_map={}
+    bullish = 0
+    bearish = 0
+    neutral = 0
+    total_score = 0.0
+    topic_map = {}
 
     for item in feed_raw:
-        label=item.get("overall_sentiment_label") or "Neutral"
+        label = item.get("overall_sentiment_label") or "Neutral"
 
         try:
-            score=float(item.get("overall_sentiment_score") or 0)
-        except (TypeError,ValueError):
-            score=0.0
+            score = float(item.get("overall_sentiment_score") or 0)
+        except (TypeError, ValueError):
+            score = 0.0
 
-        total_score+=score
+        total_score += score
 
-        if label=="Bullish":
-            bullish+=1
-        elif label=="Bearish":
-            bearish+=1
+        if label == "Bullish":
+            bullish += 1
+        elif label == "Bearish":
+            bearish += 1
         else:
-            neutral+=1
+            neutral += 1
 
-        for topic_item in item.get("topics",[]):
-            topic=topic_item.get("topic")
+        for topic_item in item.get("topics", []):
+            topic = topic_item.get("topic")
 
             if not topic:
                 continue
 
             try:
-                relevance=float(topic_item.get("relevance_score") or 1)
-            except (TypeError,ValueError):
-                relevance=1.0
+                relevance = float(topic_item.get("relevance_score") or 1)
+            except (TypeError, ValueError):
+                relevance = 1.0
 
-            topic_map[topic]=topic_map.get(topic,0)+relevance
+            topic_map[topic] = topic_map.get(topic, 0) + relevance
 
-    top_topic=max(topic_map,key=topic_map.get) if topic_map else "N/A"
+    top_topic = max(topic_map, key=topic_map.get) if topic_map else "N/A"
 
-    summary={
-        "total_articles":len(feed_raw),
-        "bullish":bullish,
-        "bearish":bearish,
-        "neutral":neutral,
-        "avg_score":round(total_score/len(feed_raw),3) if feed_raw else 0,
-        "top_topic":top_topic
+    summary = {
+        "total_articles": len(feed_raw),
+        "bullish": bullish,
+        "bearish": bearish,
+        "neutral": neutral,
+        "avg_score": round(total_score / len(feed_raw), 3) if feed_raw else 0,
+        "top_topic": top_topic,
     }
 
-    news=[]
+    news = []
 
     for item in feed_raw:
-        label=item.get("overall_sentiment_label") or "Neutral"
+        label = item.get("overall_sentiment_label") or "Neutral"
 
         try:
-            score=float(item.get("overall_sentiment_score") or 0)
-        except (TypeError,ValueError):
-            score=0.0
+            score = float(item.get("overall_sentiment_score") or 0)
+        except (TypeError, ValueError):
+            score = 0.0
 
-        ticker_items=item.get("ticker_sentiment",[])
-        tickers=[]
+        ticker_items = item.get("ticker_sentiment", [])
+        tickers = []
 
         for ticker_item in ticker_items:
-            tickers.append({
-                "symbol":ticker_item.get("ticker") or symbol,
-                "label":label,
-                "score":score
-            })
+            tickers.append(
+                {
+                    "symbol": ticker_item.get("ticker") or symbol,
+                    "label": label,
+                    "score": score,
+                }
+            )
 
         if not tickers:
-            tickers=[{
-                "symbol":symbol,
-                "label":label,
-                "score":score
-            }]
+            tickers = [{"symbol": symbol, "label": label, "score": score}]
 
-        news.append({
-            "id":item.get("news_id"),
-            "title":item.get("title"),
-            "summary":item.get("summary") or "",
-            "image":item.get("banner_image"),
-            "source":item.get("source") or "Google News",
-            "url":item.get("url"),
-            "time":item.get("time_published"),
-            "sentiment_label":label,
-            "sentiment_score":score,
-            "sentiment_reason":item.get("sentiment_reason") or "No clear company-specific impact was identified.",
-            "topics":[
-                topic.get("topic")
-                for topic in item.get("topics",[])
-                if topic.get("topic")
-            ],
-            "tickers":tickers
-        })
+        news.append(
+            {
+                "id": item.get("news_id"),
+                "title": item.get("title"),
+                "summary": item.get("summary") or "",
+                "image": item.get("banner_image"),
+                "source": item.get("source") or "Google News",
+                "url": item.get("url"),
+                "time": item.get("time_published"),
+                "sentiment_label": label,
+                "sentiment_score": score,
+                "sentiment_reason": item.get("sentiment_reason")
+                or "No clear company-specific impact was identified.",
+                "topics": [
+                    topic.get("topic")
+                    for topic in item.get("topics", [])
+                    if topic.get("topic")
+                ],
+                "tickers": tickers,
+            }
+        )
 
-    return news,summary
+    return news, summary
+
 
 def process_earnings_data(symbol):
     try:
         return fetch_earnings_transcripts(symbol)
 
     except Exception as error:
-        print(
-            f"[EARNINGS PROCESSING ERROR] {symbol}:",
-            error
-        )
+        print(f"[EARNINGS PROCESSING ERROR] {symbol}:", error)
 
         return {
             "available": False,
-            "message": (
-                "Earnings transcript data is temporarily "
-                "unavailable."
-            ),
-            "items": []
+            "message": ("Earnings transcript data is temporarily unavailable."),
+            "items": [],
         }
+
 
 def process_company_logo(symbol):
     try:
@@ -736,21 +655,15 @@ def process_company_logo(symbol):
         if not image_bytes:
             return None
 
-        encoded_string = base64.b64encode(
-            image_bytes
-        ).decode("utf-8")
+        encoded_string = base64.b64encode(image_bytes).decode("utf-8")
 
-        return (
-            f"data:image/jpeg;base64,{encoded_string}"
-        )
+        return f"data:image/jpeg;base64,{encoded_string}"
 
     except Exception as error:
-        print(
-            f"[COMPANY LOGO ERROR] {symbol}:",
-            error
-        )
+        print(f"[COMPANY LOGO ERROR] {symbol}:", error)
 
         return None
+
 
 def cache_dashboard_ai_data(data):
     symbol = data.get("symbol")
@@ -761,53 +674,37 @@ def cache_dashboard_ai_data(data):
     dashboard_ai_data_cache[symbol] = {
         "symbol": symbol,
         "name": data.get("name"),
-        "transactions": data.get(
-            "transactions",
-            []
-        ),
-        "institutional": data.get(
-            "institutional",
-            []
-        ),
-        "institutional_summary": data.get(
-            "institutional_summary",
-            {}
-        ),
+        "transactions": data.get("transactions", []),
+        "institutional": data.get("institutional", []),
+        "institutional_summary": data.get("institutional_summary", {}),
         "news": data.get("news", []),
-        "news_summary": data.get(
-            "news_summary",
-            {}
-        ),
-        "earnings": data.get(
-            "earnings",
-            {}
-        )
+        "news_summary": data.get("news_summary", {}),
+        "earnings": data.get("earnings", {}),
     }
 
-def get_google_news_cached(symbol,company_name=None):
-    symbol=(symbol or "").upper().strip()
-    cache_key=f"google_news_{symbol}"
-    cached=load_cache(CACHE_FOLDER_news,cache_key,max_age_seconds=6*3600)
+
+def get_google_news_cached(symbol, company_name=None):
+    symbol = (symbol or "").upper().strip()
+    cache_key = f"google_news_{symbol}"
+    cached = load_cache(CACHE_FOLDER_news, cache_key, max_age_seconds=6 * 3600)
 
     if cached and cached.get("feed"):
         return cached
 
-    fresh=google_news_service.get_company_news(
-        symbol=symbol,
-        company_name=company_name,
-        limit=30,
-        when="7d"
+    fresh = google_news_service.get_company_news(
+        symbol=symbol, company_name=company_name, limit=30, when="7d"
     )
 
     if fresh.get("feed"):
-        save_cache(CACHE_FOLDER_news,cache_key,fresh)
+        save_cache(CACHE_FOLDER_news, cache_key, fresh)
         return fresh
 
     if cached:
-        cached["_using_cached_fallback"]=True
+        cached["_using_cached_fallback"] = True
         return cached
 
     return fresh
+
 
 def fetch_market_data(data_type, symbol):
     symbol = symbol.upper().strip()
@@ -887,6 +784,7 @@ def fetch_market_data(data_type, symbol):
 
     return data
 
+
 def get_cached_smart_money_result(symbol):
     symbol = symbol.upper().strip()
 
@@ -935,39 +833,30 @@ def build_smart_money_result(symbol):
                 parsed_filings.append(parsed)
 
         except Exception as error:
-            print(
-                f"[INSIDER PARSE ERROR] {symbol}:",
-                error
-            )
+            print(f"[INSIDER PARSE ERROR] {symbol}:", error)
 
-    summary = insider_service.analyze(
-        parsed_filings,
-        company.name
-    )
+    summary = insider_service.analyze(parsed_filings, company.name)
 
-    summary_dict = make_json_safe(
-        asdict(summary)
-    )
+    summary_dict = make_json_safe(asdict(summary))
 
     result = {
         "symbol": symbol,
         "company": company.name,
         "summary": summary_dict,
-        "created_at": time.time()
+        "created_at": time.time(),
     }
 
     smart_money_ai_cache[symbol] = result
 
     return result
 
+
 @app.route("/")
 def landing():
     return render_template("main.html")
 
-@app.route(
-    "/api/smart-money/<symbol>/prepare",
-    methods=["POST"]
-)
+
+@app.route("/api/smart-money/<symbol>/prepare", methods=["POST"])
 def prepare_smart_money_intelligence(symbol):
     symbol = symbol.upper().strip()
 
@@ -977,65 +866,57 @@ def prepare_smart_money_intelligence(symbol):
         if not result:
             result = build_smart_money_result(symbol)
 
-        return jsonify({
-            "success": True,
-            "smart_money": result["summary"]
-        })
+        return jsonify({"success": True, "smart_money": result["summary"]})
 
     except ValueError as error:
-        return jsonify({
-            "success": False,
-            "message": str(error)
-        }), 404
-
+        return jsonify({"success": False, "message": str(error)}), 404
 
     except Exception as error:
-
         print(f"[SMART MONEY PREPARE ERROR] {symbol}: {error}")
 
         traceback.print_exc()
 
-        return jsonify({
+        return jsonify(
+            {
+                "success": False,
+                "message": "Unable to prepare insider intelligence.",
+            }
+        ), 500
 
-            "success": False,
 
-            "message": "Unable to prepare insider intelligence.",
-
-        }), 500
-
-@app.route("/dashboard",methods=["GET","POST"])
+@app.route("/dashboard", methods=["GET", "POST"])
 def home():
-    data=build_empty_dashboard_data()
-    if request.method!="POST":
-        return render_template("index.html",data=data,companies=COMPANY_MAP)
+    data = build_empty_dashboard_data()
+    if request.method != "POST":
+        return render_template("index.html", data=data, companies=COMPANY_MAP)
 
-    symbol=(request.form.get("symbol") or "").upper().strip()
-    company_name=(request.form.get("company_name") or "").strip()
+    symbol = (request.form.get("symbol") or "").upper().strip()
+    company_name = (request.form.get("company_name") or "").strip()
 
     if not symbol:
-        flash("Please select a valid company.","warning")
-        return render_template("index.html",data=data,companies=COMPANY_MAP)
+        flash("Please select a valid company.", "warning")
+        return render_template("index.html", data=data, companies=COMPANY_MAP)
 
     if not company_name:
-        company_name=COMPANY_MAP.get(symbol) or symbol
+        company_name = COMPANY_MAP.get(symbol) or symbol
 
-    session["ticker"]=symbol
-    session["company_name"]=company_name
+    session["ticker"] = symbol
+    session["company_name"] = company_name
 
-    data["symbol"]=symbol
-    data["name"]=company_name
-    dashboard_ai_data_cache[symbol]={
-        "symbol":symbol,
-        "name":company_name,
-        "transactions":[],
-        "institutional":[],
-        "institutional_summary":data["institutional_summary"],
-        "news":[],
-        "news_summary":data["news_summary"],
-        "earnings":data["earnings"]
+    data["symbol"] = symbol
+    data["name"] = company_name
+    dashboard_ai_data_cache[symbol] = {
+        "symbol": symbol,
+        "name": company_name,
+        "transactions": [],
+        "institutional": [],
+        "institutional_summary": data["institutional_summary"],
+        "news": [],
+        "news_summary": data["news_summary"],
+        "earnings": data["earnings"],
     }
 
-    return render_template("index.html",data=data,companies=COMPANY_MAP)
+    return render_template("index.html", data=data, companies=COMPANY_MAP)
 
 
 def update_dashboard_ai_section(
@@ -1049,11 +930,7 @@ def update_dashboard_ai_section(
     """Update cached dashboard data without requiring a request context."""
 
     symbol = symbol.upper().strip()
-    resolved_company_name = (
-        company_name
-        or COMPANY_MAP.get(symbol)
-        or symbol
-    )
+    resolved_company_name = company_name or COMPANY_MAP.get(symbol) or symbol
 
     empty_data = build_empty_dashboard_data()
 
@@ -1064,9 +941,7 @@ def update_dashboard_ai_section(
             "name": resolved_company_name,
             "transactions": [],
             "institutional": [],
-            "institutional_summary": empty_data[
-                "institutional_summary"
-            ],
+            "institutional_summary": empty_data["institutional_summary"],
             "news": [],
             "news_summary": empty_data["news_summary"],
             "earnings": empty_data["earnings"],
@@ -1082,43 +957,73 @@ def update_dashboard_ai_section(
 
 @app.route("/api/dashboard/<symbol>/insiders")
 def dashboard_insiders_api(symbol):
-    symbol=symbol.upper().strip()
+    symbol = symbol.upper().strip()
     try:
-        transactions=process_insider_data(symbol)
-        update_dashboard_ai_section(symbol,"transactions",transactions)
-        return jsonify({"success":True,"transactions":make_json_safe(transactions)})
+        transactions = process_insider_data(symbol)
+        update_dashboard_ai_section(symbol, "transactions", transactions)
+        return jsonify({"success": True, "transactions": make_json_safe(transactions)})
     except Exception as error:
-        print(f"[INSIDER API ERROR] {symbol}:",error)
-        return jsonify({"success":False,"message":"Unable to load insider transactions right now."}),500
+        print(f"[INSIDER API ERROR] {symbol}:", error)
+        return jsonify(
+            {
+                "success": False,
+                "message": "Unable to load insider transactions right now.",
+            }
+        ), 500
 
 
 @app.route("/api/dashboard/<symbol>/institutions")
 def dashboard_institutions_api(symbol):
-    symbol=symbol.upper().strip()
+    symbol = symbol.upper().strip()
     try:
-        institutional,summary=process_institutional_data(symbol)
-        update_dashboard_ai_section(symbol,"institutional",institutional,"institutional_summary",summary)
-        return jsonify({"success":True,"institutional":make_json_safe(institutional),"summary":make_json_safe(summary)})
+        institutional, summary = process_institutional_data(symbol)
+        update_dashboard_ai_section(
+            symbol, "institutional", institutional, "institutional_summary", summary
+        )
+        return jsonify(
+            {
+                "success": True,
+                "institutional": make_json_safe(institutional),
+                "summary": make_json_safe(summary),
+            }
+        )
     except Exception as error:
-        print(f"[INSTITUTION API ERROR] {symbol}:",error)
-        return jsonify({"success":False,"message":"Unable to load institutional holdings right now."}),500
+        print(f"[INSTITUTION API ERROR] {symbol}:", error)
+        return jsonify(
+            {
+                "success": False,
+                "message": "Unable to load institutional holdings right now.",
+            }
+        ), 500
 
 
 @app.route("/api/dashboard/<symbol>/news")
 def dashboard_news_api(symbol):
-    symbol=symbol.upper().strip()
-    company_name=(request.args.get("company_name") or session.get("company_name") or COMPANY_MAP.get(symbol) or symbol).strip()
+    symbol = symbol.upper().strip()
+    company_name = (
+        request.args.get("company_name")
+        or session.get("company_name")
+        or COMPANY_MAP.get(symbol)
+        or symbol
+    ).strip()
     try:
-        news,summary=process_news_data(symbol,company_name)
-        update_dashboard_ai_section(symbol,"news",news,"news_summary",summary)
-        return jsonify({"success":True,"news":make_json_safe(news),"summary":make_json_safe(summary)})
+        news, summary = process_news_data(symbol, company_name)
+        update_dashboard_ai_section(symbol, "news", news, "news_summary", summary)
+        return jsonify(
+            {
+                "success": True,
+                "news": make_json_safe(news),
+                "summary": make_json_safe(summary),
+            }
+        )
     except Exception as error:
-        print(f"[NEWS API ERROR] {symbol}:",error)
-        return jsonify({"success":False,"message":"Unable to load company news right now."}),500
+        print(f"[NEWS API ERROR] {symbol}:", error)
+        return jsonify(
+            {"success": False, "message": "Unable to load company news right now."}
+        ), 500
 
-@app.route(
-    "/api/dashboard/<symbol>/news-stream"
-)
+
+@app.route("/api/dashboard/<symbol>/news-stream")
 def dashboard_news_stream_api(symbol):
     symbol = symbol.upper().strip()
 
@@ -1133,30 +1038,32 @@ def dashboard_news_stream_api(symbol):
         completed_news = []
 
         try:
-            yield json.dumps({
-                "type": "status",
-                "stage": "collecting",
-                "message": (
-                    "Collecting recent company news..."
+            yield (
+                json.dumps(
+                    {
+                        "type": "status",
+                        "stage": "collecting",
+                        "message": ("Collecting recent company news..."),
+                    }
                 )
-            }) + "\n"
-
-            news_data = get_google_news_cached(
-                symbol,
-                company_name
+                + "\n"
             )
 
-            feed_raw = (
-                news_data.get("feed", [])
-                or []
-            )[:20]
+            news_data = get_google_news_cached(symbol, company_name)
 
-            yield json.dumps({
-                "type": "start",
-                "total": len(feed_raw),
-                "symbol": symbol,
-                "company_name": company_name
-            }) + "\n"
+            feed_raw = (news_data.get("feed", []) or [])[:20]
+
+            yield (
+                json.dumps(
+                    {
+                        "type": "start",
+                        "total": len(feed_raw),
+                        "symbol": symbol,
+                        "company_name": company_name,
+                    }
+                )
+                + "\n"
+            )
 
             if not feed_raw:
                 empty_summary = {
@@ -1165,78 +1072,59 @@ def dashboard_news_stream_api(symbol):
                     "bearish": 0,
                     "neutral": 0,
                     "avg_score": 0,
-                    "top_topic": "N/A"
+                    "top_topic": "N/A",
                 }
 
-                yield json.dumps({
-                    "type": "summary",
-                    "summary": empty_summary
-                }) + "\n"
+                yield json.dumps({"type": "summary", "summary": empty_summary}) + "\n"
 
-                yield json.dumps({
-                    "type": "done",
-                    "total": 0
-                }) + "\n"
+                yield json.dumps({"type": "done", "total": 0}) + "\n"
 
                 return
 
-            yield json.dumps({
-                "type": "status",
-                "stage": "analyzing",
-                "message": (
-                    "Analyzing company-specific "
-                    "news sentiment..."
+            yield (
+                json.dumps(
+                    {
+                        "type": "status",
+                        "stage": "analyzing",
+                        "message": ("Analyzing company-specific news sentiment..."),
+                    }
                 )
-            }) + "\n"
+                + "\n"
+            )
 
             for analyzed_item in stream_news_sentiment(
-                news_items=feed_raw,
-                symbol=symbol,
-                company_name=company_name
+                news_items=feed_raw, symbol=symbol, company_name=company_name
             ):
-                ui_article = build_news_ui_article(
-                    analyzed_item,
-                    symbol
-                )
+                ui_article = build_news_ui_article(analyzed_item, symbol)
 
-                completed_news.append(
-                    ui_article
-                )
+                completed_news.append(ui_article)
 
-                yield json.dumps(
-                    {
-                        "type": "article",
-                        "index": len(completed_news),
-                        "total": len(feed_raw),
-                        "article": make_json_safe(
-                            ui_article
-                        )
-                    },
-                    default=str
-                ) + "\n"
+                yield (
+                    json.dumps(
+                        {
+                            "type": "article",
+                            "index": len(completed_news),
+                            "total": len(feed_raw),
+                            "article": make_json_safe(ui_article),
+                        },
+                        default=str,
+                    )
+                    + "\n"
+                )
 
             try:
-                summary = build_news_summary(
-                    completed_news
-                )
+                summary = build_news_summary(completed_news)
 
             except Exception as error:
-                print(
-                    f"[NEWS SUMMARY ERROR] {symbol}:",
-                    error
-                )
+                print(f"[NEWS SUMMARY ERROR] {symbol}:", error)
 
                 summary = {
-                    "total_articles": len(
-                        completed_news
-                    ),
+                    "total_articles": len(completed_news),
                     "bullish": 0,
                     "bearish": 0,
-                    "neutral": len(
-                        completed_news
-                    ),
+                    "neutral": len(completed_news),
                     "avg_score": 0,
-                    "top_topic": "N/A"
+                    "top_topic": "N/A",
                 }
 
             try:
@@ -1250,152 +1138,136 @@ def dashboard_news_stream_api(symbol):
                 )
 
             except Exception as error:
-                print(
-                    f"[NEWS CACHE UPDATE ERROR] {symbol}:",
-                    error
+                print(f"[NEWS CACHE UPDATE ERROR] {symbol}:", error)
+
+            yield (
+                json.dumps(
+                    {"type": "summary", "summary": make_json_safe(summary)}, default=str
                 )
+                + "\n"
+            )
 
-            yield json.dumps(
-                {
-                    "type": "summary",
-                    "summary": make_json_safe(
-                        summary
-                    )
-                },
-                default=str
-            ) + "\n"
-
-            yield json.dumps({
-                "type": "done",
-                "total": len(
-                    completed_news
-                ),
-                "partial": False
-            }) + "\n"
+            yield (
+                json.dumps(
+                    {"type": "done", "total": len(completed_news), "partial": False}
+                )
+                + "\n"
+            )
 
         except GeneratorExit:
-            print(
-                f"[NEWS STREAM CLOSED] {symbol}"
-            )
+            print(f"[NEWS STREAM CLOSED] {symbol}")
 
         except Exception as error:
-            print(
-                f"[NEWS STREAM API ERROR] {symbol}:",
-                error
-            )
+            print(f"[NEWS STREAM API ERROR] {symbol}:", error)
 
             if completed_news:
                 try:
-                    partial_summary = (
-                        build_news_summary(
-                            completed_news
-                        )
-                    )
+                    partial_summary = build_news_summary(completed_news)
 
-                    yield json.dumps(
-                        {
-                            "type": "summary",
-                            "summary": make_json_safe(
-                                partial_summary
-                            )
-                        },
-                        default=str
-                    ) + "\n"
+                    yield (
+                        json.dumps(
+                            {
+                                "type": "summary",
+                                "summary": make_json_safe(partial_summary),
+                            },
+                            default=str,
+                        )
+                        + "\n"
+                    )
 
                 except Exception as summary_error:
-                    print(
-                        f"[PARTIAL NEWS SUMMARY ERROR] "
-                        f"{symbol}:",
-                        summary_error
-                    )
+                    print(f"[PARTIAL NEWS SUMMARY ERROR] {symbol}:", summary_error)
 
-                yield json.dumps({
-                    "type": "warning",
-                    "message": (
-                        "Some final news processing "
-                        "could not be completed."
-                    ),
-                    "loaded": len(
-                        completed_news
+                yield (
+                    json.dumps(
+                        {
+                            "type": "warning",
+                            "message": (
+                                "Some final news processing could not be completed."
+                            ),
+                            "loaded": len(completed_news),
+                        }
                     )
-                }) + "\n"
+                    + "\n"
+                )
 
-                yield json.dumps({
-                    "type": "done",
-                    "total": len(
-                        completed_news
-                    ),
-                    "partial": True
-                }) + "\n"
+                yield (
+                    json.dumps(
+                        {"type": "done", "total": len(completed_news), "partial": True}
+                    )
+                    + "\n"
+                )
 
             else:
-                yield json.dumps({
-                    "type": "error",
-                    "message": (
-                        "Unable to load company "
-                        "news right now."
+                yield (
+                    json.dumps(
+                        {
+                            "type": "error",
+                            "message": ("Unable to load company news right now."),
+                        }
                     )
-                }) + "\n"
+                    + "\n"
+                )
 
     return Response(
         generate(),
         mimetype="application/x-ndjson",
         headers={
-            "Cache-Control": (
-                "no-cache, no-store, "
-                "must-revalidate"
-            ),
+            "Cache-Control": ("no-cache, no-store, must-revalidate"),
             "Pragma": "no-cache",
             "Expires": "0",
-            "X-Accel-Buffering": "no"
-        }
+            "X-Accel-Buffering": "no",
+        },
     )
+
 
 @app.route("/api/dashboard/<symbol>/earnings")
 def dashboard_earnings_api(symbol):
-    symbol=symbol.upper().strip()
+    symbol = symbol.upper().strip()
     try:
-        earnings=process_earnings_data(symbol)
-        update_dashboard_ai_section(symbol,"earnings",earnings)
-        return jsonify({"success":True,"earnings":make_json_safe(earnings)})
+        earnings = process_earnings_data(symbol)
+        update_dashboard_ai_section(symbol, "earnings", earnings)
+        return jsonify({"success": True, "earnings": make_json_safe(earnings)})
     except Exception as error:
-        print(f"[EARNINGS API ERROR] {symbol}:",error)
-        return jsonify({"success":False,"message":"Unable to load earnings transcripts right now."}),500
+        print(f"[EARNINGS API ERROR] {symbol}:", error)
+        return jsonify(
+            {
+                "success": False,
+                "message": "Unable to load earnings transcripts right now.",
+            }
+        ), 500
+
 
 @app.route("/chart/<symbol>/<int:months>")
 def insider_chart(symbol, months):
 
-    insider_data = fetch_market_data("insider",symbol)
+    insider_data = fetch_market_data("insider", symbol)
     transactions_raw = insider_data.get("data", [])
 
     transactions = []
 
     for t in transactions_raw:
-        transactions.append({
-            "date": t.get("transaction_date"),
-            "type": "Buy" if t.get("acquisition_or_disposal") == "A" else "Sell",
-            "shares": t.get("shares")
-        })
+        transactions.append(
+            {
+                "date": t.get("transaction_date"),
+                "type": "Buy" if t.get("acquisition_or_disposal") == "A" else "Sell",
+                "shares": t.get("shares"),
+            }
+        )
 
     chart = create_insider_chart(transactions, months)
 
-    return jsonify({
-        "chart": chart
-    })
+    return jsonify({"chart": chart})
+
 
 @app.route("/company-info/<symbol>")
 def company_info_api(symbol):
     try:
-        return jsonify({
-            "success": True,
-            "data": get_company_info(symbol)
-        })
+        return jsonify({"success": True, "data": get_company_info(symbol)})
 
     except Exception as e:
-        return jsonify({
-            "success": False,
-            "message": str(e)
-        }), 500
+        return jsonify({"success": False, "message": str(e)}), 500
+
 
 def get_company_info(symbol):
     ticker = yf.Ticker(symbol)
@@ -1403,7 +1275,11 @@ def get_company_info(symbol):
     info = ticker.get_info()
     fast = ticker.fast_info
 
-    price = info.get("currentPrice") or info.get("regularMarketPrice") or safe_get(fast, "last_price")
+    price = (
+        info.get("currentPrice")
+        or info.get("regularMarketPrice")
+        or safe_get(fast, "last_price")
+    )
     previous_close = info.get("previousClose") or safe_get(fast, "previous_close")
     open_price = info.get("open") or safe_get(fast, "open")
 
@@ -1420,27 +1296,25 @@ def get_company_info(symbol):
         "snapshot": {
             "name": info.get("longName") or info.get("shortName") or symbol.upper(),
             "sector": info.get("sector") or "N/A",
-            "website": info.get("website") or ""
+            "website": info.get("website") or "",
         },
-
         "market": {
             "price": format_large_number(price),
             "previous_close": format_large_number(previous_close),
             "open": format_large_number(open_price),
             "day_range": f"{format_number(day_low)} - {format_number(day_high)}",
-            "week_52_range": info.get("fiftyTwoWeekRange") or f"{format_number(year_low)} - {format_number(year_high)}",
+            "week_52_range": info.get("fiftyTwoWeekRange")
+            or f"{format_number(year_low)} - {format_number(year_high)}",
             "volume": format_integer(volume),
-            "market_cap": format_large_number(market_cap)
+            "market_cap": format_large_number(market_cap),
         },
-
         "valuation": {
             "forward_pe": format_number(info.get("forwardPE")),
             "price_to_book": format_number(info.get("priceToBook")),
             "price_to_sales": format_number(info.get("priceToSalesTrailing12Months")),
             "enterprise_value": format_large_number(info.get("enterpriseValue")),
-            "beta": format_number(info.get("beta"))
+            "beta": format_number(info.get("beta")),
         },
-
         "financial_health": {
             "revenue": format_large_number(info.get("totalRevenue")),
             "gross_margin": format_percent(info.get("grossMargins")),
@@ -1448,118 +1322,82 @@ def get_company_info(symbol):
             "profit_margin": format_percent(info.get("profitMargins")),
             "free_cashflow": format_large_number(info.get("freeCashflow")),
             "total_cash": format_large_number(info.get("totalCash")),
-            "total_debt": format_large_number(info.get("totalDebt"))
+            "total_debt": format_large_number(info.get("totalDebt")),
         },
-
         "analyst": {
             "target_low": format_large_number(info.get("targetLowPrice")),
             "target_mean": format_large_number(info.get("targetMeanPrice")),
             "target_high": format_large_number(info.get("targetHighPrice")),
-            "analyst_opinions": info.get("numberOfAnalystOpinions") or "N/A"
-        }
+            "analyst_opinions": info.get("numberOfAnalystOpinions") or "N/A",
+        },
     }
 
     return data
 
+
 @app.route("/insider", methods=["GET"])
 def insider_dashboard():
-    ticker = (
-        request.args.get("ticker")
-        or session.get("ticker")
-        or ""
-    ).upper().strip()
+    ticker = (request.args.get("ticker") or session.get("ticker") or "").upper().strip()
 
     if not ticker:
-        return jsonify({
-            "success": False,
-            "message": "Ticker is required"
-        }), 400
+        return jsonify({"success": False, "message": "Ticker is required"}), 400
 
     try:
-        result = get_cached_smart_money_result(
-            ticker
-        )
+        result = get_cached_smart_money_result(ticker)
 
         if not result:
-            result = build_smart_money_result(
-                ticker
-            )
+            result = build_smart_money_result(ticker)
 
-        return jsonify({
-            "success": True,
-            "data": result["summary"]
-        })
+        return jsonify({"success": True, "data": result["summary"]})
 
     except ValueError as error:
-        return jsonify({
-            "success": False,
-            "message": str(error)
-        }), 404
+        return jsonify({"success": False, "message": str(error)}), 404
 
     except Exception as error:
-        print(
-            f"[SMART MONEY ERROR] {ticker}:",
-            error
-        )
+        print(f"[SMART MONEY ERROR] {ticker}:", error)
 
-        return jsonify({
-            "success": False,
-            "message": (
-                "Unable to generate Smart Money "
-                "Intelligence right now."
-            )
-        }), 500
+        return jsonify(
+            {
+                "success": False,
+                "message": ("Unable to generate Smart Money Intelligence right now."),
+            }
+        ), 500
 
-@app.route(
-    "/api/smart-money/<symbol>/ai-explanation-stream",
-    methods=["POST"]
-)
+
+@app.route("/api/smart-money/<symbol>/ai-explanation-stream", methods=["POST"])
 def smart_money_ai_explanation_stream(symbol):
     symbol = symbol.upper().strip()
 
     def generate():
         try:
-            smart_money_result = (
-                get_cached_smart_money_result(symbol)
-            )
+            smart_money_result = get_cached_smart_money_result(symbol)
 
             # The user does not need to open Smart Money first.
             if not smart_money_result:
-                smart_money_result = (
-                    build_smart_money_result(symbol)
-                )
+                smart_money_result = build_smart_money_result(symbol)
 
-            for chunk in stream_smart_money_ai_explanation(
-                smart_money_result
-            ):
+            for chunk in stream_smart_money_ai_explanation(smart_money_result):
                 yield chunk
 
         except ValueError as error:
             yield str(error)
 
         except Exception as error:
-            print(
-                f"[SMART MONEY AI ROUTE ERROR] {symbol}:",
-                error
-            )
+            print(f"[SMART MONEY AI ROUTE ERROR] {symbol}:", error)
 
-            yield (
-                "Smart Money AI explanation could not "
-                "be generated right now."
-            )
+            yield ("Smart Money AI explanation could not be generated right now.")
 
     return Response(
         generate(),
         mimetype="text/plain",
-        headers={
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no"
-        }
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
 
 @app.route("/api/ticker-list")
 def ticker_list():
     return jsonify(TICKERS)
+
 
 @app.route("/api/stocks")
 def get_stocks():
@@ -1577,10 +1415,7 @@ def get_stocks():
         with stock_cache_lock:
             if not stock_refreshing:
                 stock_refreshing = True
-                threading.Thread(
-                    target=refresh_quotes_background,
-                    daemon=True
-                ).start()
+                threading.Thread(target=refresh_quotes_background, daemon=True).start()
 
         # Return current cache immediately while refresh happens
         quotes = stock_cache
@@ -1589,22 +1424,14 @@ def get_stocks():
     PRIORITY = ["AAPL", "MSFT", "NVDA", "TSLA"]
 
     for ticker in PRIORITY + [t for t in TICKERS if t not in PRIORITY]:
-        item = quotes.get(ticker, {
-            "price": "--",
-            "change": 0,
-            "percent": 0
-        })
+        item = quotes.get(ticker, {"price": "--", "change": 0, "percent": 0})
 
-        ordered_data.append({
-            "symbol": ticker,
-            **item
-        })
+        ordered_data.append({"symbol": ticker, **item})
 
-    return jsonify({
-        "data": ordered_data,
-        "updated": last_updated,
-        "refreshing": stock_refreshing
-    })
+    return jsonify(
+        {"data": ordered_data, "updated": last_updated, "refreshing": stock_refreshing}
+    )
+
 
 def refresh_quotes_background():
     global stock_cache, last_updated, stock_refreshing
@@ -1623,6 +1450,7 @@ def refresh_quotes_background():
         with stock_cache_lock:
             stock_refreshing = False
 
+
 def fetch_quotes():
     global stock_cache, last_updated
 
@@ -1632,9 +1460,11 @@ def fetch_quotes():
     if stock_cache and now - last_updated < CACHE_INTERVAL:
         return stock_cache
 
-    updated_cache = stock_cache.copy() if stock_cache else {
-        ticker: {"price": "--", "change": 0} for ticker in TICKERS
-    }
+    updated_cache = (
+        stock_cache.copy()
+        if stock_cache
+        else {ticker: {"price": "--", "change": 0} for ticker in TICKERS}
+    )
 
     for ticker in TICKERS:
         try:
@@ -1653,7 +1483,7 @@ def fetch_quotes():
 
                 updated_cache[ticker] = {
                     "price": round(price, 2),
-                    "change": round(change, 2)
+                    "change": round(change, 2),
                 }
 
         except requests.exceptions.Timeout:
@@ -1663,7 +1493,9 @@ def fetch_quotes():
             print(f"Finnhub request error for {ticker}: {e}. Keeping old cached value.")
 
         except Exception as e:
-            print(f"Unexpected quote error for {ticker}: {e}. Keeping old cached value.")
+            print(
+                f"Unexpected quote error for {ticker}: {e}. Keeping old cached value."
+            )
 
         # Small delay helps avoid hammering Finnhub
         time.sleep(0.15)
@@ -1673,31 +1505,31 @@ def fetch_quotes():
 
     return stock_cache
 
-@app.route("/smart-money-trend",methods=["GET"])
+
+@app.route("/smart-money-trend", methods=["GET"])
 def smart_money_trend_page():
     return render_template("smartmoney_trend.html")
 
-@app.route("/api/smart-money-trend",methods=["GET"])
+
+@app.route("/api/smart-money-trend", methods=["GET"])
 def smart_money_trend_api():
-    query=request.args.get("query")
+    query = request.args.get("query")
     if not query:
-        return jsonify({
-            "success":False,
-            "message":"Query is required"
-        }),400
+        return jsonify({"success": False, "message": "Query is required"}), 400
     try:
-        result=manager_portfolio_service.analyze(query,limit=6,
-        bubble_limit_per_report=75)
+        result = manager_portfolio_service.analyze(
+            query, limit=6, bubble_limit_per_report=75
+        )
         time.sleep(3)
-        result=make_json_safe(result)
-        status=200 if result.get("success") else 404
-        return jsonify(make_json_safe(result)),status
+        result = make_json_safe(result)
+        status = 200 if result.get("success") else 404
+        return jsonify(make_json_safe(result)), status
     except Exception as e:
         print(f"[SMART MONEY TREND ERROR] {query}: {e}")
-        return jsonify({
-            "success":False,
-            "message":"Failed to load Smart Money Trend data"
-        }),500
+        return jsonify(
+            {"success": False, "message": "Failed to load Smart Money Trend data"}
+        ), 500
+
 
 @app.route("/api/company-dashboard/<symbol>/ai-analysis-stream", methods=["POST"])
 def company_dashboard_ai_analysis_stream(symbol):
@@ -1706,22 +1538,18 @@ def company_dashboard_ai_analysis_stream(symbol):
     dashboard_data = dashboard_ai_data_cache.get(symbol)
 
     if not dashboard_data:
+
         def missing_data_stream():
             yield "Dashboard data was not found. Please search the company again, then run AI analysis."
 
-        return Response(
-            missing_data_stream(),
-            mimetype="text/plain"
-        )
+        return Response(missing_data_stream(), mimetype="text/plain")
 
     def generate():
         for chunk in stream_dashboard_ai_analysis(dashboard_data):
             yield chunk
 
-    return Response(
-        generate(),
-        mimetype="text/plain"
-    )
+    return Response(generate(), mimetype="text/plain")
+
 
 @app.route("/api/predict/<symbol>/ai-analysis-stream", methods=["POST"])
 def predict_stock_ai_analysis_stream(symbol):
@@ -1750,6 +1578,7 @@ def predict_stock_ai_analysis_stream(symbol):
 
         return Response(error_stream(), mimetype="text/plain")
 
+
 @app.route("/api/predict/<symbol>/stream")
 def predict_stock_stream(symbol):
     symbol = symbol.upper().strip()
@@ -1757,38 +1586,24 @@ def predict_stock_stream(symbol):
     event_queue = queue.Queue()
 
     def status_callback(message, stage="running", extra=None):
-        event_queue.put({
-            "type": "status",
-            "stage": stage,
-            "message": message,
-            "extra": extra or {}
-        })
+        event_queue.put(
+            {"type": "status", "stage": stage, "message": message, "extra": extra or {}}
+        )
 
     def worker():
         try:
             status_callback(f"Request received for {symbol}.", "start")
-            result = build_prediction_response(
-                symbol,
-                status_callback=status_callback
-            )
+            result = build_prediction_response(symbol, status_callback=status_callback)
 
-            event_queue.put({
-                "type": "result",
-                "data": result
-            })
+            event_queue.put({"type": "result", "data": result})
 
         except Exception as error:
             print("[PREDICTION STREAM ERROR]", error)
 
-            event_queue.put({
-                "type": "error",
-                "message": str(error)
-            })
+            event_queue.put({"type": "error", "message": str(error)})
 
         finally:
-            event_queue.put({
-                "type": "done"
-            })
+            event_queue.put({"type": "done"})
 
     threading.Thread(target=worker, daemon=True).start()
 
@@ -1803,9 +1618,11 @@ def predict_stock_stream(symbol):
 
     return Response(generate(), mimetype="application/x-ndjson")
 
+
 @app.route("/prediction")
 def prediction():
     return render_template("prediction.html")
+
 
 @app.route("/api/predict/<symbol>")
 def predict_stock(symbol):
@@ -1816,10 +1633,8 @@ def predict_stock(symbol):
         return jsonify(result)
 
     except Exception as error:
-        return jsonify({
-            "error": True,
-            "message": str(error)
-        }), 400
+        return jsonify({"error": True, "message": str(error)}), 400
+
 
 @app.route("/search")
 def search_symbols():
@@ -1830,11 +1645,7 @@ def search_symbols():
 
     try:
         search = yf.Search(
-            query,
-            max_results=8,
-            news_count=0,
-            lists_count=0,
-            include_research=False
+            query, max_results=8, news_count=0, lists_count=0, include_research=False
         )
 
         quotes = search.quotes or []
@@ -1848,24 +1659,19 @@ def search_symbols():
             quote_type = item.get("quoteType")
 
             if symbol and name:
-                results.append({
-                    "symbol": symbol,
-                    "name": name,
-                    "exchange": exchange,
-                    "type": quote_type
-                })
+                results.append(
+                    {
+                        "symbol": symbol,
+                        "name": name,
+                        "exchange": exchange,
+                        "type": quote_type,
+                    }
+                )
 
-        return jsonify({
-            "success": True,
-            "results": results
-        })
+        return jsonify({"success": True, "results": results})
 
     except Exception as error:
-        return jsonify({
-            "success": False,
-            "message": str(error),
-            "results": []
-        }), 400
+        return jsonify({"success": False, "message": str(error), "results": []}), 400
 
 
 def clean_transcript_text(text):
@@ -1922,11 +1728,7 @@ def fetch_earnings_transcripts(symbol):
     """
 
     if not ROIC_API_KEY:
-        return {
-            "available": False,
-            "message": "ROIC API key is missing.",
-            "items": []
-        }
+        return {"available": False, "message": "ROIC API key is missing.", "items": []}
 
     symbol = symbol.upper().strip()
 
@@ -1941,7 +1743,7 @@ def fetch_earnings_transcripts(symbol):
         return {
             "available": False,
             "message": "Latest earnings call data is not available.",
-            "items": []
+            "items": [],
         }
 
     latest_year = latest_data.get("year")
@@ -1951,7 +1753,7 @@ def fetch_earnings_transcripts(symbol):
         return {
             "available": False,
             "message": "Latest earnings call year/quarter not found.",
-            "items": []
+            "items": [],
         }
 
     latest_year = int(latest_year)
@@ -1986,21 +1788,26 @@ def fetch_earnings_transcripts(symbol):
 
         transcript_text = clean_transcript_text(transcript_text)
 
-        earnings_items.append({
-            "symbol": transcript_data.get("symbol", symbol),
-            "year": transcript_data.get("year", year),
-            "quarter": transcript_data.get("quarter", quarter),
-            "date": transcript_data.get("date", ""),
-            "title": f"{symbol} Q{quarter} {year} Earnings Call Transcript",
-            "preview": make_transcript_preview(transcript_text),
-            "transcript": transcript_text
-        })
+        earnings_items.append(
+            {
+                "symbol": transcript_data.get("symbol", symbol),
+                "year": transcript_data.get("year", year),
+                "quarter": transcript_data.get("quarter", quarter),
+                "date": transcript_data.get("date", ""),
+                "title": f"{symbol} Q{quarter} {year} Earnings Call Transcript",
+                "preview": make_transcript_preview(transcript_text),
+                "transcript": transcript_text,
+            }
+        )
 
     return {
         "available": len(earnings_items) > 0,
-        "message": "Earnings transcripts loaded." if earnings_items else "No earnings transcripts found.",
-        "items": earnings_items
+        "message": "Earnings transcripts loaded."
+        if earnings_items
+        else "No earnings transcripts found.",
+        "items": earnings_items,
     }
+
 
 def is_valid_api_response(data):
     if not isinstance(data, dict):
@@ -2015,6 +1822,7 @@ def is_valid_api_response(data):
         return False
 
     return True
+
 
 def make_json_safe(value):
     if isinstance(value, dict):
@@ -2043,6 +1851,7 @@ def make_json_safe(value):
 
     return value
 
+
 def format_large_number(value):
     if value is None:
         return "N/A"
@@ -2066,6 +1875,7 @@ def format_large_number(value):
 
     except Exception:
         return "N/A"
+
 
 def format_number(value):
     if value is None:
@@ -2096,6 +1906,7 @@ def format_percent(value):
     except Exception:
         return "N/A"
 
+
 def safe_get(source, key, default=None):
     try:
         if source is None:
@@ -2112,6 +1923,6 @@ def safe_get(source, key, default=None):
         except Exception:
             return default
 
-if __name__ == "__main__":
 
+if __name__ == "__main__":
     app.run(debug=True)

@@ -73,6 +73,7 @@
             </p>
             <!-- FORM -->
             <form class="prompt-form" method="POST" id="dashboardSearchForm">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                 <div class="prompt-container">
                     <!-- DROPDOWN -->
                     <input class="ai-dropdown" id="dashboardCompanySearch" type="text" placeholder="Search company name or ticker..." autocomplete="off" required>

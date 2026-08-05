@@ -302,7 +302,14 @@ function appendPredictionLedger(message, stage = "running", extra = null) {
             rmse: rmse,
             directionAccuracy: directionAccuracy,
             rangeHitRate: rangeHitRate,
-            models: buildModelComparison(currentPrice, predictedPrice, expectedMove, profile),
+            models: buildModelComparison(
+                currentPrice,
+                predictedPrice,
+                expectedMove,
+                profile,
+                "AE-GRU demo",
+                rmse
+            ),
             bullishReasons: buildBullishReasons(direction, expectedMove, momentumScore, trendScore),
             bearishReasons: buildBearishReasons(profile.risk, profile.volatility, volatilitySafetyScore)
         };
@@ -336,23 +343,25 @@ function appendPredictionLedger(message, stage = "running", extra = null) {
         data.risk = apiData.risk;
         data.signalBreakdown = apiData.signal_breakdown || null;
         data.model = apiData.model;
-        data.mape = apiData.mape;
-data.rSquared = apiData.r_squared;
+        data.mape = apiData.mape ?? null;
+        data.rSquared = apiData.r_squared ?? null;
 
         data.momentumScore = clamp(Math.round(55 + apiData.expected_move * 5), 30, 95);
         data.trendScore = clamp(Math.round(apiData.confidence + apiData.expected_move * 2), 35, 95);
         data.volatilitySafetyScore = clamp(Math.round(100 - apiData.volatility * 1450), 25, 95);
 
-        data.mae = apiData.mae || apiData.current_price * apiData.volatility * 0.75;
-        data.rmse = apiData.rmse || data.mae * 1.35;
-        data.directionAccuracy = apiData.direction_accuracy || clamp(Math.round(apiData.confidence + 4), 45, 88);
-        data.rangeHitRate = clamp(Math.round(apiData.confidence + 8), 50, 90);
+        data.mae = apiData.mae ?? null;
+        data.rmse = apiData.rmse ?? null;
+        data.directionAccuracy = apiData.direction_accuracy ?? null;
+        data.rangeHitRate = apiData.range_hit_rate ?? null;
 
         data.models = buildModelComparison(
             apiData.current_price,
             apiData.predicted_price,
             apiData.expected_move,
-            profile
+            profile,
+            apiData.model || "AE-GRU",
+            apiData.rmse
         );
 
         data.bullishReasons = buildBullishReasons(
@@ -371,44 +380,21 @@ data.rSquared = apiData.r_squared;
         return data;
     }
 
-    function buildModelComparison(currentPrice, predictedPrice, expectedMove, profile) {
-        const direction = getDirection(expectedMove);
-
+    function buildModelComparison(
+        currentPrice,
+        predictedPrice,
+        expectedMove,
+        profile,
+        modelName,
+        validationError
+    ) {
         return [
             {
-                name: "LSTM",
+                name: modelName || "AE-GRU",
                 prediction: predictedPrice,
-                direction: direction,
-                confidence: clamp(profile.confidence - 4, 45, 88),
-                error: profile.volatility * currentPrice * 0.85
-            },
-            {
-                name: "GRU",
-                prediction: predictedPrice * 0.997,
-                direction: getDirection(expectedMove - 0.28),
-                confidence: clamp(profile.confidence - 7, 42, 86),
-                error: profile.volatility * currentPrice * 0.96
-            },
-            {
-                name: "CNN-LSTM",
-                prediction: predictedPrice * 1.003,
-                direction: getDirection(expectedMove + 0.22),
-                confidence: clamp(profile.confidence - 2, 48, 90),
-                error: profile.volatility * currentPrice * 0.79
-            },
-            {
-                name: "Transformer",
-                prediction: predictedPrice * 0.991,
-                direction: getDirection(expectedMove - 0.42),
-                confidence: clamp(profile.confidence - 10, 38, 84),
-                error: profile.volatility * currentPrice * 1.12
-            },
-            {
-                name: "Ensemble",
-                prediction: predictedPrice * 1.001,
-                direction: direction,
-                confidence: clamp(profile.confidence + 3, 50, 92),
-                error: profile.volatility * currentPrice * 0.68
+                direction: getDirection(expectedMove),
+                confidence: profile.confidence,
+                error: validationError ?? null
             }
         ];
     }
@@ -791,7 +777,7 @@ updateModelSystemFromResult(apiData, runtimeSeconds);
                     <td>${formatCurrency(model.prediction)}</td>
                     <td class="${directionClass}">${model.direction}</td>
                     <td>${model.confidence}%</td>
-                    <td>${formatCurrency(model.error)}</td>
+                    <td>${model.error == null ? "N/A" : formatCurrency(model.error)}</td>
                 </tr>
             `;
         }).join("");
@@ -815,12 +801,21 @@ updateModelSystemFromResult(apiData, runtimeSeconds);
     }
 
     function renderBacktest(data) {
-        setText("maeValue", formatCurrency(data.mae));
-        setText("rmseValue", formatCurrency(data.rmse));
-        setText("directionAccuracyValue", data.directionAccuracy + "%");
-        setText("rangeHitRateValue", data.rangeHitRate + "%");
-        setText("mapeValue", (data.mape || 0) + "%");
-setText("rSquaredValue", data.rSquared || "0.0000");
+        setText("maeValue", data.mae == null ? "N/A" : formatCurrency(data.mae));
+        setText("rmseValue", data.rmse == null ? "N/A" : formatCurrency(data.rmse));
+        setText(
+            "directionAccuracyValue",
+            data.directionAccuracy == null ? "N/A" : data.directionAccuracy + "%"
+        );
+        setText(
+            "rangeHitRateValue",
+            data.rangeHitRate == null ? "N/A" : data.rangeHitRate + "%"
+        );
+        setText("mapeValue", data.mape == null ? "N/A" : data.mape + "%");
+        setText(
+            "rSquaredValue",
+            data.rSquared == null ? "N/A" : Number(data.rSquared).toFixed(4)
+        );
     }
 
     function renderSignalBreakdown(data) {
@@ -1036,12 +1031,12 @@ setText("rSquaredValue", data.rSquared || "0.0000");
                     <p class="forecast-lottie-title">Analyzing forecast intelligence...</p>
 
                     <p class="forecast-lottie-subtitle">
-                        Ollama is reading the LSTM forecast, signal breakdown, confidence,
-                        risk level, model comparison, and forecast range.
+                        Ollama is reading the AE-GRU forecast, signal breakdown, confidence,
+                        risk level, validation diagnostics, and forecast range.
                     </p>
 
                     <div class="forecast-lottie-steps">
-                        <span>LSTM Forecast</span>
+                        <span>AE-GRU Forecast</span>
                         <span>Signal Breakdown</span>
                         <span>Risk Reading</span>
                         <span>Confidence Range</span>

@@ -4,13 +4,17 @@ from config import COMPANY_MAP
 import time
 import threading
 from config import TICKERS
-import os, re
+import os
+import re
+import secrets
 from datetime import datetime, date
 from typing import Dict
 from utils.cache_utils import load_cache, save_cache
-from collections import defaultdict
+from collections import defaultdict, deque
+from functools import wraps
 from utils.charts import create_insider_chart
 import base64
+import hmac
 from utils.edgar_wrapper import get_logo_of_company
 from flask import render_template
 from services.insider_service import insider_service
@@ -36,7 +40,6 @@ from services.ollama_analysis import (
 from services.google_news_service import google_news_service
 import json
 import queue
-import os
 from dotenv import load_dotenv
 from flask import Flask, render_template, request, redirect, url_for, flash, session
 from flask_login import (
@@ -53,16 +56,23 @@ from flask_bcrypt import Bcrypt
 from database.db import get_db_connection
 import yfinance as yf
 from flask import jsonify
-from dotenv import load_dotenv
 
 load_dotenv()
 
 
 app = Flask(__name__)
 
-# app.secret_key = os.getenv("secret_key1")
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "dev-secret-key")
+secret_key = os.getenv("SECRET_KEY")
+
+if not secret_key:
+    secret_key = secrets.token_urlsafe(32)
+    app.logger.warning(
+        "SECRET_KEY is not configured. Using a temporary key; "
+        "sessions will reset when the application restarts."
+    )
+
+app.config["SECRET_KEY"] = secret_key
 
 API_KEY = os.getenv("ALPHA_VANTAGE_API_KEY")
 FINNHUB_KEY = os.getenv("FINNHUB_API_KEY")
@@ -92,10 +102,6 @@ page_views = defaultdict(int)
 daily_visits = 0
 last_reset = time.time()
 
-load_dotenv()
-
-app.secret_key = os.getenv("SECRET_KEY", "dev-secret-change-this")
-
 bcrypt = Bcrypt(app)
 
 login_manager = LoginManager()
@@ -104,6 +110,84 @@ login_manager.login_view = "login"
 login_manager.login_message = "Please log in to continue."
 login_manager.login_message_category = "warning"
 set_identity(os.getenv("SEC_IDENTITY", "Smart Money Flow jaskaran19942@gmail.com"))
+
+
+def generate_csrf_token():
+    token = session.get("_csrf_token")
+
+    if not token:
+        token = secrets.token_urlsafe(32)
+        session["_csrf_token"] = token
+
+    return token
+
+
+app.jinja_env.globals["csrf_token"] = generate_csrf_token
+
+rate_limit_buckets = defaultdict(deque)
+rate_limit_lock = threading.Lock()
+
+
+def rate_limit(max_requests, window_seconds):
+    def decorator(view_function):
+        @wraps(view_function)
+        def wrapped_view(*args, **kwargs):
+            forwarded_for = request.headers.get("X-Forwarded-For", "")
+            client_ip = (
+                forwarded_for.split(",", 1)[0].strip()
+                or request.remote_addr
+                or "unknown"
+            )
+            key = (view_function.__name__, client_ip)
+            now = time.time()
+
+            with rate_limit_lock:
+                bucket = rate_limit_buckets[key]
+                cutoff = now - window_seconds
+
+                while bucket and bucket[0] <= cutoff:
+                    bucket.popleft()
+
+                if len(bucket) >= max_requests:
+                    retry_after = max(1, int(window_seconds - (now - bucket[0])) + 1)
+                    response = jsonify(
+                        {
+                            "success": False,
+                            "message": "Too many requests. Please try again later.",
+                        }
+                    )
+                    response.status_code = 429
+                    response.headers["Retry-After"] = str(retry_after)
+                    return response
+
+                bucket.append(now)
+
+            return view_function(*args, **kwargs)
+
+        return wrapped_view
+
+    return decorator
+
+
+@app.before_request
+def protect_form_posts():
+    protected_endpoints = {"login", "signup", "contact", "home"}
+
+    if request.method != "POST" or request.endpoint not in protected_endpoints:
+        return None
+
+    expected_token = session.get("_csrf_token", "")
+    submitted_token = request.form.get("_csrf_token", "")
+
+    if expected_token and hmac.compare_digest(expected_token, submitted_token):
+        return None
+
+    flash("Your session expired. Please refresh the page and try again.", "error")
+
+    if request.endpoint == "contact":
+        return redirect(url_for("landing") + "#contact")
+
+    return redirect(url_for(request.endpoint))
 
 
 class User(UserMixin):
@@ -857,6 +941,7 @@ def landing():
 
 
 @app.route("/api/smart-money/<symbol>/prepare", methods=["POST"])
+@rate_limit(30, 3600)
 def prepare_smart_money_intelligence(symbol):
     symbol = symbol.upper().strip()
 
@@ -1024,6 +1109,7 @@ def dashboard_news_api(symbol):
 
 
 @app.route("/api/dashboard/<symbol>/news-stream")
+@rate_limit(20, 3600)
 def dashboard_news_stream_api(symbol):
     symbol = symbol.upper().strip()
 
@@ -1241,7 +1327,7 @@ def dashboard_earnings_api(symbol):
 @app.route("/chart/<symbol>/<int:months>")
 def insider_chart(symbol, months):
 
-    insider_data = fetch_market_data("insider", symbol)
+    insider_data = edgar_insider_api_adapter.get_insider_transactions(symbol)
     transactions_raw = insider_data.get("data", [])
 
     transactions = []
@@ -1365,6 +1451,7 @@ def insider_dashboard():
 
 
 @app.route("/api/smart-money/<symbol>/ai-explanation-stream", methods=["POST"])
+@rate_limit(20, 3600)
 def smart_money_ai_explanation_stream(symbol):
     symbol = symbol.upper().strip()
 
@@ -1512,6 +1599,7 @@ def smart_money_trend_page():
 
 
 @app.route("/api/smart-money-trend", methods=["GET"])
+@rate_limit(30, 3600)
 def smart_money_trend_api():
     query = request.args.get("query")
     if not query:
@@ -1520,7 +1608,6 @@ def smart_money_trend_api():
         result = manager_portfolio_service.analyze(
             query, limit=6, bubble_limit_per_report=75
         )
-        time.sleep(3)
         result = make_json_safe(result)
         status = 200 if result.get("success") else 404
         return jsonify(make_json_safe(result)), status
@@ -1532,6 +1619,7 @@ def smart_money_trend_api():
 
 
 @app.route("/api/company-dashboard/<symbol>/ai-analysis-stream", methods=["POST"])
+@rate_limit(20, 3600)
 def company_dashboard_ai_analysis_stream(symbol):
     symbol = symbol.upper().strip()
 
@@ -1552,6 +1640,7 @@ def company_dashboard_ai_analysis_stream(symbol):
 
 
 @app.route("/api/predict/<symbol>/ai-analysis-stream", methods=["POST"])
+@rate_limit(20, 3600)
 def predict_stock_ai_analysis_stream(symbol):
     symbol = symbol.upper().strip()
 
@@ -1580,6 +1669,7 @@ def predict_stock_ai_analysis_stream(symbol):
 
 
 @app.route("/api/predict/<symbol>/stream")
+@rate_limit(8, 3600)
 def predict_stock_stream(symbol):
     symbol = symbol.upper().strip()
 
@@ -1625,6 +1715,7 @@ def prediction():
 
 
 @app.route("/api/predict/<symbol>")
+@rate_limit(8, 3600)
 def predict_stock(symbol):
     symbol = symbol.upper().strip()
 

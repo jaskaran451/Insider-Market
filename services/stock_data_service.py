@@ -1,7 +1,18 @@
+import copy
+import os
+import threading
+import time
+
 import numpy as np
 import yfinance as yf
 from services.consensus_forecast_service import build_consensus_forecast
 from services.ae_gru_prediction_service import predict_with_ae_gru
+
+
+PREDICTION_CACHE_SECONDS = int(os.getenv("PREDICTION_CACHE_SECONDS", 21600))
+_prediction_cache = {}
+_prediction_cache_lock = threading.Lock()
+
 
 def fetch_ohlc_history(symbol, period="2y"):
     """
@@ -40,8 +51,7 @@ def fetch_ohlc_history(symbol, period="2y"):
 
 def calculate_basic_forecast(price_rows):
     """
-    Temporary forecast engine.
-    Later we replace this with the PyTorch LSTM model.
+    Lightweight trend fallback used only when AE-GRU is unavailable.
     """
 
     if len(price_rows) < 30:
@@ -105,7 +115,6 @@ def calculate_basic_forecast(price_rows):
         "trend_strength": round(trend_strength, 4)
     }
 
-from services.ae_gru_prediction_service import predict_with_ae_gru
 def build_prediction_response(symbol, status_callback=None):
     """
     Builds the full prediction response for the Prediction Dashboard.
@@ -126,6 +135,18 @@ def build_prediction_response(symbol, status_callback=None):
             status_callback(message, stage, extra or {})
 
     symbol = symbol.upper().strip()
+    now = time.time()
+
+    with _prediction_cache_lock:
+        cached = _prediction_cache.get(symbol)
+
+    if cached and now - cached["created_at"] < PREDICTION_CACHE_SECONDS:
+        status(
+            f"Loaded cached forecast for {symbol}.",
+            "cached",
+            {"age_seconds": round(now - cached["created_at"])},
+        )
+        return copy.deepcopy(cached["payload"])
 
     status(f"Fetching 10-year OHLC price history for {symbol}...", "fetching")
 
@@ -209,7 +230,7 @@ def build_prediction_response(symbol, status_callback=None):
 
     status("Dashboard prediction payload ready.", "done")
 
-    return {
+    response = {
         "symbol": symbol,
         "model": model_name,
         "message": message,
@@ -228,6 +249,8 @@ def build_prediction_response(symbol, status_callback=None):
         "mape": forecast.get("mape"),
         "r_squared": forecast.get("r_squared"),
         "direction_accuracy": forecast.get("direction_accuracy"),
+        "range_hit_rate": forecast.get("range_hit_rate"),
+        "validation_count": forecast.get("validation_count"),
 
         "train_losses": forecast.get("train_losses"),
         "validation_losses": forecast.get("validation_losses"),
@@ -242,3 +265,11 @@ def build_prediction_response(symbol, status_callback=None):
         "history_count": len(chart_rows),
         "compute_device": forecast.get("compute_device")
     }
+
+    with _prediction_cache_lock:
+        _prediction_cache[symbol] = {
+            "created_at": time.time(),
+            "payload": copy.deepcopy(response),
+        }
+
+    return response

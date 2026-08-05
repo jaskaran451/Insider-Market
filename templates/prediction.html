@@ -344,8 +344,8 @@
         <div class="dashboard-card">
             <div class="card-heading">
                 <div>
-                    <h3>Forecast Component View</h3>
-                    <p>Compare neural model outputs side by side.</p>
+                    <h3>Active Forecast Model</h3>
+                    <p>Verified output from the model used for this forecast.</p>
                 </div>
             </div>
 
@@ -357,7 +357,7 @@
                         <th>Prediction</th>
                         <th>Direction</th>
                         <th>Confidence</th>
-                        <th>Error</th>
+                        <th>Validation RMSE</th>
                     </tr>
                     </thead>
                     <tbody id="modelRows"></tbody>
@@ -369,7 +369,7 @@
             <div class="card-heading">
                 <div>
                     <h3>Backtesting Accuracy</h3>
-                    <p>Historical model performance snapshot.</p>
+                    <p>Metrics calculated from the AE-GRU validation dataset.</p>
                 </div>
             </div>
 

@@ -71,6 +71,7 @@
 
             {% if auth_mode == "signup" %}
                 <form method="POST" action="{{ url_for('signup') }}">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                     <div class="input-group">
                         <input type="text" name="full_name" placeholder="Full name" required>
                     </div>
@@ -109,6 +110,7 @@
 
             {% else %}
                 <form method="POST" action="{{ url_for('login') }}">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                     <div class="input-group">
                         <input type="email" name="email" placeholder="Email" required>
                     </div>

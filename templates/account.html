@@ -1,23 +1,186 @@
-{% extends "base.html" %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Account | InsiderAI</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+        rel="stylesheet"
+    >
+    <style>
+        :root {
+            --ink: #17221a;
+            --muted: #68716b;
+            --brand: #334236;
+            --surface: #ffffff;
+            --border: #e3e7e3;
+            --background: #f5f7f4;
+            --danger: #b42318;
+        }
 
-{% block content %}
-<section class="account-section">
-    <div class="account-card">
-        <h1>My Account</h1>
+        * {
+            box-sizing: border-box;
+        }
 
-        <div class="account-row">
-            <span>Name</span>
-            <strong>{{ current_user.full_name }}</strong>
+        body {
+            min-height: 100vh;
+            margin: 0;
+            background: var(--background);
+            color: var(--ink);
+            font-family: "Inter", sans-serif;
+        }
+
+        .account-nav {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 18px clamp(24px, 6vw, 80px);
+            border-bottom: 1px solid var(--border);
+            background: rgba(255, 255, 255, 0.92);
+        }
+
+        .brand {
+            color: var(--brand);
+            font-size: 1.1rem;
+            font-weight: 700;
+            text-decoration: none;
+        }
+
+        .back-link {
+            color: var(--muted);
+            font-size: 0.9rem;
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        .back-link:hover {
+            color: var(--brand);
+        }
+
+        .account-section {
+            display: grid;
+            min-height: calc(100vh - 70px);
+            padding: 48px 20px;
+            place-items: center;
+        }
+
+        .account-card {
+            width: min(100%, 560px);
+            padding: 36px;
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            background: var(--surface);
+            box-shadow: 0 18px 50px rgba(35, 52, 39, 0.08);
+        }
+
+        .account-avatar {
+            display: grid;
+            width: 64px;
+            height: 64px;
+            margin-bottom: 24px;
+            border-radius: 50%;
+            background: var(--brand);
+            color: #ffffff;
+            font-size: 1.15rem;
+            font-weight: 700;
+            place-items: center;
+        }
+
+        h1 {
+            margin: 0 0 8px;
+            font-size: clamp(1.7rem, 4vw, 2.2rem);
+        }
+
+        .account-subtitle {
+            margin: 0 0 30px;
+            color: var(--muted);
+            line-height: 1.6;
+        }
+
+        .account-details {
+            overflow: hidden;
+            margin-bottom: 26px;
+            border: 1px solid var(--border);
+            border-radius: 14px;
+        }
+
+        .account-row {
+            display: grid;
+            gap: 6px;
+            padding: 18px 20px;
+        }
+
+        .account-row + .account-row {
+            border-top: 1px solid var(--border);
+        }
+
+        .account-row span {
+            color: var(--muted);
+            font-size: 0.78rem;
+            font-weight: 600;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+        }
+
+        .account-row strong {
+            overflow-wrap: anywhere;
+            font-size: 0.98rem;
+        }
+
+        .logout-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 44px;
+            padding: 0 18px;
+            border: 1px solid #f0c7c3;
+            border-radius: 10px;
+            color: var(--danger);
+            font-size: 0.9rem;
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        .logout-btn:hover {
+            background: #fff5f4;
+        }
+
+        @media (max-width: 560px) {
+            .account-card {
+                padding: 28px 22px;
+            }
+        }
+    </style>
+</head>
+<body>
+<nav class="account-nav" aria-label="Account navigation">
+    <a class="brand" href="{{ url_for('home') }}">InsiderAI</a>
+    <a class="back-link" href="{{ url_for('home') }}">Back to home</a>
+</nav>
+
+<main class="account-section">
+    <section class="account-card" aria-labelledby="account-title">
+        <div class="account-avatar" aria-hidden="true">{{ current_user.initials }}</div>
+        <h1 id="account-title">My Account</h1>
+        <p class="account-subtitle">Review the information connected to your InsiderAI account.</p>
+
+        <div class="account-details">
+            <div class="account-row">
+                <span>Name</span>
+                <strong>{{ current_user.full_name }}</strong>
+            </div>
+
+            <div class="account-row">
+                <span>Email</span>
+                <strong>{{ current_user.email }}</strong>
+            </div>
         </div>
 
-        <div class="account-row">
-            <span>Email</span>
-            <strong>{{ current_user.email }}</strong>
-        </div>
-
-        <a href="{{ url_for'logout') }}" class="logout-btn">
-            Log out
-        </a>
-    </div>
-</section>
-{% endblock %}
+        <a href="{{ url_for('logout') }}" class="logout-btn">Log out</a>
+    </section>
+</main>
+</body>
+</html>

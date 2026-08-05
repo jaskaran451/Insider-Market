@@ -92,6 +92,13 @@ def predict_with_ae_gru(price_rows, status_callback=None):
         if status_callback:
             status_callback(message, stage, extra or {})
 
+    seed = 42
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
     if len(price_rows) < 180:
         raise ValueError(
             "Not enough price history for AE-GRU prediction. "
@@ -333,6 +340,14 @@ def predict_with_ae_gru(price_rows, status_callback=None):
     validation_predictions_real = np.ravel(validation_predictions_real)
     validation_actual_real = np.ravel(validation_actual_real)
 
+    validation_band = volatility * 2.2
+    validation_lower = validation_predictions_real * (1 - validation_band)
+    validation_upper = validation_predictions_real * (1 + validation_band)
+    range_hit_rate = np.mean(
+        (validation_actual_real >= validation_lower)
+        & (validation_actual_real <= validation_upper)
+    ) * 100
+
     status(
         f"AE-GRU predicted ${predicted_price:.2f} with expected move {expected_move:.2f}%.",
         "prediction_complete",
@@ -362,6 +377,8 @@ def predict_with_ae_gru(price_rows, status_callback=None):
         "mape": metrics["mape"],
         "r_squared": metrics["r_squared"],
         "direction_accuracy": metrics["direction_accuracy"],
+        "range_hit_rate": round(float(range_hit_rate), 1),
+        "validation_count": int(len(validation_actual_real)),
 
         "train_losses": train_losses,
         "validation_losses": validation_losses,

@@ -319,7 +319,6 @@ SMART MONEY DATA:
 
         first_output_received = False
         final_response_received = False
-        thinking_text = []
 
         for line in response.iter_lines():
             if not line:
@@ -342,11 +341,7 @@ SMART MONEY DATA:
             if stream_error:
                 raise RuntimeError(stream_error)
 
-            thinking_chunk = result.get("thinking", "")
             response_chunk = result.get("response", "")
-
-            if thinking_chunk:
-                thinking_text.append(thinking_chunk)
 
             if response_chunk and not first_output_received:
                 first_output_received = True
@@ -379,16 +374,10 @@ SMART MONEY DATA:
         if final_response_received:
             return
 
-        combined_thinking = "".join(thinking_text).strip()
-
-        if combined_thinking:
-            print(
-                "[SMART MONEY AI THINKING-ONLY RESPONSE] "
-                "No final response field was returned."
-            )
-
-            yield combined_thinking
-            return
+        print(
+            "[SMART MONEY AI RESPONSE MISSING] "
+            "The model returned no final response text."
+        )
 
         print(
             "[SMART MONEY AI EMPTY RESPONSE] "
@@ -594,7 +583,7 @@ def stream_forecast_ai_analysis(forecast_data):
 You are InsiderAI's Forecast Analyst.
 
 Analyze the stock forecast dashboard data.
-The numeric forecast is already created by the app's LSTM/consensus model.
+The numeric forecast is already created by the app's AE-GRU/consensus model.
 Your job is to explain the forecast, not create a new prediction.
 
 Rules:
@@ -602,7 +591,7 @@ Rules:
 - Do not invent prices or percentages.
 - Use only the provided forecast data.
 - Explain the current price, predicted price, expected move, direction, confidence, risk, and signal breakdown.
-- If LSTM, trend, momentum, and volatility conflict, explain that.
+- If AE-GRU, trend, momentum, and volatility conflict, explain that.
 - If confidence is low, explain why.
 - If risk is high, explain what causes it.
 - Explain the forecast range and what the user should monitor next.

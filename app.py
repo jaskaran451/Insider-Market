@@ -13,6 +13,7 @@ from utils.cache_utils import load_cache, save_cache
 from collections import defaultdict
 from utils.charts import create_insider_chart
 import base64
+import hmac
 from utils.edgar_wrapper import get_logo_of_company
 from flask import render_template
 from services.insider_service import insider_service
@@ -108,6 +109,40 @@ login_manager.login_view = "login"
 login_manager.login_message = "Please log in to continue."
 login_manager.login_message_category = "warning"
 set_identity(os.getenv("SEC_IDENTITY", "Smart Money Flow jaskaran19942@gmail.com"))
+
+
+def generate_csrf_token():
+    token = session.get("_csrf_token")
+
+    if not token:
+        token = secrets.token_urlsafe(32)
+        session["_csrf_token"] = token
+
+    return token
+
+
+app.jinja_env.globals["csrf_token"] = generate_csrf_token
+
+
+@app.before_request
+def protect_form_posts():
+    protected_endpoints = {"login", "signup", "contact", "home"}
+
+    if request.method != "POST" or request.endpoint not in protected_endpoints:
+        return None
+
+    expected_token = session.get("_csrf_token", "")
+    submitted_token = request.form.get("_csrf_token", "")
+
+    if expected_token and hmac.compare_digest(expected_token, submitted_token):
+        return None
+
+    flash("Your session expired. Please refresh the page and try again.", "error")
+
+    if request.endpoint == "contact":
+        return redirect(url_for("landing") + "#contact")
+
+    return redirect(url_for(request.endpoint))
 
 
 class User(UserMixin):

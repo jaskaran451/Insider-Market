@@ -6,7 +6,6 @@ document.addEventListener("DOMContentLoaded", function () {
        1. GLOBAL STATE
        ========================================================= */
 
-    let dashboardAiLottie = null;
 
     window.smartMoneyGaugeChart = window.smartMoneyGaugeChart || null;
     window.activityDonutChart = window.activityDonutChart || null;
@@ -644,7 +643,6 @@ document.addEventListener("DOMContentLoaded", function () {
     /* =========================================================
        8. COMBINED SMART MONEY + AI EXPERIENCE
        ========================================================= */
-    let compactAiLottie = null;
     let compactGaugeChart = null;
     let compactActivityChart = null;
     let compactSignalChart = null;
@@ -721,11 +719,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
     window.smartMoneyData = null;
 
-    if (compactAiLottie) {
-        compactAiLottie.destroy();
-        compactAiLottie = null;
-    }
-
     if (compactGaugeChart) {
         compactGaugeChart.destroy();
         compactGaugeChart = null;
@@ -746,13 +739,18 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     if (aiBody) {
-        aiBody.innerHTML = `
-            <p class="dashboard-ai-placeholder">
-                The AI explanation will appear here after
-                Smart Money Intelligence is prepared.
-            </p>
-        `;
-    }
+    aiBody.classList.remove(
+        "ai-glow-active",
+        "ai-glow-complete"
+    );
+
+    aiBody.innerHTML = `
+        <p class="dashboard-ai-placeholder">
+            The AI explanation will appear here after
+            Smart Money Intelligence is prepared.
+        </p>
+    `;
+}
 
     const timelineCard =
         document.querySelector(
@@ -802,7 +800,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
     async function analyzeSmartMoneyWithAI() {
     const symbol = window.currentSymbol;
-
     const button =
         getEl("analyzeCompanyWithAiBtn");
 
@@ -834,6 +831,7 @@ document.addEventListener("DOMContentLoaded", function () {
         }
 
         if (aiBody) {
+            stopDashboardAiGlow();
             aiBody.innerHTML = `
                 <div class="dashboard-ai-unavailable">
                     Search a company first before using
@@ -846,11 +844,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     openIntelligenceFrame();
-
-    if (compactAiLottie) {
-        compactAiLottie.destroy();
-        compactAiLottie = null;
-    }
+    startDashboardAiGlow();
 
     loading?.classList.remove("hidden");
     dashboard?.classList.add("hidden");
@@ -932,7 +926,7 @@ document.addEventListener("DOMContentLoaded", function () {
          * Show the Lottie animation in compact-ai-output
          * while the model prepares its first response.
          */
-        showCompactAILottieThinking();
+        showCompactAIThinking();
 
         /*
          * Second request:
@@ -1000,6 +994,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     aiStatus.textContent =
                         "Generating";
                 }
+
             }
 
             fullText += chunk;
@@ -1064,7 +1059,7 @@ document.addEventListener("DOMContentLoaded", function () {
             aiStatus.textContent =
                 "Complete";
         }
-
+    completeDashboardAiGlow();
         if (
             !fullText.trim() &&
             output
@@ -1079,10 +1074,8 @@ document.addEventListener("DOMContentLoaded", function () {
             error
         );
 
-        if (compactAiLottie) {
-            compactAiLottie.destroy();
-            compactAiLottie = null;
-        }
+
+        // stopDashboardAiGlow();
 
         loading?.classList.add("hidden");
         aiSection?.classList.remove("hidden");
@@ -1118,16 +1111,11 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 }
 
-    function showCompactAILottieThinking() {
+    function showCompactAIThinking() {
     const aiBody = getEl("dashboardAiBody");
     const aiStatus = getEl("aiStreamStatus");
 
     if (!aiBody) return;
-
-    if (compactAiLottie) {
-        compactAiLottie.destroy();
-        compactAiLottie = null;
-    }
 
     if (aiStatus) {
         aiStatus.textContent = "Analyzing";
@@ -1135,11 +1123,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
     aiBody.innerHTML = `
         <div class="compact-ai-thinking">
-            <div
-                class="compact-ai-lottie"
-                id="compactAiLottie"
-            ></div>
-
             <div class="compact-ai-thinking-content">
                 <strong>
                     Interpreting insider activity
@@ -1147,7 +1130,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
                 <p>
                     Reviewing Smart Money signals, transaction
-                    classifications, ownership changes and insider
+                    classifications, ownership changes, and insider
                     activity patterns.
                 </p>
 
@@ -1159,55 +1142,12 @@ document.addEventListener("DOMContentLoaded", function () {
             </div>
         </div>
     `;
-
-    const animationContainer =
-        getEl("compactAiLottie");
-
-    if (
-        !animationContainer ||
-        !window.lottie
-    ) {
-        return;
-    }
-
-    try {
-        compactAiLottie =
-            lottie.loadAnimation({
-                container:
-                    animationContainer,
-                renderer: "svg",
-                loop: true,
-                autoplay: true,
-                path:
-                    "/static/animations/ai-thinking.json"
-            });
-
-        compactAiLottie.addEventListener(
-            "data_failed",
-            function () {
-                console.error(
-                    "Compact AI Lottie failed to load."
-                );
-            }
-        );
-
-    } catch (error) {
-        console.error(
-            "Compact AI Lottie initialization failed:",
-            error
-        );
-    }
 }
 
     function showCompactAIStreamBox() {
     const aiBody = getEl("dashboardAiBody");
 
     if (!aiBody) return null;
-
-    if (compactAiLottie) {
-        compactAiLottie.destroy();
-        compactAiLottie = null;
-    }
 
     aiBody.innerHTML = `
         <div
@@ -1581,6 +1521,36 @@ document.addEventListener("DOMContentLoaded", function () {
         }, 350);
     }
 
+    function startDashboardAiGlow() {
+    const dashboardAiBody = document.getElementById("dashboardAiBody");
+
+    if (!dashboardAiBody) return;
+
+    dashboardAiBody.classList.remove("ai-glow-complete");
+    dashboardAiBody.classList.add("ai-glow-active");
+}
+
+
+function completeDashboardAiGlow() {
+    const dashboardAiBody = document.getElementById("dashboardAiBody");
+
+    if (!dashboardAiBody) return;
+
+    dashboardAiBody.classList.remove("ai-glow-active");
+    dashboardAiBody.classList.add("ai-glow-complete");
+}
+
+
+function stopDashboardAiGlow() {
+    const dashboardAiBody = document.getElementById("dashboardAiBody");
+
+    if (!dashboardAiBody) return;
+
+    dashboardAiBody.classList.remove(
+        "ai-glow-active",
+        "ai-glow-complete"
+    );
+}
 });
 
 /* =========================================================

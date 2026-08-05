@@ -13,7 +13,6 @@
     rel="stylesheet"
     href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
     <!-- Lucide Icons -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script>
     <script>
         window.currentSymbol={{ data.symbol|tojson }};
         window.currentCompanyName={{ data.name|tojson }};
@@ -221,6 +220,37 @@
             </div>
         </div>
 
+        <section class="compact-ai-analysis hidden" id="compactAiAnalysis">
+            <div class="compact-ai-heading">
+                <div>
+                    <p class="earnings-label">
+                        AI Interpretation
+                    </p>
+
+                    <h3>
+                        What the insider data means
+                    </h3>
+                </div>
+
+                <span
+                    class="ai-stream-status"
+                    id="aiStreamStatus"
+                >
+                    Waiting
+                </span>
+            </div>
+
+            <div
+                class="compact-ai-output"
+                id="dashboardAiBody"
+            >
+                <p class="dashboard-ai-placeholder">
+                    The AI explanation will appear here after
+                    Smart Money Intelligence is prepared.
+                </p>
+            </div>
+        </section>
+
         <div
             class="compact-smart-money hidden"
             id="compactSmartMoney"
@@ -360,39 +390,8 @@
             </section>
         </div>
 
-        <section
-            class="compact-ai-analysis hidden"
-            id="compactAiAnalysis"
-        >
-            <div class="compact-ai-heading">
-                <div>
-                    <p class="earnings-label">
-                        AI Interpretation
-                    </p>
 
-                    <h3>
-                        What the insider data means
-                    </h3>
-                </div>
 
-                <span
-                    class="ai-stream-status"
-                    id="aiStreamStatus"
-                >
-                    Waiting
-                </span>
-            </div>
-
-            <div
-                class="compact-ai-output"
-                id="dashboardAiBody"
-            >
-                <p class="dashboard-ai-placeholder">
-                    The AI explanation will appear here after
-                    Smart Money Intelligence is prepared.
-                </p>
-            </div>
-        </section>
     </div>
 </section>
 

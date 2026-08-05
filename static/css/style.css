@@ -2622,3 +2622,125 @@ nav,
 #newsStreamStatus {
     margin-bottom: 18px;
 }
+
+#dashboardAiBody {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    background: #ffffff;
+}
+
+/* Keep all existing content above the animated background. */
+#dashboardAiBody > * {
+    position: relative;
+    z-index: 2;
+}
+
+/* Blue aurora layer. */
+#dashboardAiBody::before {
+    position: absolute;
+    inset: -35%;
+    z-index: 0;
+    content: "";
+    pointer-events: none;
+    opacity: 0;
+    background:
+        radial-gradient(
+            circle at 18% 82%,
+            rgba(58, 117, 214, 0.22) 0%,
+            rgba(42, 91, 177, 0.12) 24%,
+            transparent 58%
+        ),
+        radial-gradient(
+            circle at 52% 94%,
+            rgba(61, 94, 187, 0.13) 0%,
+            transparent 52%
+        );
+    filter: blur(38px);
+    transform: translate3d(-4%, 5%, 0) scale(1.08);
+    transition: opacity 1.2s ease;
+}
+
+/* Purple aurora layer. */
+#dashboardAiBody::after {
+    position: absolute;
+    inset: -35%;
+    z-index: 1;
+    content: "";
+    pointer-events: none;
+    opacity: 0;
+    background:
+        radial-gradient(
+            circle at 84% 78%,
+            rgba(126, 76, 184, 0.19) 0%,
+            rgba(96, 59, 156, 0.10) 27%,
+            transparent 58%
+        ),
+        radial-gradient(
+            circle at 68% 22%,
+            rgba(48, 56, 124, 0.10) 0%,
+            transparent 48%
+        );
+    filter: blur(44px);
+    transform: translate3d(4%, 3%, 0) scale(1.12);
+    transition: opacity 1.2s ease;
+}
+
+/* Active while the AI request is running. */
+#dashboardAiBody.ai-glow-active::before {
+    opacity: 1;
+    animation: dashboardBlueAurora 15s ease-in-out infinite alternate;
+}
+
+#dashboardAiBody.ai-glow-active::after {
+    opacity: 1;
+    animation: dashboardPurpleAurora 18s ease-in-out infinite alternate;
+}
+
+/* Keep a subtle glow after the analysis finishes. */
+#dashboardAiBody.ai-glow-complete::before {
+    opacity: 0.48;
+    animation: dashboardBlueAurora 24s ease-in-out infinite alternate;
+}
+
+#dashboardAiBody.ai-glow-complete::after {
+    opacity: 0.38;
+    animation: dashboardPurpleAurora 28s ease-in-out infinite alternate;
+}
+
+@keyframes dashboardBlueAurora {
+    0% {
+        transform: translate3d(-5%, 6%, 0) scale(1.06);
+    }
+
+    45% {
+        transform: translate3d(4%, -2%, 0) scale(1.18);
+    }
+
+    100% {
+        transform: translate3d(9%, 4%, 0) scale(1.1);
+    }
+}
+
+@keyframes dashboardPurpleAurora {
+    0% {
+        transform: translate3d(6%, 5%, 0) scale(1.12);
+    }
+
+    50% {
+        transform: translate3d(-4%, -4%, 0) scale(1.2);
+    }
+
+    100% {
+        transform: translate3d(-8%, 3%, 0) scale(1.08);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #dashboardAiBody.ai-glow-active::before,
+    #dashboardAiBody.ai-glow-active::after,
+    #dashboardAiBody.ai-glow-complete::before,
+    #dashboardAiBody.ai-glow-complete::after {
+        animation: none;
+    }
+}

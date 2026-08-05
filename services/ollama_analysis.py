@@ -1,10 +1,10 @@
-import os
-import json
-import time
 import hashlib
-import requests
-from pathlib import Path
+import json
+import os
 import re
+import time
+from pathlib import Path
+import requests
 
 AI_SUMMARY_ENABLED = os.getenv("AI_SUMMARY_ENABLED", "true").lower() == "true"
 OLLAMA_URL = os.getenv(
@@ -291,7 +291,7 @@ SMART MONEY DATA:
         "think": "low",
         "options": {
             "temperature": 0.15,
-            "num_predict": 650,
+            "num_predict": 1600,
             "repeat_penalty": 1.1,
         },
     }
@@ -360,14 +360,15 @@ SMART MONEY DATA:
                 yield response_chunk
 
             if result.get("done"):
-                total_time = (
-                    time.perf_counter()
-                    - request_started_at
-                )
+                total_time = time.perf_counter() - request_started_at
+                done_reason = result.get("done_reason", "unknown")
+                output_tokens = result.get("eval_count", 0)
 
                 print(
                     "[SMART MONEY AI COMPLETE] "
-                    f"{total_time:.2f} seconds"
+                    f"{total_time:.2f} seconds "
+                    f"reason={done_reason} "
+                    f"output_tokens={output_tokens}"
                 )
                 break
 

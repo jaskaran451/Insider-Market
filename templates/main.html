@@ -359,8 +359,8 @@ turns insider activity, smart money movement, news, and forecasts into clear res
                     </p>
                 </div>
 
-                <form class="contact-form" action="/contact" method="POST">
-                    <form class="contact-form" action="/contact" method="POST">
+                <form class="contact-form" action="{{ url_for('contact') }}" method="POST">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
 
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
@@ -383,7 +383,6 @@ turns insider activity, smart money movement, news, and forecasts into clear res
 
     <button type="submit">Send Message</button>
 </form>
-                </form>
             </div>
         </section>
 

@@ -725,9 +725,9 @@ def process_earnings_data(symbol):
     symbol = (symbol or "").upper().strip()
 
     try:
-        # Version the key when transcript-source logic changes so an older,
-        # valid-looking ROIC-only result cannot hide a newer transcript.
-        cache_key = f"earnings_v2_{symbol}"
+        # Version the key when transcript-source logic changes so cached
+        # results from a previous provider strategy are not reused.
+        cache_key = f"earnings_v3_{symbol}"
         cached = load_cache(
             CACHE_FOLDER_earnings,
             cache_key,
@@ -1827,8 +1827,8 @@ def get_roic_period(item):
     year = item.get("year") or item.get("fiscal_year")
     quarter = item.get("quarter") or item.get("fiscal_quarter")
 
-    # Alpha Vantage identifies a period as one value such as "2026Q2".
-    # ROIC normally returns separate integer year and quarter values.
+    # Accept both ROIC's usual separate fields and a combined value such as
+    # "2026Q2" in case the endpoint response format varies.
     quarter_match = re.fullmatch(r"(\d{4})Q([1-4])", str(quarter).upper())
 
     if quarter_match:
@@ -1971,92 +1971,18 @@ def fetch_roic_json(url, params=None):
         return None
 
 
-def fetch_alpha_vantage_transcript(symbol, year, quarter):
-    """Fetch one specific transcript as a freshness fallback for ROIC."""
-
-    if not API_KEY:
-        return None
-
-    try:
-        response = requests.get(
-            "https://www.alphavantage.co/query",
-            params={
-                "function": "EARNINGS_CALL_TRANSCRIPT",
-                "symbol": symbol,
-                "quarter": f"{year}Q{quarter}",
-                "apikey": API_KEY,
-            },
-            timeout=15,
-        )
-
-        if response.status_code != 200:
-            print(
-                "[ALPHA VANTAGE TRANSCRIPT ERROR]",
-                response.status_code,
-                response.text[:300],
-            )
-            return None
-
-        transcript_data = response.json()
-
-        if not is_valid_api_response(transcript_data):
-            print(
-                "[ALPHA VANTAGE TRANSCRIPT UNAVAILABLE]",
-                symbol,
-                f"{year}Q{quarter}",
-            )
-            return None
-
-        return build_earnings_item(
-            symbol,
-            transcript_data,
-            fallback_year=year,
-            fallback_quarter=quarter,
-        )
-
-    except (requests.RequestException, ValueError) as error:
-        print("[ALPHA VANTAGE TRANSCRIPT REQUEST ERROR]", error)
-        return None
-
-
-def get_recent_periods_newer_than(period, max_periods=4):
-    """Return recent fiscal-quarter candidates newer than ``period``."""
-
-    now = datetime.utcnow()
-    year = now.year
-    quarter = ((now.month - 1) // 3) + 1
-    periods = []
-
-    while len(periods) < max_periods:
-        candidate = (year, quarter)
-
-        if period and candidate <= period:
-            break
-
-        periods.append(candidate)
-        year, quarter = get_previous_quarter(year, quarter)
-
-    return periods
-
-
 def fetch_earnings_transcripts(symbol):
-    """
-    Fetch the three most recent available transcripts.
-
-    ROIC remains the primary source. Alpha Vantage checks only quarters newer
-    than ROIC's newest result so a provider delay does not hide a newly released
-    call and the Alpha Vantage request count stays small.
-    """
+    """Fetch the three most recent transcripts currently available from ROIC."""
 
     symbol = (symbol or "").upper().strip()
 
     if not symbol:
         return {"available": False, "message": "A ticker symbol is required.", "items": []}
 
-    if not ROIC_API_KEY and not API_KEY:
+    if not ROIC_API_KEY:
         return {
             "available": False,
-            "message": "Earnings transcript API keys are missing.",
+            "message": "The ROIC earnings transcript API key is missing.",
             "items": [],
         }
 
@@ -2064,10 +1990,8 @@ def fetch_earnings_transcripts(symbol):
     latest_url = f"https://api.roic.ai/v2/company/earnings-calls/latest/{symbol}"
     list_url = f"https://api.roic.ai/v2/company/earnings-calls/list/{symbol}"
 
-    latest_data = (
-        fetch_roic_json(latest_url, params=api_params) if ROIC_API_KEY else None
-    )
-    list_data = fetch_roic_json(list_url, params=api_params) if ROIC_API_KEY else None
+    latest_data = fetch_roic_json(latest_url, params=api_params)
+    list_data = fetch_roic_json(list_url, params=api_params)
 
     earnings_items = []
     loaded_periods = set()
@@ -2162,22 +2086,6 @@ def fetch_earnings_transcripts(symbol):
 
             year, quarter = get_previous_quarter(year, quarter)
 
-    newest_roic_period = latest_period or (periods[0] if periods else None)
-
-    # ROIC can lag a newly published call. Ask Alpha Vantage only for periods
-    # that could be newer, merge any real transcript, then sort all sources.
-    for year, quarter in get_recent_periods_newer_than(newest_roic_period):
-        period = (year, quarter)
-
-        if period in loaded_periods:
-            continue
-
-        item = fetch_alpha_vantage_transcript(symbol, year, quarter)
-
-        if item:
-            earnings_items.append(item)
-            loaded_periods.add(period)
-
     earnings_items.sort(
         key=lambda item: (int(item["year"]), int(item["quarter"])),
         reverse=True,
@@ -2186,10 +2094,11 @@ def fetch_earnings_transcripts(symbol):
     return {
         "available": bool(earnings_items),
         "message": (
-            "Earnings transcripts loaded."
+            "Latest transcripts currently available from ROIC."
             if earnings_items
-            else "No earnings transcripts found."
+            else "No earnings transcripts are currently available from ROIC."
         ),
+        "source": "ROIC",
         "items": earnings_items[:3],
     }
 

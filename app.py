@@ -4,7 +4,9 @@ from config import COMPANY_MAP
 import time
 import threading
 from config import TICKERS
-import os, re
+import os
+import re
+import secrets
 from datetime import datetime, date
 from typing import Dict
 from utils.cache_utils import load_cache, save_cache
@@ -36,7 +38,6 @@ from services.ollama_analysis import (
 from services.google_news_service import google_news_service
 import json
 import queue
-import os
 from dotenv import load_dotenv
 from flask import Flask, render_template, request, redirect, url_for, flash, session
 from flask_login import (
@@ -53,16 +54,23 @@ from flask_bcrypt import Bcrypt
 from database.db import get_db_connection
 import yfinance as yf
 from flask import jsonify
-from dotenv import load_dotenv
 
 load_dotenv()
 
 
 app = Flask(__name__)
 
-# app.secret_key = os.getenv("secret_key1")
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "dev-secret-key")
+secret_key = os.getenv("SECRET_KEY")
+
+if not secret_key:
+    secret_key = secrets.token_urlsafe(32)
+    app.logger.warning(
+        "SECRET_KEY is not configured. Using a temporary key; "
+        "sessions will reset when the application restarts."
+    )
+
+app.config["SECRET_KEY"] = secret_key
 
 API_KEY = os.getenv("ALPHA_VANTAGE_API_KEY")
 FINNHUB_KEY = os.getenv("FINNHUB_API_KEY")
@@ -91,10 +99,6 @@ CACHE_EXPIRY_HOURS = 24
 page_views = defaultdict(int)
 daily_visits = 0
 last_reset = time.time()
-
-load_dotenv()
-
-app.secret_key = os.getenv("SECRET_KEY", "dev-secret-change-this")
 
 bcrypt = Bcrypt(app)
 
@@ -1241,7 +1245,7 @@ def dashboard_earnings_api(symbol):
 @app.route("/chart/<symbol>/<int:months>")
 def insider_chart(symbol, months):
 
-    insider_data = fetch_market_data("insider", symbol)
+    insider_data = edgar_insider_api_adapter.get_insider_transactions(symbol)
     transactions_raw = insider_data.get("data", [])
 
     transactions = []
@@ -1520,7 +1524,6 @@ def smart_money_trend_api():
         result = manager_portfolio_service.analyze(
             query, limit=6, bubble_limit_per_report=75
         )
-        time.sleep(3)
         result = make_json_safe(result)
         status = 200 if result.get("success") else 404
         return jsonify(make_json_safe(result)), status

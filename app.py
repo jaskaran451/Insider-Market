@@ -10,7 +10,8 @@ import secrets
 from datetime import datetime, date
 from typing import Dict
 from utils.cache_utils import load_cache, save_cache
-from collections import defaultdict
+from collections import defaultdict, deque
+from functools import wraps
 from utils.charts import create_insider_chart
 import base64
 import hmac
@@ -122,6 +123,50 @@ def generate_csrf_token():
 
 
 app.jinja_env.globals["csrf_token"] = generate_csrf_token
+
+rate_limit_buckets = defaultdict(deque)
+rate_limit_lock = threading.Lock()
+
+
+def rate_limit(max_requests, window_seconds):
+    def decorator(view_function):
+        @wraps(view_function)
+        def wrapped_view(*args, **kwargs):
+            forwarded_for = request.headers.get("X-Forwarded-For", "")
+            client_ip = (
+                forwarded_for.split(",", 1)[0].strip()
+                or request.remote_addr
+                or "unknown"
+            )
+            key = (view_function.__name__, client_ip)
+            now = time.time()
+
+            with rate_limit_lock:
+                bucket = rate_limit_buckets[key]
+                cutoff = now - window_seconds
+
+                while bucket and bucket[0] <= cutoff:
+                    bucket.popleft()
+
+                if len(bucket) >= max_requests:
+                    retry_after = max(1, int(window_seconds - (now - bucket[0])) + 1)
+                    response = jsonify(
+                        {
+                            "success": False,
+                            "message": "Too many requests. Please try again later.",
+                        }
+                    )
+                    response.status_code = 429
+                    response.headers["Retry-After"] = str(retry_after)
+                    return response
+
+                bucket.append(now)
+
+            return view_function(*args, **kwargs)
+
+        return wrapped_view
+
+    return decorator
 
 
 @app.before_request
@@ -896,6 +941,7 @@ def landing():
 
 
 @app.route("/api/smart-money/<symbol>/prepare", methods=["POST"])
+@rate_limit(30, 3600)
 def prepare_smart_money_intelligence(symbol):
     symbol = symbol.upper().strip()
 
@@ -1063,6 +1109,7 @@ def dashboard_news_api(symbol):
 
 
 @app.route("/api/dashboard/<symbol>/news-stream")
+@rate_limit(20, 3600)
 def dashboard_news_stream_api(symbol):
     symbol = symbol.upper().strip()
 
@@ -1404,6 +1451,7 @@ def insider_dashboard():
 
 
 @app.route("/api/smart-money/<symbol>/ai-explanation-stream", methods=["POST"])
+@rate_limit(20, 3600)
 def smart_money_ai_explanation_stream(symbol):
     symbol = symbol.upper().strip()
 
@@ -1551,6 +1599,7 @@ def smart_money_trend_page():
 
 
 @app.route("/api/smart-money-trend", methods=["GET"])
+@rate_limit(30, 3600)
 def smart_money_trend_api():
     query = request.args.get("query")
     if not query:
@@ -1570,6 +1619,7 @@ def smart_money_trend_api():
 
 
 @app.route("/api/company-dashboard/<symbol>/ai-analysis-stream", methods=["POST"])
+@rate_limit(20, 3600)
 def company_dashboard_ai_analysis_stream(symbol):
     symbol = symbol.upper().strip()
 
@@ -1590,6 +1640,7 @@ def company_dashboard_ai_analysis_stream(symbol):
 
 
 @app.route("/api/predict/<symbol>/ai-analysis-stream", methods=["POST"])
+@rate_limit(20, 3600)
 def predict_stock_ai_analysis_stream(symbol):
     symbol = symbol.upper().strip()
 
@@ -1618,6 +1669,7 @@ def predict_stock_ai_analysis_stream(symbol):
 
 
 @app.route("/api/predict/<symbol>/stream")
+@rate_limit(8, 3600)
 def predict_stock_stream(symbol):
     symbol = symbol.upper().strip()
 
@@ -1663,6 +1715,7 @@ def prediction():
 
 
 @app.route("/api/predict/<symbol>")
+@rate_limit(8, 3600)
 def predict_stock(symbol):
     symbol = symbol.upper().strip()
 

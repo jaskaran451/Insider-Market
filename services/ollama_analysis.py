@@ -319,7 +319,6 @@ SMART MONEY DATA:
 
         first_output_received = False
         final_response_received = False
-        thinking_text = []
 
         for line in response.iter_lines():
             if not line:
@@ -342,11 +341,7 @@ SMART MONEY DATA:
             if stream_error:
                 raise RuntimeError(stream_error)
 
-            thinking_chunk = result.get("thinking", "")
             response_chunk = result.get("response", "")
-
-            if thinking_chunk:
-                thinking_text.append(thinking_chunk)
 
             if response_chunk and not first_output_received:
                 first_output_received = True
@@ -379,16 +374,10 @@ SMART MONEY DATA:
         if final_response_received:
             return
 
-        combined_thinking = "".join(thinking_text).strip()
-
-        if combined_thinking:
-            print(
-                "[SMART MONEY AI THINKING-ONLY RESPONSE] "
-                "No final response field was returned."
-            )
-
-            yield combined_thinking
-            return
+        print(
+            "[SMART MONEY AI RESPONSE MISSING] "
+            "The model returned no final response text."
+        )
 
         print(
             "[SMART MONEY AI EMPTY RESPONSE] "

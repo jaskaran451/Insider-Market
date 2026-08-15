@@ -80,6 +80,8 @@ ROIC_API_KEY = os.getenv("ROIC_API_KEY")
 CACHE_FOLDER_insider = "cache/insider"
 CACHE_FOLDER_institutions = "cache/institutions"
 CACHE_FOLDER_news = "cache/news"
+CACHE_FOLDER_earnings = "cache/earnings"
+EARNINGS_CACHE_SECONDS = 60 * 60
 dashboard_ai_data_cache = {}
 smart_money_ai_cache = {}
 SMART_MONEY_CACHE_SECONDS = 6 * 60 * 60
@@ -87,6 +89,7 @@ SMART_MONEY_CACHE_SECONDS = 6 * 60 * 60
 os.makedirs(CACHE_FOLDER_insider, exist_ok=True)
 os.makedirs(CACHE_FOLDER_institutions, exist_ok=True)
 os.makedirs(CACHE_FOLDER_news, exist_ok=True)
+os.makedirs(CACHE_FOLDER_earnings, exist_ok=True)
 
 
 stock_cache = {ticker: {"price": "--", "change": 0, "percent": 0} for ticker in TICKERS}
@@ -719,8 +722,27 @@ def process_news_data(symbol, company_name):
 
 
 def process_earnings_data(symbol):
+    symbol = (symbol or "").upper().strip()
+
     try:
-        return fetch_earnings_transcripts(symbol)
+        # Version the key when transcript-source logic changes so cached
+        # results from a previous provider strategy are not reused.
+        cache_key = f"earnings_v3_{symbol}"
+        cached = load_cache(
+            CACHE_FOLDER_earnings,
+            cache_key,
+            max_age_seconds=EARNINGS_CACHE_SECONDS,
+        )
+
+        if cached:
+            return cached
+
+        earnings = fetch_earnings_transcripts(symbol)
+
+        if earnings.get("available"):
+            save_cache(CACHE_FOLDER_earnings, cache_key, earnings)
+
+        return earnings
 
     except Exception as error:
         print(f"[EARNINGS PROCESSING ERROR] {symbol}:", error)
@@ -1798,9 +1820,145 @@ def get_previous_quarter(year, quarter):
     return year, quarter - 1
 
 
-def fetch_roic_json(url):
+def get_roic_period(item):
+    if not isinstance(item, dict):
+        return None
+
+    year = item.get("year") or item.get("fiscal_year")
+    quarter = item.get("quarter") or item.get("fiscal_quarter")
+
+    # Accept both ROIC's usual separate fields and a combined value such as
+    # "2026Q2" in case the endpoint response format varies.
+    quarter_match = re.fullmatch(r"(\d{4})Q([1-4])", str(quarter).upper())
+
+    if quarter_match:
+        return int(quarter_match.group(1)), int(quarter_match.group(2))
+
+    if isinstance(quarter, str):
+        quarter = quarter.upper().removeprefix("Q")
+
     try:
-        response = requests.get(url, timeout=15)
+        year = int(year)
+        quarter = int(quarter)
+    except (TypeError, ValueError):
+        return None
+
+    if quarter not in (1, 2, 3, 4):
+        return None
+
+    return year, quarter
+
+
+def extract_roic_periods(payload):
+    if isinstance(payload, list):
+        rows = payload
+    elif isinstance(payload, dict):
+        rows = []
+
+        for key in (
+            "data",
+            "items",
+            "earnings_calls",
+            "earningsCalls",
+            "calls",
+            "transcripts",
+        ):
+            value = payload.get(key)
+
+            if isinstance(value, list):
+                rows = value
+                break
+
+            if isinstance(value, dict):
+                rows = list(value.values())
+                break
+    else:
+        rows = []
+
+    periods = []
+    seen = set()
+
+    for row in rows:
+        period = get_roic_period(row)
+
+        if period and period not in seen:
+            periods.append(period)
+            seen.add(period)
+
+    return sorted(periods, reverse=True)
+
+
+def get_roic_transcript_text(data):
+    if not isinstance(data, dict):
+        return ""
+
+    transcript = data.get("content") or data.get("transcript") or ""
+
+    if isinstance(transcript, str):
+        return clean_transcript_text(transcript)
+
+    if not isinstance(transcript, list):
+        return ""
+
+    sections = []
+
+    for section in transcript:
+        if isinstance(section, str):
+            text = section.strip()
+
+            if text:
+                sections.append(text)
+
+            continue
+
+        if not isinstance(section, dict):
+            continue
+
+        speaker = str(section.get("speaker") or "").strip()
+        text = str(section.get("text") or section.get("content") or "").strip()
+
+        if not text:
+            continue
+
+        sections.append(f"{speaker}: {text}" if speaker else text)
+
+    return clean_transcript_text("\n\n".join(sections))
+
+
+def build_earnings_item(symbol, transcript_data, fallback_year=None, fallback_quarter=None):
+    if not isinstance(transcript_data, dict):
+        return None
+
+    transcript_text = get_roic_transcript_text(transcript_data)
+
+    if not transcript_text:
+        return None
+
+    period = get_roic_period(transcript_data)
+
+    if period:
+        year, quarter = period
+    else:
+        try:
+            year = int(fallback_year)
+            quarter = int(fallback_quarter)
+        except (TypeError, ValueError):
+            return None
+
+    return {
+        "symbol": transcript_data.get("symbol", symbol),
+        "year": year,
+        "quarter": quarter,
+        "date": transcript_data.get("date", ""),
+        "title": f"{symbol} Q{quarter} {year} Earnings Call Transcript",
+        "preview": make_transcript_preview(transcript_text),
+        "transcript": transcript_text,
+    }
+
+
+def fetch_roic_json(url, params=None):
+    try:
+        response = requests.get(url, params=params, timeout=15)
 
         if response.status_code != 200:
             print("[ROIC API ERROR]", response.status_code, response.text[:300])
@@ -1808,95 +1966,140 @@ def fetch_roic_json(url):
 
         return response.json()
 
-    except Exception as error:
+    except (requests.RequestException, ValueError) as error:
         print("[ROIC REQUEST ERROR]", error)
         return None
 
 
 def fetch_earnings_transcripts(symbol):
-    """
-    Fetches latest earnings transcript + previous quarter transcript from ROIC.
-    """
+    """Fetch the three most recent transcripts currently available from ROIC."""
+
+    symbol = (symbol or "").upper().strip()
+
+    if not symbol:
+        return {"available": False, "message": "A ticker symbol is required.", "items": []}
 
     if not ROIC_API_KEY:
-        return {"available": False, "message": "ROIC API key is missing.", "items": []}
-
-    symbol = symbol.upper().strip()
-
-    latest_url = (
-        f"https://api.roic.ai/v2/company/earnings-calls/latest/{symbol}"
-        f"?apikey={ROIC_API_KEY}"
-    )
-
-    latest_data = fetch_roic_json(latest_url)
-
-    if not latest_data:
         return {
             "available": False,
-            "message": "Latest earnings call data is not available.",
+            "message": "The ROIC earnings transcript API key is missing.",
             "items": [],
         }
 
-    latest_year = latest_data.get("year")
-    latest_quarter = latest_data.get("quarter")
+    api_params = {"apikey": ROIC_API_KEY}
+    latest_url = f"https://api.roic.ai/v2/company/earnings-calls/latest/{symbol}"
+    list_url = f"https://api.roic.ai/v2/company/earnings-calls/list/{symbol}"
 
-    if not latest_year or not latest_quarter:
-        return {
-            "available": False,
-            "message": "Latest earnings call year/quarter not found.",
-            "items": [],
-        }
-
-    latest_year = int(latest_year)
-    latest_quarter = int(latest_quarter)
-
-    periods = []
-
-    year = latest_year
-    quarter = latest_quarter
-
-    for _ in range(3):
-        periods.append((year, quarter))
-        year, quarter = get_previous_quarter(year, quarter)
+    latest_data = fetch_roic_json(latest_url, params=api_params)
+    list_data = fetch_roic_json(list_url, params=api_params)
 
     earnings_items = []
+    loaded_periods = set()
+    attempted_periods = set()
+
+    latest_item = build_earnings_item(symbol, latest_data)
+
+    if latest_item:
+        latest_period = (latest_item["year"], latest_item["quarter"])
+        earnings_items.append(latest_item)
+        loaded_periods.add(latest_period)
+
+    periods = extract_roic_periods(list_data)
+    latest_period = get_roic_period(latest_data)
+
+    if latest_period and latest_period not in periods:
+        periods.insert(0, latest_period)
 
     for year, quarter in periods:
+        if len(earnings_items) >= 3:
+            break
+
+        period = (year, quarter)
+
+        if period in loaded_periods:
+            continue
+
+        attempted_periods.add(period)
         transcript_url = (
             f"https://api.roic.ai/v2/company/earnings-calls/transcript/{symbol}"
-            f"?apikey={ROIC_API_KEY}&year={year}&quarter={quarter}"
+        )
+        transcript_data = fetch_roic_json(
+            transcript_url,
+            params={
+                "apikey": ROIC_API_KEY,
+                "year": year,
+                "quarter": quarter,
+            },
+        )
+        item = build_earnings_item(
+            symbol,
+            transcript_data,
+            fallback_year=year,
+            fallback_quarter=quarter,
         )
 
-        transcript_data = fetch_roic_json(transcript_url)
+        if item:
+            earnings_items.append(item)
+            loaded_periods.add(period)
 
-        if not transcript_data:
-            continue
+    # If the list endpoint is incomplete or unavailable, search older periods
+    # until three real transcripts are found. This also tolerates missing calls.
+    if len(earnings_items) < 3:
+        if periods:
+            year, quarter = periods[-1]
+        elif latest_period:
+            year, quarter = latest_period
+        else:
+            year, quarter = datetime.utcnow().year, 4
 
-        transcript_text = transcript_data.get("content", "")
+        year, quarter = get_previous_quarter(year, quarter)
 
-        if not transcript_text:
-            continue
+        for _ in range(12):
+            if len(earnings_items) >= 3:
+                break
 
-        transcript_text = clean_transcript_text(transcript_text)
+            period = (year, quarter)
 
-        earnings_items.append(
-            {
-                "symbol": transcript_data.get("symbol", symbol),
-                "year": transcript_data.get("year", year),
-                "quarter": transcript_data.get("quarter", quarter),
-                "date": transcript_data.get("date", ""),
-                "title": f"{symbol} Q{quarter} {year} Earnings Call Transcript",
-                "preview": make_transcript_preview(transcript_text),
-                "transcript": transcript_text,
-            }
-        )
+            if period not in loaded_periods and period not in attempted_periods:
+                attempted_periods.add(period)
+                transcript_url = (
+                    f"https://api.roic.ai/v2/company/earnings-calls/transcript/{symbol}"
+                )
+                transcript_data = fetch_roic_json(
+                    transcript_url,
+                    params={
+                        "apikey": ROIC_API_KEY,
+                        "year": year,
+                        "quarter": quarter,
+                    },
+                )
+                item = build_earnings_item(
+                    symbol,
+                    transcript_data,
+                    fallback_year=year,
+                    fallback_quarter=quarter,
+                )
+
+                if item:
+                    earnings_items.append(item)
+                    loaded_periods.add(period)
+
+            year, quarter = get_previous_quarter(year, quarter)
+
+    earnings_items.sort(
+        key=lambda item: (int(item["year"]), int(item["quarter"])),
+        reverse=True,
+    )
 
     return {
-        "available": len(earnings_items) > 0,
-        "message": "Earnings transcripts loaded."
-        if earnings_items
-        else "No earnings transcripts found.",
-        "items": earnings_items,
+        "available": bool(earnings_items),
+        "message": (
+            "Latest transcripts currently available from ROIC."
+            if earnings_items
+            else "No earnings transcripts are currently available from ROIC."
+        ),
+        "source": "ROIC",
+        "items": earnings_items[:3],
     }
 
 
